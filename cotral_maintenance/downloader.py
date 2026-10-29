@@ -1,0 +1,91 @@
+"""Download orchestration: cache lookup, panorama search, image fetch, save."""
+
+import logging
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+
+from .errors import TransportError
+from .models import Stop, View
+from .panoramas import choose_shots, find_nearby_shots
+from .storage import ImageStore
+from .streetview import ImageSource
+
+logger = logging.getLogger(__name__)
+
+
+class Outcome(Enum):
+    DOWNLOADED = "downloaded"
+    CACHED = "cached"
+    NO_IMAGERY = "no_imagery"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True)
+class DownloadResult:
+    stop_id: str
+    view: View
+    outcome: Outcome
+    path: Path | None = None
+
+
+def download_stop(
+    stop: Stop,
+    views: Sequence[View],
+    client: ImageSource,
+    store: ImageStore,
+    force: bool = False,
+) -> list[DownloadResult]:
+    """Fetch every view of one stop, skipping views already on disk unless `force`.
+
+    Raises ApiError (fatal) and TransportError.
+    """
+    pending = [view for view in views if force or not store.has(stop.stop_id, view)]
+    results = [
+        DownloadResult(stop.stop_id, view, Outcome.CACHED, store.image_path(stop.stop_id, view))
+        for view in views
+        if view not in pending
+    ]
+    for result in results:
+        logger.debug("Cached: stop %s view %s", stop.stop_id, result.view.key)
+    if not pending:
+        return results
+
+    candidates = find_nearby_shots(client, stop)
+    if not candidates:
+        logger.info("No imagery near stop %s (%s)", stop.stop_id, stop.name)
+        return results + [DownloadResult(stop.stop_id, v, Outcome.NO_IMAGERY) for v in pending]
+
+    for view, shot in zip(pending, choose_shots(candidates, pending)):
+        image = client.get_image(shot.pano.pano_id, shot.heading, view)
+        path = store.save(stop, view, image, shot)
+        logger.info(
+            "Downloaded stop %s (%s) from %.0f m, heading %.0f° -> %s",
+            stop.stop_id, stop.name, shot.distance_m, shot.heading, path,
+        )
+        results.append(DownloadResult(stop.stop_id, view, Outcome.DOWNLOADED, path))
+    return results
+
+
+def download_stops(
+    stops: Iterable[Stop],
+    views: Sequence[View],
+    client: ImageSource,
+    store: ImageStore,
+    force: bool = False,
+) -> list[DownloadResult]:
+    """Process every stop in order.
+
+    Network failures are logged and the stop is skipped; ApiError propagates,
+    since it would affect every following request too.
+    """
+    results: list[DownloadResult] = []
+    for stop in stops:
+        try:
+            stop_results = download_stop(stop, views, client, store, force)
+        except TransportError as exc:
+            logger.error("Failed stop %s (%s): %s", stop.stop_id, stop.name, exc)
+            stop_results = [DownloadResult(stop.stop_id, v, Outcome.FAILED) for v in views]
+        results.extend(stop_results)
+    return results

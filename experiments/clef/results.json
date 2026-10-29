@@ -1,0 +1,338 @@
+[
+  {
+    "image": "../../images/1019/auto_p+00_f090_640x640.jpg",
+    "latency_s": 10.47,
+    "input_tokens": 1040,
+    "answers": {
+      "stop_visible": {
+        "type": "noul",
+        "noul": 0.1683
+      },
+      "shelter": {
+        "type": "noul",
+        "noul": 0.0683
+      },
+      "bench": {
+        "type": "noul",
+        "noul": 0.0798
+      },
+      "scene": {
+        "type": "choice",
+        "choice": "suburban",
+        "confidence": 0.5006,
+        "probabilities": {
+          "urban_street": 0.2966,
+          "suburban": 0.5006,
+          "rural": 0.0361,
+          "parking_or_lot": 0.073,
+          "waterfront": 0.0937
+        }
+      },
+      "condition": {
+        "type": "score",
+        "score": 2.0683,
+        "confidence": 0.4339,
+        "legend": {
+          "0": "Badly damaged or neglected",
+          "1": "Worn, needs some work",
+          "2": "Acceptable",
+          "3": "Good condition"
+        },
+        "probabilities": {
+          "0": 0.0182,
+          "1": 0.2216,
+          "2": 0.4339,
+          "3": 0.3263
+        }
+      }
+    }
+  },
+  {
+    "image": "../../images/1019/d000_p+00_f090_640x640.jpg",
+    "latency_s": 2.81,
+    "input_tokens": 1046,
+    "answers": {
+      "stop_visible": {
+        "type": "noul",
+        "noul": 0.2108
+      },
+      "shelter": {
+        "type": "noul",
+        "noul": 0.0321
+      },
+      "bench": {
+        "type": "noul",
+        "noul": 0.0311
+      },
+      "scene": {
+        "type": "choice",
+        "choice": "waterfront",
+        "confidence": 0.9102,
+        "probabilities": {
+          "urban_street": 0.0258,
+          "suburban": 0.0326,
+          "rural": 0.0136,
+          "parking_or_lot": 0.0177,
+          "waterfront": 0.9102
+        }
+      },
+      "condition": {
+        "type": "score",
+        "score": 2.3736,
+        "confidence": 0.5166,
+        "legend": {
+          "0": "Badly damaged or neglected",
+          "1": "Worn, needs some work",
+          "2": "Acceptable",
+          "3": "Good condition"
+        },
+        "probabilities": {
+          "0": 0.0223,
+          "1": 0.0984,
+          "2": 0.3627,
+          "3": 0.5166
+        }
+      }
+    }
+  },
+  {
+    "image": "../../images/1019/d020_p+00_f090_640x640.jpg",
+    "latency_s": 2.84,
+    "input_tokens": 1046,
+    "answers": {
+      "stop_visible": {
+        "type": "noul",
+        "noul": 0.1257
+      },
+      "shelter": {
+        "type": "noul",
+        "noul": 0.0213
+      },
+      "bench": {
+        "type": "noul",
+        "noul": 0.0283
+      },
+      "scene": {
+        "type": "choice",
+        "choice": "waterfront",
+        "confidence": 0.8913,
+        "probabilities": {
+          "urban_street": 0.0395,
+          "suburban": 0.0461,
+          "rural": 0.0128,
+          "parking_or_lot": 0.0103,
+          "waterfront": 0.8913
+        }
+      },
+      "condition": {
+        "type": "score",
+        "score": 2.493,
+        "confidence": 0.6278,
+        "legend": {
+          "0": "Badly damaged or neglected",
+          "1": "Worn, needs some work",
+          "2": "Acceptable",
+          "3": "Good condition"
+        },
+        "probabilities": {
+          "0": 0.0222,
+          "1": 0.0904,
+          "2": 0.2596,
+          "3": 0.6278
+        }
+      }
+    }
+  },
+  {
+    "image": "../../images/1019/d040_p+00_f090_640x640.jpg",
+    "latency_s": 2.82,
+    "input_tokens": 1046,
+    "answers": {
+      "stop_visible": {
+        "type": "noul",
+        "noul": 0.1249
+      },
+      "shelter": {
+        "type": "noul",
+        "noul": 0.0203
+      },
+      "bench": {
+        "type": "noul",
+        "noul": 0.0492
+      },
+      "scene": {
+        "type": "choice",
+        "choice": "waterfront",
+        "confidence": 0.7799,
+        "probabilities": {
+          "urban_street": 0.0769,
+          "suburban": 0.1068,
+          "rural": 0.021,
+          "parking_or_lot": 0.0154,
+          "waterfront": 0.7799
+        }
+      },
+      "condition": {
+        "type": "score",
+        "score": 2.5002,
+        "confidence": 0.6264,
+        "legend": {
+          "0": "Badly damaged or neglected",
+          "1": "Worn, needs some work",
+          "2": "Acceptable",
+          "3": "Good condition"
+        },
+        "probabilities": {
+          "0": 0.0184,
+          "1": 0.0894,
+          "2": 0.2658,
+          "3": 0.6264
+        }
+      }
+    }
+  },
+  {
+    "image": "../../images/1021/d000_p+00_f090_640x640.jpg",
+    "latency_s": 2.82,
+    "input_tokens": 1042,
+    "answers": {
+      "stop_visible": {
+        "type": "noul",
+        "noul": 0.4294
+      },
+      "shelter": {
+        "type": "noul",
+        "noul": 0.0203
+      },
+      "bench": {
+        "type": "noul",
+        "noul": 0.0162
+      },
+      "scene": {
+        "type": "choice",
+        "choice": "parking_or_lot",
+        "confidence": 0.738,
+        "probabilities": {
+          "urban_street": 0.0311,
+          "suburban": 0.1787,
+          "rural": 0.0459,
+          "parking_or_lot": 0.738,
+          "waterfront": 0.0063
+        }
+      },
+      "condition": {
+        "type": "score",
+        "score": 1.3285,
+        "confidence": 0.5861,
+        "legend": {
+          "0": "Badly damaged or neglected",
+          "1": "Worn, needs some work",
+          "2": "Acceptable",
+          "3": "Good condition"
+        },
+        "probabilities": {
+          "0": 0.0784,
+          "1": 0.5861,
+          "2": 0.2642,
+          "3": 0.0714
+        }
+      }
+    }
+  },
+  {
+    "image": "../../images/1021/d020_p+00_f090_640x640.jpg",
+    "latency_s": 2.83,
+    "input_tokens": 1042,
+    "answers": {
+      "stop_visible": {
+        "type": "noul",
+        "noul": 0.7001
+      },
+      "shelter": {
+        "type": "noul",
+        "noul": 0.6531
+      },
+      "bench": {
+        "type": "noul",
+        "noul": 0.0443
+      },
+      "scene": {
+        "type": "choice",
+        "choice": "suburban",
+        "confidence": 0.5841,
+        "probabilities": {
+          "urban_street": 0.1483,
+          "suburban": 0.5841,
+          "rural": 0.0351,
+          "parking_or_lot": 0.2296,
+          "waterfront": 0.0029
+        }
+      },
+      "condition": {
+        "type": "score",
+        "score": 0.8922,
+        "confidence": 0.6381,
+        "legend": {
+          "0": "Badly damaged or neglected",
+          "1": "Worn, needs some work",
+          "2": "Acceptable",
+          "3": "Good condition"
+        },
+        "probabilities": {
+          "0": 0.2441,
+          "1": 0.6381,
+          "2": 0.0992,
+          "3": 0.0185
+        }
+      }
+    }
+  },
+  {
+    "image": "../../images/1021/d040_p+00_f090_640x640.jpg",
+    "latency_s": 2.85,
+    "input_tokens": 1042,
+    "answers": {
+      "stop_visible": {
+        "type": "noul",
+        "noul": 0.8476
+      },
+      "shelter": {
+        "type": "noul",
+        "noul": 0.0821
+      },
+      "bench": {
+        "type": "noul",
+        "noul": 0.0408
+      },
+      "scene": {
+        "type": "choice",
+        "choice": "parking_or_lot",
+        "confidence": 0.474,
+        "probabilities": {
+          "urban_street": 0.1697,
+          "suburban": 0.2932,
+          "rural": 0.0591,
+          "parking_or_lot": 0.474,
+          "waterfront": 0.004
+        }
+      },
+      "condition": {
+        "type": "score",
+        "score": 1.7254,
+        "confidence": 0.4787,
+        "legend": {
+          "0": "Badly damaged or neglected",
+          "1": "Worn, needs some work",
+          "2": "Acceptable",
+          "3": "Good condition"
+        },
+        "probabilities": {
+          "0": 0.0254,
+          "1": 0.3599,
+          "2": 0.4787,
+          "3": 0.1361
+        }
+      }
+    }
+  }
+]

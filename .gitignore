@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+images/
+logs/
+data/
+.idea/
+.pytest_cache/
+# GTFS feed (~200 MB, too large for git). Each run logs the sha256 of stops.txt.
+google_transit/

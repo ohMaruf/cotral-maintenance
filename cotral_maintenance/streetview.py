@@ -24,10 +24,12 @@ class ImageSource(Protocol):
 
 
 class StreetViewClient:
-    def __init__(self, api_key: str, timeout_s: float = 20.0) -> None:
+    def __init__(
+        self, api_key: str, timeout_s: float = 20.0, referrer: str | None = None
+    ) -> None:
         self._api_key = api_key
         self._timeout_s = timeout_s
-        self._session = build_session()
+        self._session = build_session(referrer)
 
     def __enter__(self) -> Self:
         return self

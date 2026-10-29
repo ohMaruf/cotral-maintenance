@@ -9,11 +9,13 @@ from dotenv import load_dotenv
 from .errors import ConfigError
 
 API_KEY_VAR = "MAPS_API_KEY"
+REFERRER_VAR = "MAPS_API_REFERRER"
 
 
 @dataclass(frozen=True)
 class Settings:
     api_key: str
+    referrer: str | None = None
     stops_file: Path = Path("google_transit/stops.txt")
     images_dir: Path = Path("images")
     places_raw_dir: Path = Path("data/places_raw")
@@ -28,4 +30,4 @@ class Settings:
         api_key = os.getenv(API_KEY_VAR)
         if not api_key:
             raise ConfigError(f"{API_KEY_VAR} is not set (expected in {env_file})")
-        return cls(api_key=api_key)
+        return cls(api_key=api_key, referrer=os.getenv(REFERRER_VAR) or None)

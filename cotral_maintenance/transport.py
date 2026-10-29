@@ -12,7 +12,9 @@ RETRY_BACKOFF_S = 0.5
 ERROR_BODY_CHARS = 300
 
 
-def build_session() -> requests.Session:
+def build_session(referrer: str | None = None) -> requests.Session:
+    """Session with retries. `referrer` is sent on every request, for keys restricted
+    to specific websites (HTTP-referrer restriction)."""
     retry = Retry(
         total=MAX_RETRIES,
         backoff_factor=RETRY_BACKOFF_S,
@@ -21,6 +23,8 @@ def build_session() -> requests.Session:
         allowed_methods=frozenset({"GET", "POST"}),
     )
     session = requests.Session()
+    if referrer:
+        session.headers["Referer"] = referrer
     session.mount("https://", HTTPAdapter(max_retries=retry))
     return session
 

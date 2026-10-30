@@ -36,3 +36,9 @@ def offset(lat: float, lon: float, bearing: float, distance: float) -> tuple[flo
         math.cos(delta) - math.sin(phi1) * math.sin(phi2),
     )
     return math.degrees(phi2), math.degrees(lambda2)
+
+
+def angle_between(a: float, b: float) -> float:
+    """Smallest angle between two compass bearings, in [0, 180]."""
+    d = abs(a - b) % 360
+    return min(d, 360 - d)

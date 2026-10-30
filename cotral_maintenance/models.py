@@ -13,11 +13,11 @@ class Stop:
 
 @dataclass(frozen=True)
 class View:
-    """How to photograph a stop: from the panorama closest to `distance_m` away,
-    with the camera aimed at the stop. Several views per stop give several images.
+    """One named image in a stop's shot plan, with its camera settings.
+    The shot plan (panoramas.plan_shots) decides the panorama and heading.
     """
 
-    distance_m: float = 0.0
+    name: str
     pitch: float = 0.0
     fov: float = 90.0
     size: str = "640x640"
@@ -25,7 +25,7 @@ class View:
     @property
     def key(self) -> str:
         """Stable identifier, used as the cache file name."""
-        return f"d{self.distance_m:03.0f}_p{self.pitch:+03.0f}_f{self.fov:03.0f}_{self.size}"
+        return self.name
 
     def to_params(self) -> dict[str, str]:
         return {"pitch": str(self.pitch), "fov": str(self.fov), "size": self.size}

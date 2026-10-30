@@ -6,23 +6,28 @@ from cotral_maintenance.downloader import Outcome, download_stop, download_stops
 from cotral_maintenance.errors import ApiError, NoImageryError, ServerError, TransportError
 from cotral_maintenance.geo import distance_m, offset
 from cotral_maintenance.models import PanoMetadata, Stop, View
+from cotral_maintenance.panoramas import VIEWS, find_nearby_shots, plan_shots
 from cotral_maintenance.storage import ImageStore
 
 STOP = Stop(stop_id="1019", name="GAETA", lat=41.2, lon=13.5)
 
 
-def pano_near_stop(pano_id: str, bearing: float, distance: float) -> PanoMetadata:
+def pano_near_stop(pano_id: str, bearing: float, distance: float, date: str = "2025-05") -> PanoMetadata:
     lat, lon = offset(STOP.lat, STOP.lon, bearing, distance)
-    return PanoMetadata(pano_id=pano_id, lat=lat, lon=lon, date="2025-05", copyright="© Google")
+    return PanoMetadata(pano_id=pano_id, lat=lat, lon=lon, date=date, copyright="© Google")
 
 
-# West of the stop at 5 m, north at 22 m, south at 41 m.
+# A road running east-west: panoramas 1 m and 7 m west, 8 m east, plus one 22 m north.
 PANOS = [
-    pano_near_stop("near", 270, 5),
-    pano_near_stop("mid", 0, 22),
-    pano_near_stop("far", 180, 41),
+    pano_near_stop("at", 270, 1),
+    pano_near_stop("west", 270, 7),
+    pano_near_stop("east", 90, 8, date="2023-09"),
+    pano_near_stop("north", 0, 22),
 ]
-VIEWS = [View(distance_m=0), View(distance_m=20), View(distance_m=40)]
+
+
+def requests_by_view(client) -> dict[str, tuple[str, float]]:
+    return {view: (pano_id, round(heading)) for pano_id, heading, view in client.image_requests}
 
 
 class FakeClient:
@@ -32,7 +37,7 @@ class FakeClient:
         self.panos = panos
         self.metadata_error = metadata_error
         self.metadata_calls = 0
-        self.image_requests: list[tuple[str, float]] = []
+        self.image_requests: list[tuple[str, float, str]] = []
 
     def get_metadata(self, lat: float, lon: float, radius_m: float) -> PanoMetadata:
         self.metadata_calls += 1
@@ -48,7 +53,7 @@ class FakeClient:
         return min(in_range, key=lambda pair: pair[0])[1]
 
     def get_image(self, pano_id: str, heading: float, view: View) -> bytes:
-        self.image_requests.append((pano_id, heading))
+        self.image_requests.append((pano_id, heading, view.name))
         return b"jpeg-bytes"
 
 
@@ -57,31 +62,68 @@ def store(tmp_path):
     return ImageStore(tmp_path)
 
 
-def test_each_view_uses_panorama_closest_to_its_distance(store):
+def test_converging_shots_come_from_opposite_sides_and_face_the_stop(store):
     client = FakeClient()
 
     download_stop(STOP, VIEWS, client, store)
 
-    assert [pano_id for pano_id, _ in client.image_requests] == ["near", "mid", "far"]
+    requests = requests_by_view(client)
+    # "at" is nearest but not 5-10 m away; west and east are, on opposite sides.
+    assert {requests["converge_a"], requests["converge_b"]} == {("west", 90), ("east", 270)}
 
 
-def test_camera_is_aimed_at_the_stop(store):
+def test_sky_shots_look_outwards_from_the_nearest_panorama(store):
     client = FakeClient()
 
     download_stop(STOP, VIEWS, client, store)
 
-    headings = [round(heading) for _, heading in client.image_requests]
-    # Panoramas lie west, north and south of the stop, so cameras face east, south and north.
-    assert headings == [90, 180, 0]
+    requests = requests_by_view(client)
+    assert {requests["sky_a"], requests["sky_b"]} == {("at", 270), ("at", 90)}
+
+
+def test_converging_falls_back_to_wider_distances():
+    client = FakeClient(panos=[pano_near_stop("n", 0, 15), pano_near_stop("s", 180, 16)])
+
+    plan = plan_shots(find_nearby_shots(client, STOP))
+
+    assert {plan["converge_a"].pano.pano_id, plan["converge_b"].pano.pano_id} == {"n", "s"}
+
+
+def test_single_panorama_gives_one_converging_shot(store):
+    client = FakeClient(panos=[pano_near_stop("only", 270, 6)])
+
+    results = download_stop(STOP, VIEWS, client, store)
+
+    outcomes = {r.view.name: r.outcome for r in results}
+    assert outcomes["converge_b"] == Outcome.NO_IMAGERY
+    assert outcomes["converge_a"] == outcomes["sky_a"] == outcomes["sky_b"] == Outcome.DOWNLOADED
 
 
 def test_sidecar_records_distance_and_heading(store):
-    results = download_stop(STOP, [View(distance_m=0)], FakeClient(), store)
+    results = download_stop(STOP, VIEWS, FakeClient(), store)
 
-    sidecar = json.loads(results[0].path.with_suffix(".json").read_text())
-    assert sidecar["shot"]["pano"]["pano_id"] == "near"
-    assert sidecar["shot"]["distance_m"] == pytest.approx(5, abs=0.1)
-    assert sidecar["shot"]["heading"] == pytest.approx(90, abs=0.1)
+    path = next(r.path for r in results if r.view.name == "sky_a")
+    sidecar = json.loads(path.with_suffix(".json").read_text())
+    assert sidecar["shot"]["pano"]["pano_id"] == "at"
+    assert sidecar["shot"]["distance_m"] == pytest.approx(1, abs=0.1)
+
+
+def test_manifest_dates_the_stop_by_its_oldest_image(store):
+    download_stop(STOP, VIEWS, FakeClient(), store)
+
+    manifest = json.loads(store.manifest_path(STOP.stop_id).read_text())
+    assert manifest["imagery_date"] == "2023-09"
+    assert manifest["converge_separation_deg"] == pytest.approx(180, abs=1)
+    assert [i["view"] for i in manifest["images"]] == [v.name for v in VIEWS]
+
+
+def test_manifest_is_rebuilt_when_all_images_are_cached(store):
+    download_stop(STOP, VIEWS, FakeClient(), store)
+    store.manifest_path(STOP.stop_id).unlink()
+
+    download_stop(STOP, VIEWS, FakeClient(), store)
+
+    assert store.manifest_path(STOP.stop_id).is_file()
 
 
 def test_second_run_uses_cache(store):
@@ -102,7 +144,7 @@ def test_force_redownloads(store):
     results = download_stop(STOP, VIEWS, client, store, force=True)
 
     assert {r.outcome for r in results} == {Outcome.DOWNLOADED}
-    assert len(client.image_requests) == 3
+    assert len(client.image_requests) == len(VIEWS)
 
 
 def test_only_missing_views_are_fetched(store):
@@ -124,7 +166,7 @@ def test_no_panoramas_is_reported_not_raised(store):
 def test_transport_error_skips_stop(store):
     client = FakeClient(metadata_error=TransportError("down"))
 
-    results = download_stops([STOP], [View()], client, store)
+    results = download_stops([STOP], [View("converge_a")], client, store)
 
     assert [r.outcome for r in results] == [Outcome.FAILED]
 
@@ -133,7 +175,7 @@ def test_api_error_is_fatal(store):
     client = FakeClient(metadata_error=ApiError("REQUEST_DENIED"))
 
     with pytest.raises(ApiError):
-        download_stops([STOP], [View()], client, store)
+        download_stops([STOP], [View("converge_a")], client, store)
 
 
 def test_server_error_at_one_sample_point_is_skipped(store):
@@ -150,9 +192,9 @@ def test_server_error_at_one_sample_point_is_skipped(store):
 
 
 def test_user_photospheres_are_ignored(store):
-    user_pano = PanoMetadata("user", *offset(STOP.lat, STOP.lon, 0, 20), copyright="© Some User")
-    client = FakeClient(panos=[PANOS[0], user_pano])
+    user_pano = PanoMetadata("user", *offset(STOP.lat, STOP.lon, 90, 7), copyright="© Some User")
+    client = FakeClient(panos=[pano_near_stop("west", 270, 7), user_pano])
 
-    download_stop(STOP, [View(distance_m=20)], client, store)
+    download_stop(STOP, VIEWS, client, store)
 
-    assert [pano_id for pano_id, _ in client.image_requests] == ["near"]
+    assert {pano_id for pano_id, _, _ in client.image_requests} == {"west"}

@@ -18,7 +18,8 @@ from .config import Settings
 from .downloader import download_stops
 from .errors import ApiError, CotralMaintenanceError
 from .logging_setup import setup_logging
-from .models import Stop, View
+from .models import Stop
+from .panoramas import VIEWS
 from .places import PlacesClient
 from .provenance import append_run, git_state, sha256_file, utc_now
 from .stops import is_cotral_stop, load_stops, sample_order, select_stops
@@ -27,8 +28,6 @@ from .streetview import StreetViewClient
 from .verification import RawPlacesStore, build_dataset, fetch_stops, write_dataset
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_DISTANCES_M = [0.0, 20.0, 40.0]
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -50,10 +49,8 @@ def run_phase1_verify_stops(args: argparse.Namespace, settings: Settings, stops:
 
 
 def run_phase2_download_images(args: argparse.Namespace, settings: Settings, stops: list[Stop]) -> dict:
-    distances = args.distances or DEFAULT_DISTANCES_M
-    views = [View(distance_m=d, pitch=args.pitch, fov=args.fov) for d in distances]
     with StreetViewClient(settings.api_key, settings.request_timeout_s, settings.referrer) as client:
-        results = download_stops(stops, views, client, ImageStore(settings.images_dir), args.force)
+        results = download_stops(stops, VIEWS, client, ImageStore(settings.images_dir), args.force)
     return dict(Counter(result.outcome.value for result in results))
 
 
@@ -97,15 +94,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--force", action="store_true", help="Redo stops that are already done.")
     parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
-
-    images = parser.add_argument_group("phase 2: images")
-    images.add_argument(
-        "--distance", action="append", type=float, dest="distances", metavar="M",
-        help="Shoot from a panorama about M metres from the stop, camera aimed at it "
-        "(repeatable, one image each). Default: 0, 20, 40.",
-    )
-    images.add_argument("--pitch", type=float, default=0.0)
-    images.add_argument("--fov", type=float, default=90.0)
     return parser
 
 

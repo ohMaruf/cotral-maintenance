@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .errors import TransportError
 from .models import Stop, View
-from .panoramas import choose_shots, find_nearby_shots
+from .panoramas import find_nearby_shots, plan_shots
 from .storage import ImageStore
 from .streetview import ImageSource
 
@@ -50,21 +50,27 @@ def download_stop(
     for result in results:
         logger.debug("Cached: stop %s view %s", stop.stop_id, result.view.key)
     if not pending:
+        # Rebuilt from the sidecars, in case a run was interrupted before writing it.
+        store.write_manifest(stop, views)
         return results
 
-    candidates = find_nearby_shots(client, stop)
-    if not candidates:
+    plan = plan_shots(find_nearby_shots(client, stop))
+    if not plan:
         logger.info("No imagery near stop %s (%s)", stop.stop_id, stop.name)
-        return results + [DownloadResult(stop.stop_id, v, Outcome.NO_IMAGERY) for v in pending]
-
-    for view, shot in zip(pending, choose_shots(candidates, pending)):
+    for view in pending:
+        shot = plan.get(view.name)
+        if shot is None:
+            results.append(DownloadResult(stop.stop_id, view, Outcome.NO_IMAGERY))
+            continue
         image = client.get_image(shot.pano.pano_id, shot.heading, view)
         path = store.save(stop, view, image, shot)
         logger.info(
-            "Downloaded stop %s (%s) from %.0f m, heading %.0f° -> %s",
-            stop.stop_id, stop.name, shot.distance_m, shot.heading, path,
+            "Downloaded stop %s (%s) %s from %.0f m, heading %.0f° -> %s",
+            stop.stop_id, stop.name, view.name, shot.distance_m, shot.heading, path,
         )
         results.append(DownloadResult(stop.stop_id, view, Outcome.DOWNLOADED, path))
+    if plan:
+        store.write_manifest(stop, views)
     return results
 
 

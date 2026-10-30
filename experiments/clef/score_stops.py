@@ -1,17 +1,26 @@
 """Score bus stop maintenance needs with mlx-community/clef-flash-8bit.
 
-Each stop directory (images/<stop_id>/*.jpg) is scored jointly: all its photos go into one request.
-With --per-image, every photo is also scored on its own for comparison.
+All photos of a stop go into one request. When the stop has a stop.json manifest
+(the shot plan: converge_a/b face the stop, sky_a/b look up and outwards for lamps),
+the photos are sent in plan order and the model is told what each one shows.
 
-Scores are expected values over 5 severity levels, so they are real numbers in [0, 4]:
-0 = no maintenance needed ... 4 = severe. "<category>_visible" is the probability that the
-element is visible in the photos at all, to tell "fine" apart from "not shown".
+Scores are real numbers in [0, 4]: 0 = no maintenance needed ... 4 = severe.
+Each is the expected severity under the model's probabilities. For shelter, seating,
+signage and lighting, an element that does not appear in any photo counts as missing,
+which is severe: the score mixes "visible, in this condition" with "missing" by the
+model's probability that the element is visible.
 
-Usage: .venv/bin/python score_stops.py [image_dir] [--per-image] [--out scores.json]
+Confidence, in [0, 1], is P(the stop can be judged from these photos) times how
+peaked the score distributions are (1 - normalised entropy):
+  confidence: averaged over the six category scores.
+  maintenance_confidence: for requires_maintenance.
+
+Usage: .venv/bin/python score_stops.py [image_dir] [--out scores.json]
 """
 
 import argparse
 import json
+import math
 import sys
 import time
 from pathlib import Path
@@ -26,29 +35,39 @@ SEVERITY = [
     "Significant: clearly damaged, deficient or partly missing",
     "Severe: broken, missing, unsafe or unusable",
 ]
+MISSING_LEVEL = len(SEVERITY) - 1
 
 CATEGORIES = {
-    "shelter": "the bus shelter (roof, panels, frame, glass). A stop that clearly has no shelter counts as deficient.",
-    "seating": "seating for waiting passengers (benches, seats). A stop that clearly has no seating counts as deficient.",
-    "signage": "bus stop signage (stop pole, stop sign, timetable or route information): missing, damaged, faded, illegible or tilted.",
-    "waiting_area": "the passenger waiting area (pavement or platform surface, cleanliness, litter, weeds, overgrown vegetation, standing space).",
-    "lighting": "lighting at the stop (street lamps or shelter lights near the waiting area): missing, damaged or poorly placed.",
-    "accessibility": "accessibility (kerb height, ramps, step-free access, tactile paving, uneven or broken surfaces, obstacles blocking wheelchairs or prams).",
+    "shelter": "the bus shelter (roof, panels, frame, glass)",
+    "seating": "seating for waiting passengers (benches, seats, including seats inside a shelter)",
+    "signage": "bus stop signage (stop pole, stop sign, timetable or route information)",
+    "waiting_area": "the passenger waiting area (pavement or platform surface, cleanliness, litter, weeds, overgrown vegetation, standing space)",
+    "lighting": "lighting that illuminates the waiting area (street lamps nearby, or lights built into the shelter)",
+    "accessibility": "accessibility (kerb height, ramps, step-free access, tactile paving, uneven or broken surfaces, obstacles blocking wheelchairs or prams)",
+}
+# Elements a stop may lack entirely; for these, not visible in any photo means missing.
+CAN_BE_MISSING = ("shelter", "seating", "signage", "lighting")
+
+VIEW_ROLES = {
+    "converge_a": "faces the stop from one side, 5-10 m away",
+    "converge_b": "faces the stop from the opposite side",
+    "sky_a": "taken at the stop, looking up and outwards along the road, to show street lamps",
+    "sky_b": "taken at the stop, looking up and outwards in the other direction",
 }
 
 
 def build_questions() -> dict:
     questions = {}
     for name, what in CATEGORIES.items():
-        questions[f"{name}_visible"] = {
-            "type": "noul",
-            "instructions": f"Is {what.split(' (')[0]} visible in at least one of the photos?",
-        }
-        questions[name] = {
-            "type": "score",
-            "instructions": f"How much maintenance does {what} Judge only from what the photos show.",
-            "criteria": SEVERITY,
-        }
+        if name in CAN_BE_MISSING:
+            questions[f"{name}_visible"] = {
+                "type": "noul",
+                "instructions": f"Does {what.split(' (')[0]} appear in at least one of the photos?",
+            }
+            condition = f"If {what} appears in the photos, how much maintenance does it need?"
+        else:
+            condition = f"How much maintenance does {what} need?"
+        questions[name] = {"type": "score", "instructions": condition, "criteria": SEVERITY}
     questions["requires_maintenance"] = {
         "type": "score",
         "instructions": (
@@ -58,56 +77,78 @@ def build_questions() -> dict:
         ),
         "criteria": SEVERITY,
     }
+    questions["assessable"] = {
+        "type": "noul",
+        "instructions": (
+            "Can the maintenance needs of this bus stop be judged reliably from these photos? Answer no if "
+            "the photos cannot show the stop and its facilities, for example a large bus station seen only "
+            "from outside, a stop hidden by vehicles or works, a stop in a restricted area, the camera not "
+            "showing where the stop is, or photos too dark or blurred to judge."
+        ),
+    }
     return questions
 
 
 QUESTIONS = build_questions()
-SCORE_KEYS = [*CATEGORIES, "requires_maintenance"]
 
 
-def state_for(stop_dir: Path, n_images: int) -> dict:
-    metas = [json.loads(p.read_text()) for p in sorted(stop_dir.glob("*.json"))]
-    stop = metas[0]["stop"] if metas else {}
-    return {
+def load_stop(stop_dir: Path) -> tuple[dict, list[Path], list[str | None]]:
+    """(manifest or {}, image paths, view names) in shot plan order when there is a manifest."""
+    manifest_path = stop_dir / "stop.json"
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text())
+        return manifest, [stop_dir / i["file"] for i in manifest["images"]], [i["view"] for i in manifest["images"]]
+    images = sorted(stop_dir.glob("*.jpg"))
+    return {}, images, [None] * len(images)
+
+
+def state_for(stop_dir: Path, manifest: dict, views: list[str | None]) -> dict:
+    stop = manifest.get("stop") or {}
+    if not stop:
+        sidecars = sorted(stop_dir.glob("*.json"))
+        stop = json.loads(sidecars[0].read_text()).get("stop", {}) if sidecars else {}
+    state = {
         "task": (
-            f"These {n_images} street-level photos all show the same Cotral bus stop from different angles. "
-            "Assess how much maintenance the stop needs, combining evidence across all photos."
-            if n_images > 1 else
-            "This street-level photo shows a Cotral bus stop. Assess how much maintenance the stop needs."
+            f"These {len(views)} street-level photos all show the same Cotral bus stop. Assess how much "
+            "maintenance the stop needs, combining evidence across all photos. Together the photos cover "
+            "the stop from several angles."
         ),
         "stop_name": stop.get("name"),
-        "stop_id": stop.get("stop_id"),
     }
+    if any(views):
+        state["photos"] = [f"Photo {i}: {VIEW_ROLES.get(v, v)}" for i, v in enumerate(views, 1)]
+    return state
 
 
-def flatten(answers: dict) -> dict:
-    out = {k: answers[k]["score"] for k in SCORE_KEYS}
-    out.update({f"{k}_visible": answers[f"{k}_visible"]["noul"] for k in CATEGORIES})
+def sharpness(probs: list[float]) -> float:
+    """1 - normalised entropy: 1 for a certain answer, 0 for a uniform one."""
+    entropy = -sum(p * math.log(p) for p in probs if p > 0)
+    return 1 - entropy / math.log(len(probs))
+
+
+def category_distribution(answers: dict, name: str) -> list[float]:
+    probs = [answers[name]["probabilities"][str(i)] for i in range(len(SEVERITY))]
+    if name not in CAN_BE_MISSING:
+        return probs
+    visible = answers[f"{name}_visible"]["noul"]
+    return [visible * p + (1 - visible) * (i == MISSING_LEVEL) for i, p in enumerate(probs)]
+
+
+def summarise(answers: dict) -> dict:
+    assessable = answers["assessable"]["noul"]
+    dists = {name: category_distribution(answers, name) for name in CATEGORIES}
+    overall = [answers["requires_maintenance"]["probabilities"][str(i)] for i in range(len(SEVERITY))]
+    out = {name: round(sum(i * p for i, p in enumerate(d)), 3) for name, d in dists.items()}
+    out["requires_maintenance"] = round(sum(i * p for i, p in enumerate(overall)), 3)
+    out["confidence"] = round(assessable * sum(map(sharpness, dists.values())) / len(dists), 3)
+    out["maintenance_confidence"] = round(assessable * sharpness(overall), 3)
+    out["assessable"] = assessable
     return out
-
-
-def score(model, stop_dir: Path, images: list[Path]) -> tuple[dict, dict]:
-    t0 = time.perf_counter()
-    response = model.systemone({
-        "model": "clef-flash",
-        "state": state_for(stop_dir, len(images)),
-        "images": [Image.open(p).convert("RGB") for p in images],
-        "questions": QUESTIONS,
-    })
-    meta = {"latency_s": round(time.perf_counter() - t0, 2), "input_tokens": response["usage"]["input_tokens"]}
-    return response["answers"], meta
-
-
-def print_row(label: str, flat: dict) -> None:
-    cells = "  ".join(f"{flat[k]:4.2f}({flat.get(f'{k}_visible', 1):.2f})" if k in CATEGORIES
-                      else f"{flat[k]:4.2f}" for k in SCORE_KEYS)
-    print(f"{label:28} {cells}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("image_dir", nargs="?", default="../../images")
-    parser.add_argument("--per-image", action="store_true", help="also score each photo on its own")
     parser.add_argument("--out", default="scores.json")
     parser.add_argument("--model", default="mlx-community/clef-flash-8bit")
     args = parser.parse_args()
@@ -117,24 +158,34 @@ def main() -> None:
     import clef_mlx
 
     model = clef_mlx.load(path)
-    print(f"{'':28} " + "  ".join(f"{k[:10]:>10}" for k in SCORE_KEYS) + "   score(visible)")
+    columns = [*CATEGORIES, "requires_maintenance", "confidence", "maintenance_confidence"]
+    print(f"{'stop':8} {'date':8} " + " ".join(f"{c[:11]:>11}" for c in columns))
 
     results = []
     for stop_dir in sorted(p for p in Path(args.image_dir).iterdir() if p.is_dir()):
-        images = sorted(stop_dir.glob("*.jpg"))
+        manifest, images, views = load_stop(stop_dir)
         if not images:
             continue
-        answers, meta = score(model, stop_dir, images)
-        entry = {"stop_dir": str(stop_dir), "images": [p.name for p in images], **meta,
-                 "joint": flatten(answers), "joint_raw": answers}
-        print_row(f"{stop_dir.name} joint x{len(images)} {meta['latency_s']:.1f}s", entry["joint"])
-        if args.per_image:
-            entry["per_image"] = {}
-            for img in images:
-                answers, meta = score(model, stop_dir, [img])
-                entry["per_image"][img.name] = flatten(answers)
-                print_row(f"  {img.name[:20]} {meta['latency_s']:.1f}s", entry["per_image"][img.name])
-        results.append(entry)
+        t0 = time.perf_counter()
+        response = model.systemone({
+            "model": "clef-flash",
+            "state": state_for(stop_dir, manifest, views),
+            "images": [Image.open(p).convert("RGB") for p in images],
+            "questions": QUESTIONS,
+        })
+        scores = summarise(response["answers"])
+        results.append({
+            "stop_id": stop_dir.name,
+            "imagery_date": manifest.get("imagery_date"),
+            "converge_separation_deg": manifest.get("converge_separation_deg"),
+            "images": [p.name for p in images],
+            "latency_s": round(time.perf_counter() - t0, 2),
+            "input_tokens": response["usage"]["input_tokens"],
+            "scores": scores,
+            "raw": response["answers"],
+        })
+        print(f"{stop_dir.name:8} {manifest.get('imagery_date') or '-':8} "
+              + " ".join(f"{scores[c]:11.2f}" for c in columns))
 
     Path(args.out).write_text(json.dumps(results, indent=2, ensure_ascii=False))
     print(f"wrote {args.out}", file=sys.stderr)

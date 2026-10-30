@@ -1,38 +1,37 @@
 [
   {
-    "stop_dir": "../../images/1019",
+    "stop_id": "1019",
+    "imagery_date": null,
+    "converge_separation_deg": null,
     "images": [
       "auto_p+00_f090_640x640.jpg",
       "d000_p+00_f090_640x640.jpg",
       "d020_p+00_f090_640x640.jpg",
       "d040_p+00_f090_640x640.jpg"
     ],
-    "latency_s": 11.6,
-    "input_tokens": 3615,
-    "joint": {
-      "shelter": 2.001,
-      "seating": 2.4591,
-      "signage": 1.1728,
-      "waiting_area": 0.7279,
-      "lighting": 0.6434,
-      "accessibility": 0.7067,
-      "requires_maintenance": 0.7693,
-      "shelter_visible": 0.0601,
-      "seating_visible": 0.0376,
-      "signage_visible": 0.1272,
-      "waiting_area_visible": 0.296,
-      "lighting_visible": 0.3489,
-      "accessibility_visible": 0.0943
+    "latency_s": 11.43,
+    "input_tokens": 3548,
+    "scores": {
+      "shelter": 3.824,
+      "seating": 3.857,
+      "signage": 3.55,
+      "waiting_area": 0.675,
+      "lighting": 2.17,
+      "accessibility": 0.708,
+      "requires_maintenance": 0.682,
+      "confidence": 0.086,
+      "maintenance_confidence": 0.055,
+      "assessable": 0.1592
     },
-    "joint_raw": {
+    "raw": {
       "shelter_visible": {
         "type": "noul",
-        "noul": 0.0601
+        "noul": 0.0628
       },
       "shelter": {
         "type": "score",
-        "score": 2.001,
-        "confidence": 0.2809,
+        "score": 1.2055,
+        "confidence": 0.3607,
         "legend": {
           "0": "No maintenance needed: in good condition",
           "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
@@ -41,21 +40,21 @@
           "4": "Severe: broken, missing, unsafe or unusable"
         },
         "probabilities": {
-          "0": 0.1908,
-          "1": 0.2809,
-          "2": 0.0912,
-          "3": 0.2104,
-          "4": 0.2266
+          "0": 0.3469,
+          "1": 0.3607,
+          "2": 0.1242,
+          "3": 0.0762,
+          "4": 0.0919
         }
       },
       "seating_visible": {
         "type": "noul",
-        "noul": 0.0376
+        "noul": 0.0571
       },
       "seating": {
         "type": "score",
-        "score": 2.4591,
-        "confidence": 0.3649,
+        "score": 1.4891,
+        "confidence": 0.3302,
         "legend": {
           "0": "No maintenance needed: in good condition",
           "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
@@ -64,21 +63,21 @@
           "4": "Severe: broken, missing, unsafe or unusable"
         },
         "probabilities": {
-          "0": 0.1135,
-          "1": 0.1923,
-          "2": 0.0727,
-          "3": 0.3649,
-          "4": 0.2567
+          "0": 0.2971,
+          "1": 0.3302,
+          "2": 0.1023,
+          "3": 0.1273,
+          "4": 0.1431
         }
       },
       "signage_visible": {
         "type": "noul",
-        "noul": 0.1272
+        "noul": 0.1408
       },
       "signage": {
         "type": "score",
-        "score": 1.1728,
-        "confidence": 0.406,
+        "score": 0.8047,
+        "confidence": 0.5683,
         "legend": {
           "0": "No maintenance needed: in good condition",
           "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
@@ -87,21 +86,17 @@
           "4": "Severe: broken, missing, unsafe or unusable"
         },
         "probabilities": {
-          "0": 0.406,
-          "1": 0.2993,
-          "2": 0.0858,
-          "3": 0.1339,
-          "4": 0.0751
+          "0": 0.5683,
+          "1": 0.2397,
+          "2": 0.063,
+          "3": 0.0769,
+          "4": 0.052
         }
-      },
-      "waiting_area_visible": {
-        "type": "noul",
-        "noul": 0.296
       },
       "waiting_area": {
         "type": "score",
-        "score": 0.7279,
-        "confidence": 0.528,
+        "score": 0.6751,
+        "confidence": 0.5281,
         "legend": {
           "0": "No maintenance needed: in good condition",
           "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
@@ -110,21 +105,21 @@
           "4": "Severe: broken, missing, unsafe or unusable"
         },
         "probabilities": {
-          "0": 0.528,
-          "1": 0.3104,
-          "2": 0.0872,
-          "3": 0.0544,
-          "4": 0.02
+          "0": 0.5281,
+          "1": 0.3344,
+          "2": 0.0852,
+          "3": 0.0389,
+          "4": 0.0134
         }
       },
       "lighting_visible": {
         "type": "noul",
-        "noul": 0.3489
+        "noul": 0.52
       },
       "lighting": {
         "type": "score",
-        "score": 0.6434,
-        "confidence": 0.6443,
+        "score": 0.48,
+        "confidence": 0.7059,
         "legend": {
           "0": "No maintenance needed: in good condition",
           "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
@@ -133,21 +128,17 @@
           "4": "Severe: broken, missing, unsafe or unusable"
         },
         "probabilities": {
-          "0": 0.6443,
-          "1": 0.1973,
-          "2": 0.0638,
-          "3": 0.0599,
-          "4": 0.0347
+          "0": 0.7059,
+          "1": 0.1849,
+          "2": 0.0549,
+          "3": 0.0322,
+          "4": 0.0222
         }
-      },
-      "accessibility_visible": {
-        "type": "noul",
-        "noul": 0.0943
       },
       "accessibility": {
         "type": "score",
-        "score": 0.7067,
-        "confidence": 0.5511,
+        "score": 0.7076,
+        "confidence": 0.5556,
         "legend": {
           "0": "No maintenance needed: in good condition",
           "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
@@ -156,17 +147,17 @@
           "4": "Severe: broken, missing, unsafe or unusable"
         },
         "probabilities": {
-          "0": 0.5511,
-          "1": 0.2904,
-          "2": 0.0791,
-          "3": 0.0595,
-          "4": 0.0199
+          "0": 0.5556,
+          "1": 0.275,
+          "2": 0.0939,
+          "3": 0.0572,
+          "4": 0.0183
         }
       },
       "requires_maintenance": {
         "type": "score",
-        "score": 0.7693,
-        "confidence": 0.4337,
+        "score": 0.6823,
+        "confidence": 0.4715,
         "legend": {
           "0": "No maintenance needed: in good condition",
           "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
@@ -175,110 +166,51 @@
           "4": "Severe: broken, missing, unsafe or unusable"
         },
         "probabilities": {
-          "0": 0.4337,
-          "1": 0.4303,
-          "2": 0.0799,
-          "3": 0.0454,
-          "4": 0.0108
+          "0": 0.4715,
+          "1": 0.4194,
+          "2": 0.0723,
+          "3": 0.0288,
+          "4": 0.008
         }
-      }
-    },
-    "per_image": {
-      "auto_p+00_f090_640x640.jpg": {
-        "shelter": 1.8683,
-        "seating": 2.3279,
-        "signage": 1.5899,
-        "waiting_area": 1.1996,
-        "lighting": 0.8615,
-        "accessibility": 1.276,
-        "requires_maintenance": 1.1216,
-        "shelter_visible": 0.1733,
-        "seating_visible": 0.1056,
-        "signage_visible": 0.1907,
-        "waiting_area_visible": 0.3053,
-        "lighting_visible": 0.317,
-        "accessibility_visible": 0.0947
       },
-      "d000_p+00_f090_640x640.jpg": {
-        "shelter": 2.4193,
-        "seating": 2.7414,
-        "signage": 1.815,
-        "waiting_area": 0.9153,
-        "lighting": 1.1965,
-        "accessibility": 1.0713,
-        "requires_maintenance": 1.2231,
-        "shelter_visible": 0.0721,
-        "seating_visible": 0.0328,
-        "signage_visible": 0.2006,
-        "waiting_area_visible": 0.35,
-        "lighting_visible": 0.1629,
-        "accessibility_visible": 0.0759
-      },
-      "d020_p+00_f090_640x640.jpg": {
-        "shelter": 2.3924,
-        "seating": 2.7771,
-        "signage": 1.7058,
-        "waiting_area": 1.1092,
-        "lighting": 1.0551,
-        "accessibility": 1.1092,
-        "requires_maintenance": 1.1881,
-        "shelter_visible": 0.0338,
-        "seating_visible": 0.0225,
-        "signage_visible": 0.1192,
-        "waiting_area_visible": 0.2207,
-        "lighting_visible": 0.4396,
-        "accessibility_visible": 0.0756
-      },
-      "d040_p+00_f090_640x640.jpg": {
-        "shelter": 2.5186,
-        "seating": 2.5572,
-        "signage": 1.7491,
-        "waiting_area": 0.8924,
-        "lighting": 0.7619,
-        "accessibility": 0.8936,
-        "requires_maintenance": 1.1166,
-        "shelter_visible": 0.0323,
-        "seating_visible": 0.028,
-        "signage_visible": 0.1422,
-        "waiting_area_visible": 0.4238,
-        "lighting_visible": 0.4787,
-        "accessibility_visible": 0.1478
+      "assessable": {
+        "type": "noul",
+        "noul": 0.1592
       }
     }
   },
   {
-    "stop_dir": "../../images/1021",
+    "stop_id": "1021",
+    "imagery_date": null,
+    "converge_separation_deg": null,
     "images": [
       "d000_p+00_f090_640x640.jpg",
       "d020_p+00_f090_640x640.jpg",
       "d040_p+00_f090_640x640.jpg"
     ],
-    "latency_s": 11.53,
-    "input_tokens": 3209,
-    "joint": {
-      "shelter": 1.9208,
-      "seating": 2.6361,
-      "signage": 0.9224,
-      "waiting_area": 1.6021,
-      "lighting": 1.366,
-      "accessibility": 1.578,
-      "requires_maintenance": 1.5237,
-      "shelter_visible": 0.2108,
-      "seating_visible": 0.0666,
-      "signage_visible": 0.9315,
-      "waiting_area_visible": 0.5655,
-      "lighting_visible": 0.1144,
-      "accessibility_visible": 0.4998
+    "latency_s": 10.12,
+    "input_tokens": 3142,
+    "scores": {
+      "shelter": 3.526,
+      "seating": 3.844,
+      "signage": 1.152,
+      "waiting_area": 1.641,
+      "lighting": 3.491,
+      "accessibility": 1.662,
+      "requires_maintenance": 1.537,
+      "confidence": 0.224,
+      "maintenance_confidence": 0.113,
+      "assessable": 0.5708
     },
-    "joint_raw": {
+    "raw": {
       "shelter_visible": {
         "type": "noul",
-        "noul": 0.2108
+        "noul": 0.2114
       },
       "shelter": {
         "type": "score",
-        "score": 1.9208,
-        "confidence": 0.3418,
+        "score": 1.7585,
+        "confidence": 0.3399,
         "legend": {
           "0": "No maintenance needed: in good condition",
           "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
@@ -287,21 +219,21 @@
           "4": "Severe: broken, missing, unsafe or unusable"
         },
         "probabilities": {
-          "0": 0.0694,
-          "1": 0.3418,
-          "2": 0.2924,
-          "3": 0.1914,
-          "4": 0.1051
+          "0": 0.1161,
+          "1": 0.3399,
+          "2": 0.293,
+          "3": 0.1716,
+          "4": 0.0795
         }
       },
       "seating_visible": {
         "type": "noul",
-        "noul": 0.0666
+        "noul": 0.0809
       },
       "seating": {
         "type": "score",
-        "score": 2.6361,
-        "confidence": 0.3677,
+        "score": 2.0774,
+        "confidence": 0.2869,
         "legend": {
           "0": "No maintenance needed: in good condition",
           "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
@@ -310,21 +242,21 @@
           "4": "Severe: broken, missing, unsafe or unusable"
         },
         "probabilities": {
-          "0": 0.0609,
-          "1": 0.1727,
-          "2": 0.1173,
-          "3": 0.3677,
-          "4": 0.2814
+          "0": 0.1318,
+          "1": 0.2869,
+          "2": 0.1615,
+          "3": 0.2115,
+          "4": 0.2082
         }
       },
       "signage_visible": {
         "type": "noul",
-        "noul": 0.9315
+        "noul": 0.8998
       },
       "signage": {
         "type": "score",
-        "score": 0.9224,
-        "confidence": 0.4221,
+        "score": 0.8349,
+        "confidence": 0.4797,
         "legend": {
           "0": "No maintenance needed: in good condition",
           "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
@@ -333,21 +265,17 @@
           "4": "Severe: broken, missing, unsafe or unusable"
         },
         "probabilities": {
-          "0": 0.4221,
-          "1": 0.3513,
-          "2": 0.136,
-          "3": 0.0635,
-          "4": 0.0272
+          "0": 0.4797,
+          "1": 0.322,
+          "2": 0.1117,
+          "3": 0.0568,
+          "4": 0.0297
         }
-      },
-      "waiting_area_visible": {
-        "type": "noul",
-        "noul": 0.5655
       },
       "waiting_area": {
         "type": "score",
-        "score": 1.6021,
-        "confidence": 0.385,
+        "score": 1.6412,
+        "confidence": 0.3895,
         "legend": {
           "0": "No maintenance needed: in good condition",
           "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
@@ -356,21 +284,21 @@
           "4": "Severe: broken, missing, unsafe or unusable"
         },
         "probabilities": {
-          "0": 0.1147,
-          "1": 0.385,
-          "2": 0.3268,
-          "3": 0.1305,
+          "0": 0.094,
+          "1": 0.3895,
+          "2": 0.341,
+          "3": 0.1325,
           "4": 0.043
         }
       },
       "lighting_visible": {
         "type": "noul",
-        "noul": 0.1144
+        "noul": 0.1597
       },
       "lighting": {
         "type": "score",
-        "score": 1.366,
-        "confidence": 0.3951,
+        "score": 0.8128,
+        "confidence": 0.5757,
         "legend": {
           "0": "No maintenance needed: in good condition",
           "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
@@ -379,21 +307,17 @@
           "4": "Severe: broken, missing, unsafe or unusable"
         },
         "probabilities": {
-          "0": 0.3951,
-          "1": 0.2094,
-          "2": 0.1326,
-          "3": 0.16,
-          "4": 0.1029
+          "0": 0.5757,
+          "1": 0.2037,
+          "2": 0.1004,
+          "3": 0.0723,
+          "4": 0.0478
         }
-      },
-      "accessibility_visible": {
-        "type": "noul",
-        "noul": 0.4998
       },
       "accessibility": {
         "type": "score",
-        "score": 1.578,
-        "confidence": 0.3046,
+        "score": 1.6621,
+        "confidence": 0.3288,
         "legend": {
           "0": "No maintenance needed: in good condition",
           "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
@@ -402,17 +326,17 @@
           "4": "Severe: broken, missing, unsafe or unusable"
         },
         "probabilities": {
-          "0": 0.1895,
-          "1": 0.3046,
-          "2": 0.2976,
-          "3": 0.155,
-          "4": 0.0533
+          "0": 0.1596,
+          "1": 0.2924,
+          "2": 0.3288,
+          "3": 0.1647,
+          "4": 0.0545
         }
       },
       "requires_maintenance": {
         "type": "score",
-        "score": 1.5237,
-        "confidence": 0.4278,
+        "score": 1.5369,
+        "confidence": 0.432,
         "legend": {
           "0": "No maintenance needed: in good condition",
           "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
@@ -421,59 +345,16 @@
           "4": "Severe: broken, missing, unsafe or unusable"
         },
         "probabilities": {
-          "0": 0.1036,
-          "1": 0.4278,
-          "2": 0.3358,
-          "3": 0.1069,
-          "4": 0.0259
+          "0": 0.0964,
+          "1": 0.432,
+          "2": 0.3338,
+          "3": 0.114,
+          "4": 0.0238
         }
-      }
-    },
-    "per_image": {
-      "d000_p+00_f090_640x640.jpg": {
-        "shelter": 2.5587,
-        "seating": 3.161,
-        "signage": 1.4638,
-        "waiting_area": 1.9433,
-        "lighting": 2.207,
-        "accessibility": 2.2247,
-        "requires_maintenance": 2.156,
-        "shelter_visible": 0.0863,
-        "seating_visible": 0.0158,
-        "signage_visible": 0.5283,
-        "waiting_area_visible": 0.3316,
-        "lighting_visible": 0.0467,
-        "accessibility_visible": 0.0671
       },
-      "d020_p+00_f090_640x640.jpg": {
-        "shelter": 1.5833,
-        "seating": 2.1068,
-        "signage": 1.2296,
-        "waiting_area": 2.1422,
-        "lighting": 1.3612,
-        "accessibility": 2.409,
-        "requires_maintenance": 1.7915,
-        "shelter_visible": 0.7635,
-        "seating_visible": 0.1669,
-        "signage_visible": 0.4576,
-        "waiting_area_visible": 0.5694,
-        "lighting_visible": 0.1217,
-        "accessibility_visible": 0.1128
-      },
-      "d040_p+00_f090_640x640.jpg": {
-        "shelter": 1.5935,
-        "seating": 2.4106,
-        "signage": 0.9621,
-        "waiting_area": 1.354,
-        "lighting": 1.4361,
-        "accessibility": 1.4971,
-        "requires_maintenance": 1.1904,
-        "shelter_visible": 0.3298,
-        "seating_visible": 0.0857,
-        "signage_visible": 0.9529,
-        "waiting_area_visible": 0.5535,
-        "lighting_visible": 0.1422,
-        "accessibility_visible": 0.561
+      "assessable": {
+        "type": "noul",
+        "noul": 0.5708
       }
     }
   }

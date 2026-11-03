@@ -1,0 +1,24 @@
+<ul class="grid" [class]="'grid ' + size()">
+  @for (photo of photos(); track photo.url; let i = $index) {
+    <li>
+      <button
+        type="button"
+        class="thumb"
+        [attr.aria-label]="
+          'Open photo ' +
+          (i + 1) +
+          ' of ' +
+          photos().length +
+          (stopName() ? ' of ' + stopName() : '') +
+          ': ' +
+          photo.description
+        "
+        (click)="photoSelected.emit(i)"
+      >
+        <img [src]="photo.url" alt="" loading="lazy" decoding="async" width="640" height="640" />
+      </button>
+    </li>
+  } @empty {
+    <li class="none">No photos</li>
+  }
+</ul>

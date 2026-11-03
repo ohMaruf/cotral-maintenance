@@ -1,0 +1,98 @@
+<div class="viewer">
+  <header class="bar">
+    <div class="title">
+      <strong>{{ data.stopName }}</strong>
+      <span class="count" aria-live="polite"
+        >Photo {{ index() + 1 }} of {{ data.photos.length }}</span
+      >
+    </div>
+    <div class="tools" role="group" aria-label="Zoom">
+      <button type="button" class="tool" aria-label="Zoom out (minus key)" (click)="zoomOut()">
+        −
+      </button>
+      <button type="button" class="tool level" aria-label="Reset zoom (0 key)" (click)="reset()">
+        {{ zoomPercent() }}%
+      </button>
+      <button type="button" class="tool" aria-label="Zoom in (plus key)" (click)="zoomIn()">
+        +
+      </button>
+    </div>
+    <button type="button" class="tool close" aria-label="Close viewer (Escape)" (click)="close()">
+      ✕
+    </button>
+  </header>
+
+  <div class="main">
+    <button
+      type="button"
+      class="nav prev"
+      aria-label="Previous photo (left arrow)"
+      [disabled]="index() === 0"
+      (click)="step(-1)"
+    >
+      ‹
+    </button>
+    <div
+      #stage
+      class="stage"
+      [class.dragging]="dragging()"
+      [class.zoomed]="view().scale > 1"
+      (wheel)="onWheel($event)"
+      (dblclick)="onDoubleClick($event)"
+      (pointerdown)="onPointerDown($event)"
+      (pointermove)="onPointerMove($event)"
+      (pointerup)="onPointerUp($event)"
+      (pointercancel)="onPointerUp($event)"
+    >
+      <img
+        class="image"
+        [src]="photo().url"
+        [alt]="photo().description"
+        [style.transform]="transform()"
+        draggable="false"
+      />
+    </div>
+    <button
+      type="button"
+      class="nav next"
+      aria-label="Next photo (right arrow)"
+      [disabled]="index() === data.photos.length - 1"
+      (click)="step(1)"
+    >
+      ›
+    </button>
+  </div>
+
+  <p class="caption">
+    <span class="desc">{{ photo().description }}</span>
+    @if (distance()) {
+      <span>Distance {{ distance() }}</span>
+    }
+    @if (heading()) {
+      <span>Heading {{ heading() }}</span>
+    }
+    <span class="copyright">{{
+      photo().copyright ?? 'Street View imagery (copyright not provided)'
+    }}</span>
+  </p>
+
+  <ul class="strip" aria-label="Photos of this stop">
+    @for (p of data.photos; track p.url; let i = $index) {
+      <li>
+        <button
+          type="button"
+          class="strip-thumb"
+          [attr.aria-label]="'Show photo ' + (i + 1) + ': ' + p.description"
+          [attr.aria-current]="i === index() ? 'true' : null"
+          (click)="select(i)"
+        >
+          <img [src]="p.url" alt="" width="640" height="640" />
+        </button>
+      </li>
+    }
+  </ul>
+  <p class="hint">
+    Wheel or pinch to zoom, drag to pan, double-click to zoom or reset. Keys:
+    <kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd> <kbd>←</kbd> <kbd>→</kbd> <kbd>Esc</kbd>
+  </p>
+</div>

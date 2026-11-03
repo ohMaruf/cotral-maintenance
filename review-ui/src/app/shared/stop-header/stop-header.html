@@ -1,0 +1,14 @@
+<div class="head">
+  @if (level() === 2) {
+    <h2 class="name">{{ stop().name }}</h2>
+  } @else {
+    <h3 class="name">{{ stop().name }}</h3>
+  }
+  <p class="meta">
+    <span class="mono id">{{ stop().stop_id }}</span>
+    <span>Imagery {{ date() }}</span>
+    <a [href]="map()" target="_blank" rel="noopener noreferrer" class="mono"
+      >{{ coords() }}<span class="visually-hidden"> (opens Google Maps)</span></a
+    >
+  </p>
+</div>

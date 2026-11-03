@@ -1,0 +1,148 @@
+<section class="page">
+  @if (data.isLoading() && !data.hasValue()) {
+    <app-state-message kind="loading" title="Loading stops…" />
+  } @else if (error(); as err) {
+    <app-state-message
+      kind="error"
+      title="Could not load the scores"
+      [message]="err.message"
+      actionLabel="Try again"
+      (action)="reload()"
+    />
+  } @else {
+    <div class="toolbar">
+      <div class="field">
+        <label for="stop-filter">Filter by name or id</label>
+        <input
+          id="stop-filter"
+          type="search"
+          autocomplete="off"
+          placeholder="e.g. Tivoli or f00077"
+          [value]="query()"
+          (input)="setQuery($any($event.target).value)"
+        />
+      </div>
+      <p class="count" role="status">Showing {{ rows().length }} of {{ total() }} stops</p>
+      @if (sortKey()) {
+        <button type="button" class="btn" (click)="clearSort()">Clear sort</button>
+      }
+      <p class="legend">
+        <span class="swatch" aria-hidden="true"></span> Models disagree by ≥ 2 levels (≥ 0.5 for
+        probabilities)
+      </p>
+    </div>
+
+    @if (rows().length === 0) {
+      <app-state-message
+        kind="empty"
+        title="No stops match"
+        message="Try a different name or id."
+      />
+    } @else {
+      <div class="scroller" tabindex="0" role="region" aria-label="Scores table, scrolls both ways">
+        <table>
+          <caption class="visually-hidden">
+            Stops with photos and per-category scores from each model. Level 0 is good, 4 is missing
+            or severe.
+          </caption>
+          <thead>
+            <tr class="top">
+              <th scope="col" rowspan="2" class="sticky stop-col">Stop</th>
+              <th scope="col" rowspan="2">Imagery</th>
+              <th scope="col" rowspan="2">Location</th>
+              <th scope="col" rowspan="2">Photos</th>
+              @for (cat of categories(); track cat.key) {
+                <th
+                  scope="colgroup"
+                  class="group"
+                  [attr.colspan]="models().length"
+                  [attr.aria-sort]="sortState(cat.key, 'mean')"
+                >
+                  <span class="cat-label" [attr.title]="cat.description">{{ cat.label }}</span>
+                  @if (models().length > 1) {
+                    <button
+                      type="button"
+                      class="sort mean"
+                      [attr.aria-label]="'Sort by mean of models for ' + cat.label"
+                      [attr.data-state]="sortState(cat.key, 'mean')"
+                      (click)="setSort(cat.key, 'mean')"
+                    >
+                      mean<span aria-hidden="true" class="arrow"></span>
+                    </button>
+                  }
+                </th>
+              }
+            </tr>
+            <tr class="sub">
+              @for (cat of categories(); track cat.key) {
+                @for (model of models(); track model.key) {
+                  <th scope="col" [attr.aria-sort]="sortState(cat.key, model.key)">
+                    <button
+                      type="button"
+                      class="sort"
+                      [attr.title]="model.description"
+                      [attr.aria-label]="'Sort by ' + cat.label + ', ' + model.label"
+                      [attr.data-state]="sortState(cat.key, model.key)"
+                      (click)="setSort(cat.key, model.key)"
+                    >
+                      {{ model.label }}<span aria-hidden="true" class="arrow"></span>
+                    </button>
+                  </th>
+                }
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.stop.stop_id) {
+              <tr>
+                <th scope="row" class="sticky stop-col">
+                  <span class="name">{{ row.stop.name }}</span>
+                  <span class="mono id">{{ row.stop.stop_id }}</span>
+                </th>
+                <td class="nowrap">{{ row.date }}</td>
+                <td class="nowrap">
+                  <a [href]="row.map" target="_blank" rel="noopener noreferrer" class="mono"
+                    >{{ row.coords }}<span class="visually-hidden"> (opens Google Maps)</span></a
+                  >
+                </td>
+                <td class="photos">
+                  <app-photo-grid
+                    size="sm"
+                    [photos]="row.stop.photos"
+                    [stopName]="row.stop.name"
+                    (photoSelected)="openPhoto(row.stop, $event)"
+                  />
+                </td>
+                @for (group of row.categories; track group.category.key) {
+                  @for (
+                    cell of group.cells;
+                    track cell.model.key;
+                    let first = $first;
+                    let last = $last
+                  ) {
+                    <td
+                      class="score"
+                      [class.disagree]="group.disagree"
+                      [class.first]="first"
+                      [class.last]="last"
+                    >
+                      <app-score-bar
+                        [value]="cell.value"
+                        [kind]="group.category.kind"
+                        [label]="cell.model.label"
+                        [evidence]="cell.evidence"
+                      />
+                      @if (group.disagree && first) {
+                        <span class="visually-hidden">Models disagree.</span>
+                      }
+                    </td>
+                  }
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</section>

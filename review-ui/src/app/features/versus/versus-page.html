@@ -1,0 +1,197 @@
+<section class="page">
+  @switch (store.phase()) {
+    @case ('error') {
+      <app-state-message
+        kind="error"
+        title="Could not load a pair"
+        [message]="store.loadError()?.message"
+        actionLabel="Try again"
+        (action)="store.start()"
+      />
+    }
+    @case ('done') {
+      <app-state-message
+        kind="done"
+        title="All pairs judged"
+        message="Every pair of current stops has a judgment. Nothing left to rate."
+      />
+    }
+    @default {
+      @if (store.pair() === null) {
+        <app-state-message kind="loading" title="Loading the next pair…" />
+      } @else {
+        <header class="bar">
+          <h1 class="heading">Which stop needs maintenance more?</h1>
+          @if (store.progress(); as p) {
+            <p class="progress" role="status">
+              <span
+                ><strong>{{ p.judged }}</strong> judged</span
+              >
+              @if (p.skipped) {
+                <span>{{ p.skipped }} skipped</span>
+              }
+              <span
+                ><strong>{{ p.remaining }}</strong> remaining</span
+              >
+            </p>
+          }
+        </header>
+
+        @if (store.notice(); as notice) {
+          <p class="notice" role="alert">{{ notice }}</p>
+        }
+
+        <div class="pair" [attr.aria-busy]="store.phase() === 'loading'">
+          @for (sideKey of ['left', 'right']; track sideKey) {
+            @if (side($any(sideKey)); as stop) {
+              <article
+                class="card"
+                [class.picked]="store.choice() === sideKey"
+                [attr.aria-label]="(sideKey === 'left' ? 'Left' : 'Right') + ' stop: ' + stop.name"
+              >
+                <app-stop-header [stop]="stop" [level]="2" />
+                <app-photo-grid
+                  [photos]="stop.photos"
+                  [stopName]="stop.name"
+                  (photoSelected)="openPhoto(stop, $event)"
+                />
+                <button
+                  type="button"
+                  class="btn primary choose"
+                  [disabled]="!store.canChoose()"
+                  (click)="pick($any(sideKey))"
+                >
+                  @if (sideKey === 'left') {
+                    <kbd aria-hidden="true">←</kbd>
+                  }
+                  This one needs maintenance more
+                  @if (sideKey === 'right') {
+                    <kbd aria-hidden="true">→</kbd>
+                  }
+                </button>
+                @if (store.choice() === sideKey) {
+                  <span class="badge">Your pick</span>
+                }
+              </article>
+            }
+          }
+        </div>
+
+        <div class="actions">
+          @if (store.phase() === 'revealed') {
+            <button #nextButton type="button" class="btn primary" (click)="store.next()">
+              Next pair <kbd aria-hidden="true">Enter</kbd>
+            </button>
+            @if (store.choice() === 'skip') {
+              <span class="muted">You marked this pair as can't tell.</span>
+            }
+          } @else {
+            <button
+              type="button"
+              class="btn"
+              [disabled]="!store.canChoose()"
+              (click)="pick('skip')"
+            >
+              <kbd aria-hidden="true">S</kbd> Can't tell
+            </button>
+            <span class="muted"
+              >Keys: <kbd>←</kbd> left, <kbd>→</kbd> right, <kbd>S</kbd> can't tell</span
+            >
+          }
+        </div>
+
+        @if (reveal(); as r) {
+          <section class="reveal" aria-labelledby="reveal-title">
+            <h2 id="reveal-title" class="reveal-title">What the models said</h2>
+
+            <ul class="agreements">
+              @for (a of r.agreements; track a.model.key) {
+                <li class="chip" [attr.data-kind]="a.agreement.kind">{{ a.text }}</li>
+              }
+            </ul>
+
+            <div class="table-wrap">
+              <table>
+                <caption class="visually-hidden">
+                  Scores from each model for the two stops. Level 0 is good, 4 is missing or severe.
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col" rowspan="2">Category</th>
+                    <th
+                      scope="colgroup"
+                      [attr.colspan]="r.models.length"
+                      class="side"
+                      [class.picked]="store.choice() === 'left'"
+                    >
+                      Left: {{ side('left')?.name }}
+                      @if (store.choice() === 'left') {
+                        <span class="badge">Your pick</span>
+                      }
+                    </th>
+                    <th
+                      scope="colgroup"
+                      [attr.colspan]="r.models.length"
+                      class="side"
+                      [class.picked]="store.choice() === 'right'"
+                    >
+                      Right: {{ side('right')?.name }}
+                      @if (store.choice() === 'right') {
+                        <span class="badge">Your pick</span>
+                      }
+                    </th>
+                  </tr>
+                  <tr>
+                    @for (s of ['left', 'right']; track s) {
+                      @for (m of r.models; track m.key) {
+                        <th
+                          scope="col"
+                          [class.picked]="store.choice() === s"
+                          [attr.title]="m.description"
+                        >
+                          {{ m.label }}
+                        </th>
+                      }
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of r.rows; track row.category.key) {
+                    <tr [class.disagree]="row.disagree">
+                      <th scope="row" [attr.title]="row.category.description">
+                        {{ row.category.label }}
+                        @if (row.disagree) {
+                          <span class="visually-hidden">(models disagree)</span>
+                        }
+                      </th>
+                      @for (cell of row.left; track cell.model.key) {
+                        <td [class.picked]="store.choice() === 'left'">
+                          <app-score-bar
+                            [value]="cell.value"
+                            [kind]="row.category.kind"
+                            [label]="cell.model.label"
+                            [evidence]="cell.evidence"
+                          />
+                        </td>
+                      }
+                      @for (cell of row.right; track cell.model.key) {
+                        <td [class.picked]="store.choice() === 'right'">
+                          <app-score-bar
+                            [value]="cell.value"
+                            [kind]="row.category.kind"
+                            [label]="cell.model.label"
+                            [evidence]="cell.evidence"
+                          />
+                        </td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        }
+      }
+    }
+  }
+</section>

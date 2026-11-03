@@ -1,0 +1,176 @@
+:host {
+  display: block;
+  height: 100%;
+}
+
+.viewer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  height: 100%;
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--color-viewer-bg);
+  color: var(--color-viewer-text);
+  box-shadow: var(--shadow-lg);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.title {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 0 var(--space-3);
+  min-width: 0;
+}
+
+.count {
+  color: #b8bfb3;
+  font-size: var(--text-sm);
+}
+
+.tools {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.tool,
+.nav {
+  border: 1px solid #4d5548;
+  border-radius: var(--radius-md);
+  background: #232820;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: #323a2e;
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  &:focus-visible {
+    outline-color: #9cc8ff;
+  }
+}
+
+.tool {
+  min-width: 2.25rem;
+  height: 2.25rem;
+  padding: 0 var(--space-2);
+}
+
+.level {
+  min-width: 4rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.main {
+  display: flex;
+  flex: 1;
+  gap: var(--space-2);
+  min-height: 0;
+}
+
+.nav {
+  width: 2.5rem;
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  border-radius: var(--radius-md);
+  background: #000;
+  overflow: hidden;
+  touch-action: none;
+  cursor: zoom-in;
+  user-select: none;
+
+  &.zoomed {
+    cursor: grab;
+  }
+
+  &.dragging.zoomed {
+    cursor: grabbing;
+  }
+}
+
+.image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+.caption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.desc {
+  font-weight: 600;
+}
+
+.copyright {
+  color: #b8bfb3;
+}
+
+.strip {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+}
+
+.strip-thumb {
+  width: 4rem;
+  height: 4rem;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  background: #000;
+  overflow: hidden;
+  cursor: pointer;
+
+  &[aria-current='true'] {
+    border-color: #9cc8ff;
+  }
+
+  &:focus-visible {
+    outline-color: #9cc8ff;
+  }
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.hint {
+  color: #b8bfb3;
+  font-size: var(--text-xs);
+}
+
+.viewer kbd {
+  background: #232820;
+  border-color: #4d5548;
+  color: #d5dbd0;
+}

@@ -1,0 +1,22 @@
+<header class="top">
+  <a class="brand" routerLink="/scores">Stop review</a>
+  <nav aria-label="Main">
+    <a routerLink="/scores" routerLinkActive="active" ariaCurrentWhenActive="page">Scores</a>
+    <a routerLink="/versus" routerLinkActive="active" ariaCurrentWhenActive="page">Versus</a>
+  </nav>
+  <div class="rater">
+    <label for="rater-name">Rater</label>
+    <input
+      id="rater-name"
+      type="text"
+      autocomplete="off"
+      placeholder="optional name"
+      maxlength="60"
+      [value]="rater.name()"
+      (input)="rater.set($any($event.target).value)"
+    />
+  </div>
+</header>
+<main>
+  <router-outlet />
+</main>

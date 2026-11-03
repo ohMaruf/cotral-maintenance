@@ -11,7 +11,6 @@ from collections.abc import Sequence
 from dataclasses import asdict
 from pathlib import Path
 
-from .geo import angle_between
 from .fileutils import write_atomic, write_json_atomic
 from .models import Shot, Stop, View
 from .provenance import utc_now
@@ -48,6 +47,10 @@ class ImageStore:
     def manifest_path(self, stop_id: str) -> Path:
         return self.root / stop_id / MANIFEST_NAME
 
+    def read_manifest(self, stop_id: str) -> dict | None:
+        path = self.manifest_path(stop_id)
+        return json.loads(path.read_text()) if path.is_file() else None
+
     def write_manifest(self, stop: Stop, views: Sequence[View]) -> Path | None:
         """Summarise a stop's downloaded images, in shot plan order, from their sidecars.
 
@@ -61,17 +64,13 @@ class ImageStore:
                 sidecar = json.loads(path.with_suffix(".json").read_text())
                 images.append({"view": view.name, "file": path.name, "shot": sidecar["shot"]})
         if not images:
+            # A manifest listing images that are gone would mislead every later reader.
+            self.manifest_path(stop.stop_id).unlink(missing_ok=True)
             return None
         dates = [i["shot"]["pano"]["date"] for i in images if i["shot"]["pano"]["date"]]
-        headings = {i["view"]: i["shot"]["heading"] for i in images}
-        separation = (
-            round(angle_between(headings["converge_a"], headings["converge_b"]), 1)
-            if {"converge_a", "converge_b"} <= headings.keys() else None
-        )
         manifest = {
             "stop": asdict(stop),
             "imagery_date": min(dates) if dates else None,
-            "converge_separation_deg": separation,
             "images": images,
         }
         path = self.manifest_path(stop.stop_id)

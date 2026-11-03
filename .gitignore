@@ -6,5 +6,7 @@ logs/
 data/
 .idea/
 .pytest_cache/
-# GTFS feed (~200 MB, too large for git). Each run logs the sha256 of stops.txt.
-google_transit/
+GTFS_COTRAL/
+turbo-fieldfare/
+.DS_Store
+*.log

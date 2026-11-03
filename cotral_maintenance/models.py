@@ -9,6 +9,8 @@ class Stop:
     name: str
     lat: float
     lon: float
+    location_type: str = "0"
+    parent_station: str = ""
 
 
 @dataclass(frozen=True)
@@ -24,8 +26,9 @@ class View:
 
     @property
     def key(self) -> str:
-        """Stable identifier, used as the cache file name."""
-        return self.name
+        """Stable identifier, used as the cache file name. Includes the size, so
+        images at another resolution are never mistaken for cached ones."""
+        return f"{self.name}_{self.size}"
 
     def to_params(self) -> dict[str, str]:
         return {"pitch": str(self.pitch), "fov": str(self.fov), "size": self.size}

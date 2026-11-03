@@ -16,10 +16,13 @@ REFERRER_VAR = "MAPS_API_REFERRER"
 class Settings:
     api_key: str
     referrer: str | None = None
-    stops_file: Path = Path("google_transit/stops.txt")
+    stops_file: Path = Path("GTFS_COTRAL/stops.txt")
     images_dir: Path = Path("images")
+    tiles_dir: Path = Path("data/tiles")
     places_raw_dir: Path = Path("data/places_raw")
-    verified_stops_file: Path = Path("data/stops_verified.csv")
+    corrected_stops_file: Path = Path("data/stops_corrected.csv")
+    scores_raw_dir: Path = Path("data/scores_raw")
+    stop_scores_file: Path = Path("data/stop_scores.csv")
     runs_log: Path = Path("data/runs.jsonl")
     log_file: Path = Path("logs/pipeline.log")
     request_timeout_s: float = 20.0

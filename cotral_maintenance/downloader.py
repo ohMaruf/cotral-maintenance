@@ -1,14 +1,14 @@
 """Download orchestration: cache lookup, panorama search, image fetch, save."""
 
 import logging
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
 from .errors import TransportError
 from .models import Stop, View
-from .panoramas import find_nearby_shots, plan_shots
+from .panoramas import plan_shots
 from .storage import ImageStore
 from .streetview import ImageSource
 
@@ -36,8 +36,10 @@ def download_stop(
     client: ImageSource,
     store: ImageStore,
     force: bool = False,
+    pair: Stop | None = None,
 ) -> list[DownloadResult]:
     """Fetch every view of one stop, skipping views already on disk unless `force`.
+    `pair` is the opposite-direction stop, if any (stops.find_pairs).
 
     Raises ApiError (fatal) and TransportError.
     """
@@ -54,7 +56,7 @@ def download_stop(
         store.write_manifest(stop, views)
         return results
 
-    plan = plan_shots(find_nearby_shots(client, stop))
+    plan = plan_shots(client, stop, pair)
     if not plan:
         logger.info("No imagery near stop %s (%s)", stop.stop_id, stop.name)
     for view in pending:
@@ -80,8 +82,9 @@ def download_stops(
     client: ImageSource,
     store: ImageStore,
     force: bool = False,
+    pairs: Mapping[str, Stop] | None = None,
 ) -> list[DownloadResult]:
-    """Process every stop in order.
+    """Process every stop in order. `pairs` maps stop ids to their opposite-direction stop.
 
     Network failures are logged and the stop is skipped; ApiError propagates,
     since it would affect every following request too.
@@ -89,7 +92,7 @@ def download_stops(
     results: list[DownloadResult] = []
     for stop in stops:
         try:
-            stop_results = download_stop(stop, views, client, store, force)
+            stop_results = download_stop(stop, views, client, store, force, (pairs or {}).get(stop.stop_id))
         except TransportError as exc:
             logger.error("Failed stop %s (%s): %s", stop.stop_id, stop.name, exc)
             stop_results = [DownloadResult(stop.stop_id, v, Outcome.FAILED) for v in views]

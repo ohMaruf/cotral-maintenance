@@ -75,7 +75,8 @@ else
   serve_bff "$@"
   log "BFF at http://127.0.0.1:$BFF_PORT  (API docs: /docs)"
   log "Web app at http://127.0.0.1:$UI_PORT"
-  npm start -- --host 127.0.0.1 --port $UI_PORT &
+  # stdin from /dev/null: a background job must never wait on a terminal prompt.
+  npm start -- --host 127.0.0.1 --port $UI_PORT </dev/null &
   pids+=($!)
   # Stop as soon as either process exits, so a crash is not hidden.
   while kill -0 $pids[1] 2>/dev/null && kill -0 $pids[2] 2>/dev/null; do sleep 1; done

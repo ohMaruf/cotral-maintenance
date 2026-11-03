@@ -1,360 +1,1319 @@
 [
   {
-    "stop_id": "1019",
-    "imagery_date": null,
+    "stop_id": "f10910",
+    "imagery_date": "2025-07",
     "converge_separation_deg": null,
     "images": [
-      "auto_p+00_f090_640x640.jpg",
-      "d000_p+00_f090_640x640.jpg",
-      "d020_p+00_f090_640x640.jpg",
-      "d040_p+00_f090_640x640.jpg"
+      "sweep_1_640x640.jpg",
+      "sweep_2_640x640.jpg",
+      "sweep_3_640x640.jpg"
     ],
-    "latency_s": 11.43,
-    "input_tokens": 3548,
+    "latency_s": 20.57,
     "scores": {
-      "shelter": 3.824,
-      "seating": 3.857,
-      "signage": 3.55,
-      "waiting_area": 0.675,
-      "lighting": 2.17,
-      "accessibility": 0.708,
-      "requires_maintenance": 0.682,
-      "confidence": 0.086,
-      "maintenance_confidence": 0.055,
-      "assessable": 0.1592
+      "shelter": 3.934,
+      "seating": 3.916,
+      "signage": 1.197,
+      "lighting": 0.798,
+      "waiting_area": 1.629,
+      "accessibility": 2.106,
+      "requires_maintenance": 2.405,
+      "confidence": 0.121,
+      "maintenance_confidence": 0.034,
+      "assessable": 0.2987,
+      "shelter_present": 0.029,
+      "seating_present": 0.042,
+      "signage_present": 0.935,
+      "lighting_present": 0.935
     },
     "raw": {
-      "shelter_visible": {
-        "type": "noul",
-        "noul": 0.0628
-      },
-      "shelter": {
-        "type": "score",
-        "score": 1.2055,
-        "confidence": 0.3607,
-        "legend": {
-          "0": "No maintenance needed: in good condition",
-          "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
-          "2": "Moderate: visible wear or damage that should be fixed",
-          "3": "Significant: clearly damaged, deficient or partly missing",
-          "4": "Severe: broken, missing, unsafe or unusable"
+      "per_photo": [
+        {
+          "shelter_present": {
+            "type": "noul",
+            "noul": 0.0291
+          },
+          "shelter": {
+            "type": "score",
+            "score": 1.7351,
+            "confidence": 0.3672,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.1394,
+              "1": 0.3672,
+              "2": 0.2353,
+              "3": 0.1351,
+              "4": 0.123
+            }
+          },
+          "seating_present": {
+            "type": "noul",
+            "noul": 0.0421
+          },
+          "seating": {
+            "type": "score",
+            "score": 1.9496,
+            "confidence": 0.326,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.1328,
+              "1": 0.326,
+              "2": 0.2138,
+              "3": 0.1136,
+              "4": 0.2138
+            }
+          },
+          "signage_present": {
+            "type": "noul",
+            "noul": 0.9349
+          },
+          "signage": {
+            "type": "score",
+            "score": 0.7642,
+            "confidence": 0.5775,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.5775,
+              "1": 0.2196,
+              "2": 0.1005,
+              "3": 0.0659,
+              "4": 0.0364
+            }
+          },
+          "lighting_present": {
+            "type": "noul",
+            "noul": 0.054
+          },
+          "lighting": {
+            "type": "score",
+            "score": 1.5,
+            "confidence": 0.3182,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.3182,
+              "1": 0.2808,
+              "2": 0.1208,
+              "3": 0.1434,
+              "4": 0.1368
+            }
+          }
         },
-        "probabilities": {
-          "0": 0.3469,
-          "1": 0.3607,
-          "2": 0.1242,
-          "3": 0.0762,
-          "4": 0.0919
-        }
-      },
-      "seating_visible": {
-        "type": "noul",
-        "noul": 0.0571
-      },
-      "seating": {
-        "type": "score",
-        "score": 1.4891,
-        "confidence": 0.3302,
-        "legend": {
-          "0": "No maintenance needed: in good condition",
-          "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
-          "2": "Moderate: visible wear or damage that should be fixed",
-          "3": "Significant: clearly damaged, deficient or partly missing",
-          "4": "Severe: broken, missing, unsafe or unusable"
+        {
+          "shelter_present": {
+            "type": "noul",
+            "noul": 0.019
+          },
+          "shelter": {
+            "type": "score",
+            "score": 1.8077,
+            "confidence": 0.3261,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.1627,
+              "1": 0.3261,
+              "2": 0.2172,
+              "3": 0.1287,
+              "4": 0.1653
+            }
+          },
+          "seating_present": {
+            "type": "noul",
+            "noul": 0.0289
+          },
+          "seating": {
+            "type": "score",
+            "score": 2.0485,
+            "confidence": 0.2784,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.1438,
+              "1": 0.2784,
+              "2": 0.2061,
+              "3": 0.1289,
+              "4": 0.2428
+            }
+          },
+          "signage_present": {
+            "type": "noul",
+            "noul": 0.0245
+          },
+          "signage": {
+            "type": "score",
+            "score": 2.2552,
+            "confidence": 0.341,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.1981,
+              "1": 0.1935,
+              "2": 0.1044,
+              "3": 0.163,
+              "4": 0.341
+            }
+          },
+          "lighting_present": {
+            "type": "noul",
+            "noul": 0.0256
+          },
+          "lighting": {
+            "type": "score",
+            "score": 1.4072,
+            "confidence": 0.3867,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.3867,
+              "1": 0.2364,
+              "2": 0.1001,
+              "3": 0.1368,
+              "4": 0.14
+            }
+          }
         },
-        "probabilities": {
-          "0": 0.2971,
-          "1": 0.3302,
-          "2": 0.1023,
-          "3": 0.1273,
-          "4": 0.1431
+        {
+          "shelter_present": {
+            "type": "noul",
+            "noul": 0.0203
+          },
+          "shelter": {
+            "type": "score",
+            "score": 1.6531,
+            "confidence": 0.3579,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.2104,
+              "1": 0.3579,
+              "2": 0.1613,
+              "3": 0.1091,
+              "4": 0.1613
+            }
+          },
+          "seating_present": {
+            "type": "noul",
+            "noul": 0.0256
+          },
+          "seating": {
+            "type": "score",
+            "score": 2.0244,
+            "confidence": 0.2855,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.1614,
+              "1": 0.2855,
+              "2": 0.1705,
+              "3": 0.1328,
+              "4": 0.25
+            }
+          },
+          "signage_present": {
+            "type": "noul",
+            "noul": 0.5076
+          },
+          "signage": {
+            "type": "score",
+            "score": 1.3791,
+            "confidence": 0.3921,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.3921,
+              "1": 0.2225,
+              "2": 0.1123,
+              "3": 0.1603,
+              "4": 0.1128
+            }
+          },
+          "lighting_present": {
+            "type": "noul",
+            "noul": 0.9349
+          },
+          "lighting": {
+            "type": "score",
+            "score": 0.4994,
+            "confidence": 0.6922,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.6922,
+              "1": 0.1968,
+              "2": 0.0525,
+              "3": 0.0364,
+              "4": 0.0221
+            }
+          }
         }
-      },
-      "signage_visible": {
-        "type": "noul",
-        "noul": 0.1408
-      },
-      "signage": {
-        "type": "score",
-        "score": 0.8047,
-        "confidence": 0.5683,
-        "legend": {
-          "0": "No maintenance needed: in good condition",
-          "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
-          "2": "Moderate: visible wear or damage that should be fixed",
-          "3": "Significant: clearly damaged, deficient or partly missing",
-          "4": "Severe: broken, missing, unsafe or unusable"
+      ],
+      "judgement": {
+        "waiting_area": {
+          "type": "score",
+          "score": 1.6293,
+          "confidence": 0.4342,
+          "legend": {
+            "0": "No maintenance needed: in good condition",
+            "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+            "2": "Moderate: visible wear or damage that should be fixed",
+            "3": "Significant: clearly damaged, deficient or partly missing",
+            "4": "Severe: broken, missing, unsafe or unusable"
+          },
+          "probabilities": {
+            "0": 0.0855,
+            "1": 0.4342,
+            "2": 0.3031,
+            "3": 0.1201,
+            "4": 0.0572
+          }
         },
-        "probabilities": {
-          "0": 0.5683,
-          "1": 0.2397,
-          "2": 0.063,
-          "3": 0.0769,
-          "4": 0.052
-        }
-      },
-      "waiting_area": {
-        "type": "score",
-        "score": 0.6751,
-        "confidence": 0.5281,
-        "legend": {
-          "0": "No maintenance needed: in good condition",
-          "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
-          "2": "Moderate: visible wear or damage that should be fixed",
-          "3": "Significant: clearly damaged, deficient or partly missing",
-          "4": "Severe: broken, missing, unsafe or unusable"
+        "accessibility": {
+          "type": "score",
+          "score": 2.1064,
+          "confidence": 0.2814,
+          "legend": {
+            "0": "No maintenance needed: in good condition",
+            "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+            "2": "Moderate: visible wear or damage that should be fixed",
+            "3": "Significant: clearly damaged, deficient or partly missing",
+            "4": "Severe: broken, missing, unsafe or unusable"
+          },
+          "probabilities": {
+            "0": 0.1011,
+            "1": 0.2235,
+            "2": 0.2685,
+            "3": 0.2814,
+            "4": 0.1254
+          }
         },
-        "probabilities": {
-          "0": 0.5281,
-          "1": 0.3344,
-          "2": 0.0852,
-          "3": 0.0389,
-          "4": 0.0134
-        }
-      },
-      "lighting_visible": {
-        "type": "noul",
-        "noul": 0.52
-      },
-      "lighting": {
-        "type": "score",
-        "score": 0.48,
-        "confidence": 0.7059,
-        "legend": {
-          "0": "No maintenance needed: in good condition",
-          "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
-          "2": "Moderate: visible wear or damage that should be fixed",
-          "3": "Significant: clearly damaged, deficient or partly missing",
-          "4": "Severe: broken, missing, unsafe or unusable"
+        "requires_maintenance": {
+          "type": "score",
+          "score": 2.405,
+          "confidence": 0.4002,
+          "legend": {
+            "0": "No maintenance needed: in good condition",
+            "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+            "2": "Moderate: visible wear or damage that should be fixed",
+            "3": "Significant: clearly damaged, deficient or partly missing",
+            "4": "Severe: broken, missing, unsafe or unusable"
+          },
+          "probabilities": {
+            "0": 0.0415,
+            "1": 0.192,
+            "2": 0.2263,
+            "3": 0.4002,
+            "4": 0.1399
+          }
         },
-        "probabilities": {
-          "0": 0.7059,
-          "1": 0.1849,
-          "2": 0.0549,
-          "3": 0.0322,
-          "4": 0.0222
+        "assessable": {
+          "type": "noul",
+          "noul": 0.2987
         }
-      },
-      "accessibility": {
-        "type": "score",
-        "score": 0.7076,
-        "confidence": 0.5556,
-        "legend": {
-          "0": "No maintenance needed: in good condition",
-          "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
-          "2": "Moderate: visible wear or damage that should be fixed",
-          "3": "Significant: clearly damaged, deficient or partly missing",
-          "4": "Severe: broken, missing, unsafe or unusable"
-        },
-        "probabilities": {
-          "0": 0.5556,
-          "1": 0.275,
-          "2": 0.0939,
-          "3": 0.0572,
-          "4": 0.0183
-        }
-      },
-      "requires_maintenance": {
-        "type": "score",
-        "score": 0.6823,
-        "confidence": 0.4715,
-        "legend": {
-          "0": "No maintenance needed: in good condition",
-          "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
-          "2": "Moderate: visible wear or damage that should be fixed",
-          "3": "Significant: clearly damaged, deficient or partly missing",
-          "4": "Severe: broken, missing, unsafe or unusable"
-        },
-        "probabilities": {
-          "0": 0.4715,
-          "1": 0.4194,
-          "2": 0.0723,
-          "3": 0.0288,
-          "4": 0.008
-        }
-      },
-      "assessable": {
-        "type": "noul",
-        "noul": 0.1592
       }
     }
   },
   {
-    "stop_id": "1021",
-    "imagery_date": null,
+    "stop_id": "f4156",
+    "imagery_date": "2025-06",
     "converge_separation_deg": null,
     "images": [
-      "d000_p+00_f090_640x640.jpg",
-      "d020_p+00_f090_640x640.jpg",
-      "d040_p+00_f090_640x640.jpg"
+      "sweep_1_640x640.jpg",
+      "sweep_2_640x640.jpg",
+      "sweep_3_640x640.jpg",
+      "sweep_4_640x640.jpg"
     ],
-    "latency_s": 10.12,
-    "input_tokens": 3142,
+    "latency_s": 26.63,
     "scores": {
-      "shelter": 3.526,
-      "seating": 3.844,
-      "signage": 1.152,
-      "waiting_area": 1.641,
-      "lighting": 3.491,
-      "accessibility": 1.662,
-      "requires_maintenance": 1.537,
-      "confidence": 0.224,
-      "maintenance_confidence": 0.113,
-      "assessable": 0.5708
+      "shelter": 3.653,
+      "seating": 1.273,
+      "signage": 2.173,
+      "lighting": 0.904,
+      "waiting_area": 0.982,
+      "accessibility": 1.57,
+      "requires_maintenance": 1.189,
+      "confidence": 0.084,
+      "maintenance_confidence": 0.064,
+      "assessable": 0.3429,
+      "shelter_present": 0.139,
+      "seating_present": 0.958,
+      "signage_present": 0.579,
+      "lighting_present": 0.949
     },
     "raw": {
-      "shelter_visible": {
-        "type": "noul",
-        "noul": 0.2114
-      },
-      "shelter": {
-        "type": "score",
-        "score": 1.7585,
-        "confidence": 0.3399,
-        "legend": {
-          "0": "No maintenance needed: in good condition",
-          "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
-          "2": "Moderate: visible wear or damage that should be fixed",
-          "3": "Significant: clearly damaged, deficient or partly missing",
-          "4": "Severe: broken, missing, unsafe or unusable"
+      "per_photo": [
+        {
+          "shelter_present": {
+            "type": "noul",
+            "noul": 0.1389
+          },
+          "shelter": {
+            "type": "score",
+            "score": 1.3466,
+            "confidence": 0.4069,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.2473,
+              "1": 0.4069,
+              "2": 0.1686,
+              "3": 0.1064,
+              "4": 0.0708
+            }
+          },
+          "seating_present": {
+            "type": "noul",
+            "noul": 0.0901
+          },
+          "seating": {
+            "type": "score",
+            "score": 1.6276,
+            "confidence": 0.3459,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.1994,
+              "1": 0.3459,
+              "2": 0.2123,
+              "3": 0.1127,
+              "4": 0.1297
+            }
+          },
+          "signage_present": {
+            "type": "noul",
+            "noul": 0.2043
+          },
+          "signage": {
+            "type": "score",
+            "score": 0.8277,
+            "confidence": 0.5926,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.5926,
+              "1": 0.1916,
+              "2": 0.0719,
+              "3": 0.0834,
+              "4": 0.0605
+            }
+          },
+          "lighting_present": {
+            "type": "noul",
+            "noul": 0.8429
+          },
+          "lighting": {
+            "type": "score",
+            "score": 0.7309,
+            "confidence": 0.5426,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.5426,
+              "1": 0.2843,
+              "2": 0.1016,
+              "3": 0.0427,
+              "4": 0.0289
+            }
+          }
         },
-        "probabilities": {
-          "0": 0.1161,
-          "1": 0.3399,
-          "2": 0.293,
-          "3": 0.1716,
-          "4": 0.0795
-        }
-      },
-      "seating_visible": {
-        "type": "noul",
-        "noul": 0.0809
-      },
-      "seating": {
-        "type": "score",
-        "score": 2.0774,
-        "confidence": 0.2869,
-        "legend": {
-          "0": "No maintenance needed: in good condition",
-          "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
-          "2": "Moderate: visible wear or damage that should be fixed",
-          "3": "Significant: clearly damaged, deficient or partly missing",
-          "4": "Severe: broken, missing, unsafe or unusable"
+        {
+          "shelter_present": {
+            "type": "noul",
+            "noul": 0.0467
+          },
+          "shelter": {
+            "type": "score",
+            "score": 1.6974,
+            "confidence": 0.3457,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.1786,
+              "1": 0.3457,
+              "2": 0.2155,
+              "3": 0.1199,
+              "4": 0.1402
+            }
+          },
+          "seating_present": {
+            "type": "noul",
+            "noul": 0.8812
+          },
+          "seating": {
+            "type": "score",
+            "score": 1.3838,
+            "confidence": 0.3553,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.2409,
+              "1": 0.3553,
+              "2": 0.2519,
+              "3": 0.0831,
+              "4": 0.0689
+            }
+          },
+          "signage_present": {
+            "type": "noul",
+            "noul": 0.0688
+          },
+          "signage": {
+            "type": "score",
+            "score": 1.5124,
+            "confidence": 0.3706,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.3706,
+              "1": 0.2095,
+              "2": 0.1213,
+              "3": 0.1342,
+              "4": 0.1644
+            }
+          },
+          "lighting_present": {
+            "type": "noul",
+            "noul": 0.949
+          },
+          "lighting": {
+            "type": "score",
+            "score": 0.7109,
+            "confidence": 0.5458,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.5458,
+              "1": 0.2865,
+              "2": 0.1044,
+              "3": 0.0375,
+              "4": 0.0258
+            }
+          }
         },
-        "probabilities": {
-          "0": 0.1318,
-          "1": 0.2869,
-          "2": 0.1615,
-          "3": 0.2115,
-          "4": 0.2082
-        }
-      },
-      "signage_visible": {
-        "type": "noul",
-        "noul": 0.8998
-      },
-      "signage": {
-        "type": "score",
-        "score": 0.8349,
-        "confidence": 0.4797,
-        "legend": {
-          "0": "No maintenance needed: in good condition",
-          "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
-          "2": "Moderate: visible wear or damage that should be fixed",
-          "3": "Significant: clearly damaged, deficient or partly missing",
-          "4": "Severe: broken, missing, unsafe or unusable"
+        {
+          "shelter_present": {
+            "type": "noul",
+            "noul": 0.0974
+          },
+          "shelter": {
+            "type": "score",
+            "score": 1.6306,
+            "confidence": 0.3712,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.1956,
+              "1": 0.3712,
+              "2": 0.1726,
+              "3": 0.1283,
+              "4": 0.1323
+            }
+          },
+          "seating_present": {
+            "type": "noul",
+            "noul": 0.9454
+          },
+          "seating": {
+            "type": "score",
+            "score": 1.1164,
+            "confidence": 0.3667,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.3352,
+              "1": 0.3667,
+              "2": 0.1921,
+              "3": 0.0586,
+              "4": 0.0474
+            }
+          },
+          "signage_present": {
+            "type": "noul",
+            "noul": 0.5794
+          },
+          "signage": {
+            "type": "score",
+            "score": 0.6213,
+            "confidence": 0.6787,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.6787,
+              "1": 0.1638,
+              "2": 0.0595,
+              "3": 0.0534,
+              "4": 0.0446
+            }
+          },
+          "lighting_present": {
+            "type": "noul",
+            "noul": 0.9053
+          },
+          "lighting": {
+            "type": "score",
+            "score": 0.7116,
+            "confidence": 0.5477,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.5477,
+              "1": 0.2886,
+              "2": 0.0967,
+              "3": 0.0385,
+              "4": 0.0286
+            }
+          }
         },
-        "probabilities": {
-          "0": 0.4797,
-          "1": 0.322,
-          "2": 0.1117,
-          "3": 0.0568,
-          "4": 0.0297
+        {
+          "shelter_present": {
+            "type": "noul",
+            "noul": 0.0304
+          },
+          "shelter": {
+            "type": "score",
+            "score": 1.5146,
+            "confidence": 0.3704,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.2354,
+              "1": 0.3704,
+              "2": 0.1683,
+              "3": 0.0959,
+              "4": 0.13
+            }
+          },
+          "seating_present": {
+            "type": "noul",
+            "noul": 0.9576
+          },
+          "seating": {
+            "type": "score",
+            "score": 0.9291,
+            "confidence": 0.4144,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.4144,
+              "1": 0.3524,
+              "2": 0.157,
+              "3": 0.0419,
+              "4": 0.0342
+            }
+          },
+          "signage_present": {
+            "type": "noul",
+            "noul": 0.2121
+          },
+          "signage": {
+            "type": "score",
+            "score": 1.2631,
+            "confidence": 0.4299,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.4299,
+              "1": 0.2301,
+              "2": 0.1058,
+              "3": 0.1153,
+              "4": 0.1189
+            }
+          },
+          "lighting_present": {
+            "type": "noul",
+            "noul": 0.9063
+          },
+          "lighting": {
+            "type": "score",
+            "score": 0.7965,
+            "confidence": 0.5212,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.5212,
+              "1": 0.2828,
+              "2": 0.111,
+              "3": 0.0485,
+              "4": 0.0366
+            }
+          }
         }
-      },
-      "waiting_area": {
-        "type": "score",
-        "score": 1.6412,
-        "confidence": 0.3895,
-        "legend": {
-          "0": "No maintenance needed: in good condition",
-          "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
-          "2": "Moderate: visible wear or damage that should be fixed",
-          "3": "Significant: clearly damaged, deficient or partly missing",
-          "4": "Severe: broken, missing, unsafe or unusable"
+      ],
+      "judgement": {
+        "waiting_area": {
+          "type": "score",
+          "score": 0.9821,
+          "confidence": 0.3749,
+          "legend": {
+            "0": "No maintenance needed: in good condition",
+            "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+            "2": "Moderate: visible wear or damage that should be fixed",
+            "3": "Significant: clearly damaged, deficient or partly missing",
+            "4": "Severe: broken, missing, unsafe or unusable"
+          },
+          "probabilities": {
+            "0": 0.3749,
+            "1": 0.3662,
+            "2": 0.1827,
+            "3": 0.0544,
+            "4": 0.0218
+          }
         },
-        "probabilities": {
-          "0": 0.094,
-          "1": 0.3895,
-          "2": 0.341,
-          "3": 0.1325,
-          "4": 0.043
-        }
-      },
-      "lighting_visible": {
-        "type": "noul",
-        "noul": 0.1597
-      },
-      "lighting": {
-        "type": "score",
-        "score": 0.8128,
-        "confidence": 0.5757,
-        "legend": {
-          "0": "No maintenance needed: in good condition",
-          "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
-          "2": "Moderate: visible wear or damage that should be fixed",
-          "3": "Significant: clearly damaged, deficient or partly missing",
-          "4": "Severe: broken, missing, unsafe or unusable"
+        "accessibility": {
+          "type": "score",
+          "score": 1.5696,
+          "confidence": 0.2751,
+          "legend": {
+            "0": "No maintenance needed: in good condition",
+            "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+            "2": "Moderate: visible wear or damage that should be fixed",
+            "3": "Significant: clearly damaged, deficient or partly missing",
+            "4": "Severe: broken, missing, unsafe or unusable"
+          },
+          "probabilities": {
+            "0": 0.2353,
+            "1": 0.2751,
+            "2": 0.2418,
+            "3": 0.1804,
+            "4": 0.0674
+          }
         },
-        "probabilities": {
-          "0": 0.5757,
-          "1": 0.2037,
-          "2": 0.1004,
-          "3": 0.0723,
-          "4": 0.0478
-        }
-      },
-      "accessibility": {
-        "type": "score",
-        "score": 1.6621,
-        "confidence": 0.3288,
-        "legend": {
-          "0": "No maintenance needed: in good condition",
-          "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
-          "2": "Moderate: visible wear or damage that should be fixed",
-          "3": "Significant: clearly damaged, deficient or partly missing",
-          "4": "Severe: broken, missing, unsafe or unusable"
+        "requires_maintenance": {
+          "type": "score",
+          "score": 1.1896,
+          "confidence": 0.475,
+          "legend": {
+            "0": "No maintenance needed: in good condition",
+            "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+            "2": "Moderate: visible wear or damage that should be fixed",
+            "3": "Significant: clearly damaged, deficient or partly missing",
+            "4": "Severe: broken, missing, unsafe or unusable"
+          },
+          "probabilities": {
+            "0": 0.2407,
+            "1": 0.475,
+            "2": 0.1622,
+            "3": 0.098,
+            "4": 0.024
+          }
         },
-        "probabilities": {
-          "0": 0.1596,
-          "1": 0.2924,
-          "2": 0.3288,
-          "3": 0.1647,
-          "4": 0.0545
+        "assessable": {
+          "type": "noul",
+          "noul": 0.3429
         }
-      },
-      "requires_maintenance": {
-        "type": "score",
-        "score": 1.5369,
-        "confidence": 0.432,
-        "legend": {
-          "0": "No maintenance needed: in good condition",
-          "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
-          "2": "Moderate: visible wear or damage that should be fixed",
-          "3": "Significant: clearly damaged, deficient or partly missing",
-          "4": "Severe: broken, missing, unsafe or unusable"
+      }
+    }
+  },
+  {
+    "stop_id": "f8520",
+    "imagery_date": "2026-09",
+    "converge_separation_deg": null,
+    "images": [
+      "sweep_1_640x640.jpg",
+      "sweep_2_640x640.jpg",
+      "sweep_3_640x640.jpg",
+      "sweep_4_640x640.jpg"
+    ],
+    "latency_s": 28.79,
+    "scores": {
+      "shelter": 3.958,
+      "seating": 3.947,
+      "signage": 1.796,
+      "lighting": 0.704,
+      "waiting_area": 2.078,
+      "accessibility": 2.071,
+      "requires_maintenance": 2.552,
+      "confidence": 0.183,
+      "maintenance_confidence": 0.072,
+      "assessable": 0.4417,
+      "shelter_present": 0.021,
+      "seating_present": 0.03,
+      "signage_present": 0.758,
+      "lighting_present": 0.955
+    },
+    "raw": {
+      "per_photo": [
+        {
+          "shelter_present": {
+            "type": "noul",
+            "noul": 0.0101
+          },
+          "shelter": {
+            "type": "score",
+            "score": 1.6573,
+            "confidence": 0.294,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.2698,
+              "1": 0.294,
+              "2": 0.1411,
+              "3": 0.0993,
+              "4": 0.1959
+            }
+          },
+          "seating_present": {
+            "type": "noul",
+            "noul": 0.0174
+          },
+          "seating": {
+            "type": "score",
+            "score": 2.0761,
+            "confidence": 0.2959,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.1859,
+              "1": 0.2541,
+              "2": 0.1541,
+              "3": 0.1101,
+              "4": 0.2959
+            }
+          },
+          "signage_present": {
+            "type": "noul",
+            "noul": 0.0203
+          },
+          "signage": {
+            "type": "score",
+            "score": 2.0502,
+            "confidence": 0.2966,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.2547,
+              "1": 0.1968,
+              "2": 0.0887,
+              "3": 0.1632,
+              "4": 0.2966
+            }
+          },
+          "lighting_present": {
+            "type": "noul",
+            "noul": 0.0162
+          },
+          "lighting": {
+            "type": "score",
+            "score": 1.4887,
+            "confidence": 0.3707,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.3707,
+              "1": 0.2431,
+              "2": 0.0814,
+              "3": 0.1364,
+              "4": 0.1684
+            }
+          }
         },
-        "probabilities": {
-          "0": 0.0964,
-          "1": 0.432,
-          "2": 0.3338,
-          "3": 0.114,
-          "4": 0.0238
+        {
+          "shelter_present": {
+            "type": "noul",
+            "noul": 0.0124
+          },
+          "shelter": {
+            "type": "score",
+            "score": 2.2052,
+            "confidence": 0.2586,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.082,
+              "1": 0.2586,
+              "2": 0.2546,
+              "3": 0.1819,
+              "4": 0.2229
+            }
+          },
+          "seating_present": {
+            "type": "noul",
+            "noul": 0.0177
+          },
+          "seating": {
+            "type": "score",
+            "score": 2.2876,
+            "confidence": 0.2986,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.1094,
+              "1": 0.2334,
+              "2": 0.2159,
+              "3": 0.1427,
+              "4": 0.2986
+            }
+          },
+          "signage_present": {
+            "type": "noul",
+            "noul": 0.0226
+          },
+          "signage": {
+            "type": "score",
+            "score": 2.5689,
+            "confidence": 0.4253,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.1408,
+              "1": 0.1659,
+              "2": 0.1022,
+              "3": 0.1659,
+              "4": 0.4253
+            }
+          },
+          "lighting_present": {
+            "type": "noul",
+            "noul": 0.2806
+          },
+          "lighting": {
+            "type": "score",
+            "score": 0.881,
+            "confidence": 0.5206,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.5206,
+              "1": 0.269,
+              "2": 0.0747,
+              "3": 0.0801,
+              "4": 0.0555
+            }
+          }
+        },
+        {
+          "shelter_present": {
+            "type": "noul",
+            "noul": 0.0177
+          },
+          "shelter": {
+            "type": "score",
+            "score": 1.9047,
+            "confidence": 0.3176,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.1622,
+              "1": 0.3176,
+              "2": 0.1768,
+              "3": 0.1399,
+              "4": 0.2035
+            }
+          },
+          "seating_present": {
+            "type": "noul",
+            "noul": 0.0298
+          },
+          "seating": {
+            "type": "score",
+            "score": 2.1184,
+            "confidence": 0.2926,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.1707,
+              "1": 0.2503,
+              "2": 0.1616,
+              "3": 0.1249,
+              "4": 0.2926
+            }
+          },
+          "signage_present": {
+            "type": "noul",
+            "noul": 0.3961
+          },
+          "signage": {
+            "type": "score",
+            "score": 1.0728,
+            "confidence": 0.5054,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.5054,
+              "1": 0.2099,
+              "2": 0.0828,
+              "3": 0.1102,
+              "4": 0.0917
+            }
+          },
+          "lighting_present": {
+            "type": "noul",
+            "noul": 0.8959
+          },
+          "lighting": {
+            "type": "score",
+            "score": 0.5788,
+            "confidence": 0.6717,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.6717,
+              "1": 0.1898,
+              "2": 0.0601,
+              "3": 0.0447,
+              "4": 0.0337
+            }
+          }
+        },
+        {
+          "shelter_present": {
+            "type": "noul",
+            "noul": 0.0211
+          },
+          "shelter": {
+            "type": "score",
+            "score": 2.1152,
+            "confidence": 0.3219,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.1013,
+              "1": 0.3219,
+              "2": 0.1709,
+              "3": 0.1723,
+              "4": 0.2336
+            }
+          },
+          "seating_present": {
+            "type": "noul",
+            "noul": 0.0244
+          },
+          "seating": {
+            "type": "score",
+            "score": 2.4034,
+            "confidence": 0.3469,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.1033,
+              "1": 0.2329,
+              "2": 0.1677,
+              "3": 0.1492,
+              "4": 0.3469
+            }
+          },
+          "signage_present": {
+            "type": "noul",
+            "noul": 0.7585
+          },
+          "signage": {
+            "type": "score",
+            "score": 1.0369,
+            "confidence": 0.4838,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.4838,
+              "1": 0.2335,
+              "2": 0.1086,
+              "3": 0.1103,
+              "4": 0.0638
+            }
+          },
+          "lighting_present": {
+            "type": "noul",
+            "noul": 0.9552
+          },
+          "lighting": {
+            "type": "score",
+            "score": 0.408,
+            "confidence": 0.7445,
+            "legend": {
+              "0": "No maintenance needed: in good condition",
+              "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+              "2": "Moderate: visible wear or damage that should be fixed",
+              "3": "Significant: clearly damaged, deficient or partly missing",
+              "4": "Severe: broken, missing, unsafe or unusable"
+            },
+            "probabilities": {
+              "0": 0.7445,
+              "1": 0.1674,
+              "2": 0.043,
+              "3": 0.0257,
+              "4": 0.0194
+            }
+          }
         }
-      },
-      "assessable": {
-        "type": "noul",
-        "noul": 0.5708
+      ],
+      "judgement": {
+        "waiting_area": {
+          "type": "score",
+          "score": 2.078,
+          "confidence": 0.3699,
+          "legend": {
+            "0": "No maintenance needed: in good condition",
+            "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+            "2": "Moderate: visible wear or damage that should be fixed",
+            "3": "Significant: clearly damaged, deficient or partly missing",
+            "4": "Severe: broken, missing, unsafe or unusable"
+          },
+          "probabilities": {
+            "0": 0.0459,
+            "1": 0.245,
+            "2": 0.3699,
+            "3": 0.2634,
+            "4": 0.0757
+          }
+        },
+        "accessibility": {
+          "type": "score",
+          "score": 2.0715,
+          "confidence": 0.2901,
+          "legend": {
+            "0": "No maintenance needed: in good condition",
+            "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+            "2": "Moderate: visible wear or damage that should be fixed",
+            "3": "Significant: clearly damaged, deficient or partly missing",
+            "4": "Severe: broken, missing, unsafe or unusable"
+          },
+          "probabilities": {
+            "0": 0.109,
+            "1": 0.2151,
+            "2": 0.2784,
+            "3": 0.2901,
+            "4": 0.1073
+          }
+        },
+        "requires_maintenance": {
+          "type": "score",
+          "score": 2.5517,
+          "confidence": 0.4613,
+          "legend": {
+            "0": "No maintenance needed: in good condition",
+            "1": "Minor: small cosmetic issues (dirt, faded paint, light wear)",
+            "2": "Moderate: visible wear or damage that should be fixed",
+            "3": "Significant: clearly damaged, deficient or partly missing",
+            "4": "Severe: broken, missing, unsafe or unusable"
+          },
+          "probabilities": {
+            "0": 0.0304,
+            "1": 0.1301,
+            "2": 0.2375,
+            "3": 0.4613,
+            "4": 0.1407
+          }
+        },
+        "assessable": {
+          "type": "noul",
+          "noul": 0.4417
+        }
       }
     }
   }

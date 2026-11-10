@@ -1,0 +1,26 @@
+# Explorer harness versions
+
+Every run records `harness` in its `record.json` (and `config.json`): the version below,
+the git commit and whether the working tree had uncommitted changes, the sha256 of the
+explorer prompt, and the explorer and confirmer models. Bump `HARNESS_VERSION`
+(`cotral_maintenance/explorer/__init__.py`) on any change that can change what a run does.
+
+Runs from before versioning (2026-11-07 to 2026-11-09 15:50) have no `harness` field; the
+versions they belong to are given by date below, and can be told apart by their record:
+no `budget` = 0.1; `budget` without `unit` = 0.2; `budget.unit = "images"` without `tiles` =
+0.3–0.5 (by date).
+
+| Version | Date | Design |
+|---|---|---|
+| 0.1 | 2026-11-07 | `look` tool (forward / backward / across / target), 14 Static photos of 640x640, opening pair of photos at ±15 m, the explorer answers its own checklist. Start: Places, else GTFS. |
+| 0.2 | 2026-11-09 12:45 | `sweep` = right half of the panorama as two 1536x768 photos rendered from Map Tiles, free `zoom` (tiles), `confirm` by a fresh tool-less confirmer call, "same road twice" briefing. 90–226 tiles per stop: over budget. |
+| 0.3 | 2026-11-09 14:10 | Budget: 14 Static images per stop (12 explorer + 2 stop photos), no tiles. `sweep` = 1 image (fov 110, ahead or behind), `zoom` = 1 narrow Static image, `confirm` judges the zoom (no image). Stop photos taken on `submit_found`. |
+| 0.4 | 2026-11-09 14:17 | Start: OSM matched object (by `ref`, else nearest within 100 m), else Places, else GTFS (`osm_match.py`). Prior from the start source's measured spread. |
+| 0.5 | 2026-11-09 14:21–14:37 | Opening aimed at an OSM start (narrow, then from upstream, then 110° from the nearest panorama). Single-view positions: sight line nearest the OSM start, else sight line ∩ sidewalk, else ground range. |
+| 0.6 | 2026-11-09 | Static for broad looks (12 + 2 stop photos), Map Tiles for close views: `zoom` and `look_from` (a candidate from another panorama, before it in the direction of travel by default), priced in tiles before fetching, cheapest framing; 42 tiles per stop. Monthly free-tier ledger (10,000 Static, 100,000 tiles). |
+| 0.7 | 2026-11-09 | The harness steers the choices. An OSM start whose path point has no Street View (an access road) moves to the nearest scanned point of the path within 25 m, preferring passes with it on their right. New sidewalk state `glimpsed` (a sign would be 5–12 px: noticeable, not judgeable), set automatically by sweeps. The state suggests the 3 next sweeps (position and facing) that bring the most remaining likelihood into view. |
+| 0.8 | 2026-11-09 | Confirmer: new checklist item `same_design_as_reference` (navy panel, text block above, white wordmark below). A panel with the design, no look-alike feature, and no clear "no" on text or logo is confirmed as `cotral_sign_by_design` (weaker evidence): far signs whose text is too small to read at the panorama's full resolution. On 13 close views from the 0.7 runs it confirmed exactly the 2 real Cotral signs and rejected the parking and no-parking signs. |
+| 0.9 | 2026-11-09 | Opening: two wide photos converging on the start, from panoramas about 15 m before and after it (a sign edge on in one is face on in the other). Corners: bends of 30°+ are found; automatic bookkeeping and `mark_clear` never cross a corner; the state lists corners not yet seen close, by likelihood. Budget 16 + 2 Static images. No final report or notes asked of the model. |
+| 0.10 | 2026-11-09 | The harness enforces what the model skipped. Every close view (zoom, look_from) is judged by the confirmer automatically: a stop becomes a confirmed candidate; a look-alike is closed; anything that "could be a stop from another angle" (new checklist item: a shelter from behind, a panel edge on, a bench, half hidden) is looked at from another panorama and judged again before it can be dismissed. A sweep facing a corner within 40 m makes the harness look round it (from ~6 m past it looking back, and ~6 m before it looking ahead). Budget 20 + 2 Static images, 60 tiles, 30 confirmer calls. |
+| 0.11 | 2026-11-10 | Built around the local explorer, Qwen3.8-27B (Unsloth UD-Q2_K_XL GGUF + vision projector, llama-server; `experiments/explore/qwen_run.py`, `qwen_server.sh`); Gemma dropped. Points on photos (`zoom`, `mark_*`) are on a 0-1000 grid over the photo, Qwen-VL's native pointing scale (it put a sign within 3 px of the truth; Gemma's pixel clicks were placeholders). Shorter tool results (about 60 tokens/s to read on the M5): sweep captions and the state lose the explanations, now in the prompt once; sidewalk positions say "(sign clear / small / a speck)" instead of pixel widths. Qwen loop: photos inside the tool results, every turn a constrained tool call, thinking at low effort kept in the history so each request extends the cached prompt, the explorer and the confirmer on separate server slots, a stall guard (8 turns changing nothing). The Qwen confirmer answers the same checklist. |
+| 0.11.1 | 2026-11-10 | `mark_clear` / `mark_hidden` place a point where its sight line meets the right-hand sidewalk, the ground range only as a fallback: the sidewalk positions are given at sign height, near the horizon, where a point read as ground cleared up to 70 m too far (f9388, 0.11.0). |

@@ -9,6 +9,7 @@ as the output, so no more tiles are paid for than needed.
 
 import io
 import math
+from dataclasses import dataclass
 
 import numpy as np
 from PIL import Image
@@ -69,6 +70,49 @@ def level_to_panorama(
     return np.degrees(np.arctan2(x, z)), np.degrees(np.arcsin(np.clip(y, -1, 1)))
 
 
+@dataclass(frozen=True)
+class _Sampling:
+    zoom: int
+    x0: np.ndarray
+    y0: np.ndarray
+    x1: np.ndarray
+    y1: np.ndarray
+    fx: np.ndarray
+    fy: np.ndarray
+    row_first: int
+    row_last: int
+    columns: np.ndarray
+
+
+def _sampling(geometry: PanoGeometry, heading: float, pitch: float, fov: float, width: int,
+              height: int) -> _Sampling:
+    """Where each output pixel samples the panorama, and the tiles that needs."""
+    zoom = choose_zoom(geometry, width / fov)
+    pano_w, pano_h = geometry.size_at(zoom)
+    yaw, elevation = view_directions(heading, pitch, fov, width, height)
+    # Relative to the panorama's centre column, which faces geometry.heading.
+    rel_yaw, rel_elevation = level_to_panorama(yaw - geometry.heading, elevation, geometry)
+    px = ((rel_yaw / 360 + 0.5) % 1.0) * pano_w - 0.5
+    py = np.clip((90 - rel_elevation) / 180 * pano_h - 0.5, 0, pano_h - 1)
+    x0 = np.floor(px).astype(int)
+    y0 = np.floor(py).astype(int)
+    fx, fy = (px - x0)[..., None], (py - y0)[..., None]
+    x0 %= pano_w
+    x1 = (x0 + 1) % pano_w
+    y1 = np.minimum(y0 + 1, pano_h - 1)
+    # Only the band of tile rows the view covers is assembled, at full panorama width.
+    row_first, row_last = int(y0.min() // geometry.tile_height), int(y1.max() // geometry.tile_height)
+    columns = np.unique(np.concatenate([x0.ravel(), x1.ravel()]) // geometry.tile_width)
+    return _Sampling(zoom, x0, y0, x1, y1, fx, fy, row_first, row_last, columns)
+
+
+def tiles_for_view(geometry: PanoGeometry, heading: float, pitch: float, fov: float, width: int,
+                   height: int) -> set[tuple[int, int, int]]:
+    """(zoom, x, y) of every tile render_view fetches for this view: what it costs, before paying."""
+    s = _sampling(geometry, heading, pitch, fov, width, height)
+    return {(s.zoom, int(col), row) for row in range(s.row_first, s.row_last + 1) for col in s.columns}
+
+
 def render_view(
     source: TileSource,
     geometry: PanoGeometry,
@@ -78,28 +122,13 @@ def render_view(
     width: int,
     height: int,
 ) -> Image.Image:
-    zoom = choose_zoom(geometry, width / fov)
-    pano_w, pano_h = geometry.size_at(zoom)
+    s = _sampling(geometry, heading, pitch, fov, width, height)
+    zoom, x0, y0, x1, y1, fx, fy = s.zoom, s.x0, s.y0, s.x1, s.y1, s.fx, s.fy
+    row_first, row_last, columns = s.row_first, s.row_last, s.columns
+    pano_w, _ = geometry.size_at(zoom)
     tile_w, tile_h = geometry.tile_width, geometry.tile_height
-
-    yaw, elevation = view_directions(heading, pitch, fov, width, height)
-    # Relative to the panorama's centre column, which faces geometry.heading.
-    rel_yaw, rel_elevation = level_to_panorama(yaw - geometry.heading, elevation, geometry)
-    px = ((rel_yaw / 360 + 0.5) % 1.0) * pano_w - 0.5
-    py = np.clip((90 - rel_elevation) / 180 * pano_h - 0.5, 0, pano_h - 1)
-
-    x0 = np.floor(px).astype(int)
-    y0 = np.floor(py).astype(int)
-    fx, fy = (px - x0)[..., None], (py - y0)[..., None]
-    x0 %= pano_w
-    x1 = (x0 + 1) % pano_w
-    y1 = np.minimum(y0 + 1, pano_h - 1)
-
-    # Only the band of tile rows the view covers is assembled, at full panorama width.
-    row_first, row_last = y0.min() // tile_h, y1.max() // tile_h
     band_top = row_first * tile_h
     band = np.zeros(((row_last - row_first + 1) * tile_h, pano_w, 3), dtype=np.uint8)
-    columns = np.unique(np.concatenate([x0.ravel(), x1.ravel()]) // tile_w)
     for row in range(row_first, row_last + 1):
         for col in columns:
             tile = np.asarray(Image.open(io.BytesIO(

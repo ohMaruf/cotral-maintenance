@@ -7,6 +7,8 @@ data/
 .idea/
 .pytest_cache/
 GTFS_COTRAL/
+GTFS_ATAC/
+GROUND_TRUTH/
 turbo-fieldfare/
 .DS_Store
 *.log

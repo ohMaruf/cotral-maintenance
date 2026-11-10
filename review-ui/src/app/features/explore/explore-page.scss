@@ -1,0 +1,354 @@
+.layout {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+  padding: var(--space-4);
+}
+
+.runs {
+  position: sticky;
+  top: 4rem;
+  max-height: calc(100dvh - 5rem);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  overflow-y: auto;
+}
+
+.runs-title {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-md);
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.hint {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.work {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 17rem;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.map-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+
+  app-geo-map {
+    height: 26rem;
+  }
+}
+
+// Same look as the toggles of the shapes page.
+.toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--text-sm);
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    cursor: pointer;
+  }
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+
+  .geo-marker {
+    width: 1.3rem;
+    height: 1.3rem;
+    font-size: 0.7rem;
+  }
+}
+
+.film {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 0 var(--space-2);
+  list-style: none;
+  overflow-x: auto;
+}
+
+.film li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+// The photos of a group (an old sweep's two, the stop photos) sit together under one tag.
+.film li.group-start:not(.group-end) {
+  margin-right: calc(-1 * var(--space-2) + 2px);
+}
+
+.stop-photos {
+  h2 {
+    margin: 0 0 var(--space-1);
+    font-size: var(--text-sm);
+  }
+
+  ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+}
+
+.stop-photo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 14rem;
+  max-width: 100%;
+  padding: var(--space-1);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+
+  img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+  }
+}
+
+.group-tag {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.toward {
+  color: var(--color-text-muted);
+}
+
+.frame {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 7.5rem;
+  padding: var(--space-1);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-xs);
+  text-align: left;
+  cursor: pointer;
+
+  img {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+  }
+
+  &.later {
+    opacity: 0.55;
+  }
+
+  &.current {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px var(--color-accent-bg);
+    opacity: 1;
+  }
+}
+
+.cap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-1);
+}
+
+.opening {
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+}
+
+.path-key {
+  color: #26c6da;
+  font-size: 1rem;
+  line-height: 1;
+  text-shadow: 0 0 2px #000;
+}
+
+.timeline {
+  position: sticky;
+  top: 4rem;
+  max-height: calc(100dvh - 5rem);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  overflow-y: auto;
+
+  ol {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+}
+
+.tl-title {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-md);
+}
+
+.muted {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: 1.6rem 1rem minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-surface-2);
+  }
+
+  &[aria-current='step'] {
+    border-color: var(--color-accent);
+    background: var(--color-accent-bg);
+  }
+
+  .seq,
+  .used {
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+  }
+
+  .kind {
+    color: var(--color-accent-strong);
+  }
+
+  .sum {
+    overflow-wrap: anywhere;
+  }
+
+  .tool {
+    margin-right: var(--space-1);
+    color: var(--color-accent-strong);
+    font-size: var(--text-xs);
+    font-weight: 600;
+  }
+
+  // The model's own words.
+  &.thought .sum {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    color: var(--color-text-muted);
+    font-style: italic;
+    overflow: hidden;
+  }
+
+  &.danger {
+    .kind,
+    .sum,
+    .tool {
+      color: var(--color-danger);
+    }
+  }
+}
+
+@media (max-width: 1000px) {
+  .work {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .timeline {
+    position: static;
+    max-height: 18rem;
+  }
+}
+
+@media (max-width: 760px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .runs {
+    position: static;
+    max-height: 14rem;
+  }
+}
+
+.tiles-tag {
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-bg);
+  color: var(--color-text-muted);
+}
+
+.filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+}

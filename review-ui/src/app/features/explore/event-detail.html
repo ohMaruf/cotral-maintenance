@@ -1,0 +1,138 @@
+<article class="detail" [attr.aria-label]="'Event ' + event().seq">
+  <header class="head">
+    <h2 [class.danger]="kind().danger">
+      <span class="glyph" aria-hidden="true">{{ kind().glyph }}</span>
+      #{{ event().seq }} · {{ kind().label }}
+      @if (!kind().thought) {
+        <code class="muted tool">{{ event().kind }}</code>
+      }
+      <span class="muted used">{{ budget() }} used</span>
+    </h2>
+    @if (!kind().thought) {
+      <p class="summary" [class.danger]="kind().danger">{{ event().summary }}</p>
+    }
+  </header>
+
+  @if (kind().thought) {
+    <blockquote class="thought">{{ result() }}</blockquote>
+  } @else {
+    @if (args().length > 0) {
+      <section aria-label="Arguments">
+        <h3>Arguments</h3>
+        <dl class="args">
+          @for (a of args(); track a.key) {
+            <div>
+              <dt class="mono">{{ a.key }}</dt>
+              <dd class="mono">{{ a.value }}</dd>
+            </div>
+          }
+        </dl>
+      </section>
+    }
+
+    @if (event().error; as error) {
+      <section aria-label="Error">
+        <h3 class="danger">Error</h3>
+        <pre class="result danger-box">{{ error }}</pre>
+      </section>
+    } @else if (result()) {
+      <section aria-label="Result">
+        <h3>Result</h3>
+        <pre class="result">{{ result() }}</pre>
+      </section>
+    }
+
+    @for (p of photos(); track p.photo.index) {
+      <section class="photo-block" [attr.aria-label]="'Photo ' + p.photo.index">
+        <button
+          type="button"
+          class="photo-btn"
+          [attr.aria-label]="'Open photo ' + p.photo.index + ' full size'"
+          (click)="photoOpen.emit(p.photo.index)"
+        >
+          <img
+            [src]="p.photo.url"
+            [alt]="'Photo ' + p.photo.index + ' at heading ' + p.photo.heading"
+          />
+        </button>
+        <div>
+          <h3>Photo {{ p.photo.index }}</h3>
+          <dl class="facts">
+            @for (f of p.facts; track f.label) {
+              <div>
+                <dt>{{ f.label }}</dt>
+                <dd>{{ f.value }}</dd>
+              </div>
+            }
+          </dl>
+          <p class="copyright">
+            {{ p.photo.copyright ?? 'Street View imagery (copyright not provided)' }}
+          </p>
+        </div>
+      </section>
+    }
+
+    @if (candidate(); as c) {
+      <section aria-label="Checklist">
+        <h3>
+          Checklist of candidate {{ c.index }}
+          <span class="muted">({{ c.kind }}, {{ c.status.replaceAll('_', ' ') }})</span>
+        </h3>
+        @if (c.confirmer_note) {
+          <p class="confirmer-note">
+            <strong>Confirmer:</strong> {{ c.confirmer_note }}
+            @if (c.confirm_photo !== null) {
+              <button type="button" class="link" (click)="photoOpen.emit(c.confirm_photo)">
+                photo {{ c.confirm_photo }}
+              </button>
+            }
+          </p>
+        }
+        @if (checklist().length === 0) {
+          <p class="muted">No answers recorded.</p>
+        } @else {
+          <table class="checklist">
+            <thead>
+              <tr>
+                <th scope="col">Feature</th>
+                @for (a of answers; track a) {
+                  <th scope="col">{{ a }}</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of checklist(); track row.feature) {
+                <tr>
+                  <th scope="row" class="mono">{{ row.feature }}</th>
+                  @for (a of answers; track a) {
+                    <td [class]="row.answer === a ? 'on ' + a : ''">
+                      {{ row.answer === a ? '●' : '' }}
+                      @if (row.answer === a) {
+                        <span class="visually-hidden">{{ a }}</span>
+                      }
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </section>
+    }
+  }
+
+  <section aria-label="Raw exchange">
+    <details class="raw" (toggle)="toggle('request', $any($event.target).open)">
+      <summary>Raw request</summary>
+      @if (requestOpen()) {
+        <pre class="json mono" tabindex="0">{{ requestJson() }}</pre>
+      }
+    </details>
+    <details class="raw" (toggle)="toggle('response', $any($event.target).open)">
+      <summary>Raw response</summary>
+      @if (responseOpen()) {
+        <pre class="json mono" tabindex="0">{{ responseJson() }}</pre>
+      }
+    </details>
+  </section>
+</article>

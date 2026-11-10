@@ -1,0 +1,232 @@
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+h2 {
+  font-size: var(--text-lg);
+}
+
+h3 {
+  font-size: var(--text-md);
+}
+
+.sub {
+  margin-top: var(--space-3);
+}
+
+.glyph {
+  color: var(--color-accent-strong);
+}
+
+.summary {
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.muted {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.photo-block {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.photo-btn {
+  display: block;
+  padding: 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-viewer-bg);
+  cursor: zoom-in;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+    object-fit: contain;
+  }
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-2) 0 0;
+
+  dt {
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+  }
+
+  dd {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  &.inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-5);
+  }
+}
+
+.copyright {
+  margin-top: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.danger {
+  color: var(--color-danger);
+}
+
+.used {
+  margin-left: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.thought {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-surface-2);
+  font-size: var(--text-md);
+  font-style: italic;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.args {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+
+  div {
+    display: contents;
+  }
+
+  dt {
+    color: var(--color-text-muted);
+  }
+
+  dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+.result {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+
+  &.danger-box {
+    border-color: var(--color-danger);
+    background: var(--color-danger-bg);
+  }
+}
+
+.checklist {
+  margin-top: var(--space-2);
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+
+  th,
+  td {
+    padding: 2px var(--space-3);
+    border: 1px solid var(--color-border);
+    text-align: center;
+  }
+
+  thead th {
+    background: var(--color-surface-2);
+    text-transform: capitalize;
+  }
+
+  tbody th {
+    font-weight: 400;
+    text-align: left;
+  }
+
+  td.on.yes {
+    background: var(--color-ok-bg);
+    color: var(--color-ok);
+  }
+
+  td.on.no {
+    background: var(--color-surface-2);
+    color: var(--color-text-muted);
+  }
+
+  td.on.unsure {
+    background: var(--color-warn-bg);
+    color: var(--color-warn-border);
+  }
+}
+
+.raw {
+  margin-top: var(--space-2);
+
+  summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+}
+
+.json {
+  max-height: 22rem;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  font-size: var(--text-xs);
+  overflow: auto;
+}
+
+@media (max-width: 900px) {
+  .photo-block {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.confirmer-note {
+  margin: 0 0 var(--space-2);
+}
+
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}

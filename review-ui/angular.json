@@ -31,7 +31,12 @@
                 "input": "public"
               }
             ],
-            "styles": ["@angular/cdk/overlay-prebuilt.css", "src/styles.scss"],
+            "styles": [
+              "@angular/cdk/overlay-prebuilt.css",
+              "leaflet/dist/leaflet.css",
+              "src/styles.scss"
+            ],
+            "allowedCommonJsDependencies": ["leaflet"],
             "outputPath": {
               "base": "dist",
               "browser": ""

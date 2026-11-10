@@ -1,4 +1,19 @@
-import { Routes } from '@angular/router';
+import { Routes, UrlMatcher } from '@angular/router';
+
+/**
+ * Matches `/prefix` and `/prefix/:param` with ONE route, so the page instance (and
+ * what it has loaded) survives moving between the two, e.g. the redirect from
+ * `/explore` to the first run.
+ */
+export function optionalParam(prefix: string, param: string): UrlMatcher {
+  return (segments) => {
+    if (segments.length === 0 || segments.length > 2 || segments[0].path !== prefix) return null;
+    return {
+      consumed: segments,
+      posParams: segments[1] ? { [param]: segments[1] } : {},
+    };
+  };
+}
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'scores' },
@@ -11,6 +26,16 @@ export const routes: Routes = [
     path: 'versus',
     title: 'Versus · Stop review',
     loadComponent: () => import('./features/versus/versus-page').then((m) => m.VersusPage),
+  },
+  {
+    matcher: optionalParam('explore', 'runId'),
+    title: 'Explore · Stop review',
+    loadComponent: () => import('./features/explore/explore-page').then((m) => m.ExplorePage),
+  },
+  {
+    matcher: optionalParam('shapes', 'stopId'),
+    title: 'Shapes · Stop review',
+    loadComponent: () => import('./features/shapes/shapes-page').then((m) => m.ShapesPage),
   },
   { path: '**', redirectTo: 'scores' },
 ];

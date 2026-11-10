@@ -4,11 +4,17 @@ import { Observable, catchError, throwError } from 'rxjs';
 import { toApiError } from './api-error';
 import {
   Catalog,
+  Exploration,
+  ExplorationSummary,
+  HarnessVersion,
   Judgment,
   JudgmentRequest,
   JudgmentResponse,
   NextPairResponse,
   Progress,
+  ShapeCheck,
+  ShapeVerdict,
+  ShapeVerdictRequest,
   StopDetail,
 } from './api.types';
 
@@ -46,6 +52,36 @@ export class ApiService {
   postJudgment(body: JudgmentRequest): Observable<JudgmentResponse> {
     return this.http
       .post<JudgmentResponse>(`${BASE}/judgments`, body)
+      .pipe(catchError((e) => throwError(() => toApiError(e))));
+  }
+
+  /** All runs, or only those of one harness version. */
+  explorations(harness?: string): Observable<ExplorationSummary[]> {
+    const query = harness ? `?harness=${encodeURIComponent(harness)}` : '';
+    return this.get<ExplorationSummary[]>(`/explorations${query}`);
+  }
+
+  /** The harness versions present, newest first ("unversioned" last), with their run counts. */
+  harnessVersions(): Observable<HarnessVersion[]> {
+    return this.get<HarnessVersion[]>('/explorations/harness-versions');
+  }
+
+  exploration(runId: string): Observable<Exploration> {
+    return this.get<Exploration>(`/explorations/${encodeURIComponent(runId)}`);
+  }
+
+  shapeCheck(): Observable<ShapeCheck> {
+    return this.get<ShapeCheck>('/shape-check');
+  }
+
+  shapeVerdicts(): Observable<ShapeVerdict[]> {
+    return this.get<ShapeVerdict[]>('/shape-check/verdicts');
+  }
+
+  /** Replaces the stop's verdict and note (last write wins). */
+  putShapeVerdict(stopId: string, body: ShapeVerdictRequest): Observable<ShapeVerdict> {
+    return this.http
+      .put<ShapeVerdict>(`${BASE}/shape-check/verdicts/${encodeURIComponent(stopId)}`, body)
       .pipe(catchError((e) => throwError(() => toApiError(e))));
   }
 

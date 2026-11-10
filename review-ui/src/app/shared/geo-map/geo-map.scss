@@ -1,0 +1,143 @@
+// Unencapsulated: Leaflet builds its DOM outside Angular's templates.
+app-geo-map {
+  display: block;
+  min-height: 16rem;
+}
+
+.geo-map {
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-2);
+
+  // Keep the controls readable in dark mode.
+  .leaflet-control-layers,
+  .leaflet-control-zoom a {
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .leaflet-container {
+    font-family: var(--font-sans);
+  }
+
+  .leaflet-tooltip {
+    background: var(--color-surface);
+    border-color: var(--color-border-strong);
+    color: var(--color-text);
+    font-size: var(--text-sm);
+  }
+
+  .leaflet-control-attribution {
+    font-size: var(--text-xs);
+  }
+}
+
+.geo-icon {
+  border: 0;
+  background: transparent;
+}
+
+.geo-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 60%);
+  color: #fff;
+  font: 700 12px/1 var(--font-sans);
+
+  // Lettered position pins, one colour per kind (also used in legends).
+  &.pin-gtfs {
+    background: var(--pin-gtfs);
+  }
+
+  &.pin-places {
+    background: var(--pin-places);
+  }
+
+  &.pin-verified {
+    background: var(--pin-verified);
+  }
+
+  &.pin-estimate {
+    background: var(--pin-estimate);
+  }
+
+  // OSM feature: a small light pin with a one-letter kind code.
+  &.pin-feature {
+    border-width: 1px;
+    background: var(--pin-feature-bg);
+    color: var(--pin-feature-fg);
+    font-size: 9px;
+  }
+
+  // Neighbour stop: a small dot.
+  &.dot {
+    border-width: 1px;
+    background: var(--pin-neighbour);
+    box-shadow: none;
+    font-size: 0;
+  }
+
+  // Numbered camera at a panorama position.
+  &.camera {
+    border-radius: var(--radius-sm);
+    background: var(--pin-camera);
+    transition: opacity 0.15s;
+
+    &.past {
+      opacity: 1;
+    }
+
+    &.future {
+      opacity: 0.4;
+    }
+
+    &.current {
+      border-color: var(--pin-current);
+      box-shadow:
+        0 0 0 3px var(--pin-current),
+        0 1px 4px rgb(0 0 0 / 60%);
+    }
+  }
+
+  // Candidate sign/shelter: a diamond, coloured by status. Not a disc, so no border or shadow.
+  &.diamond {
+    border: 0;
+    border-radius: 0;
+    background: var(--cand-spotted);
+    box-shadow: none;
+    clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+
+    &.cand-spotted {
+      background: var(--cand-spotted);
+      color: #1d221c;
+    }
+
+    &.cand-awaiting_checklist {
+      background: var(--cand-awaiting);
+      color: #1d221c;
+    }
+
+    &.cand-confirmed {
+      background: var(--cand-confirmed);
+    }
+
+    &.cand-rejected {
+      background: var(--cand-rejected);
+    }
+  }
+
+  // Rotated glyphs: no disc.
+  &.arrow {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    font-size: 14px;
+    text-shadow: 0 0 2px #000;
+  }
+}

@@ -35,6 +35,22 @@
   --prob: #2c6e7f;
   --bar-track: #e1e4de;
 
+  // Map pins: G gtfs, P places, V verified, E explorer estimate
+  --pin-gtfs: #d93025;
+  --pin-places: #8e24aa;
+  --pin-verified: #1e8e3e;
+  --pin-estimate: #1a73e8;
+  --pin-neighbour: #90a4ae;
+  --pin-camera: #37474f;
+  --pin-current: #ff6d00;
+  --cand-spotted: #fbc02d;
+  --cand-awaiting: #fb8c00;
+  --cand-confirmed: #1e8e3e;
+  --cand-rejected: #78909c;
+  // Small OSM feature pins (B, L, S, H, T, ?), quieter than the G/P/V pins
+  --pin-feature-bg: #eceff1;
+  --pin-feature-fg: #263238;
+
   // Spacing
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -91,6 +107,8 @@
     --sev-4: #ee6464;
     --prob: #6fc0d3;
     --bar-track: #343a31;
+    --pin-feature-bg: #455a64;
+    --pin-feature-fg: #eceff1;
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
     --shadow-md: 0 4px 14px rgb(0 0 0 / 45%);
   }

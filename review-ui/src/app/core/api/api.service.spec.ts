@@ -77,4 +77,47 @@ describe('ApiService', () => {
     http.expectOne('/api/catalog').error(new ProgressEvent('error'));
     expect((error as ApiError).kind).toBe('network');
   });
+
+  it('GETs the explorations list and one run (encoded)', () => {
+    api.explorations().subscribe();
+    http.expectOne('/api/explorations').flush([]);
+    api.explorations('0.6.0').subscribe();
+    http.expectOne('/api/explorations?harness=0.6.0').flush([]);
+    api.harnessVersions().subscribe();
+    http.expectOne('/api/explorations/harness-versions').flush([]);
+    api.exploration('f 1/2').subscribe();
+    const req = http.expectOne('/api/explorations/f%201%2F2');
+    expect(req.request.method).toBe('GET');
+    req.flush({});
+  });
+
+  it('GETs the shape check and its verdicts', () => {
+    api.shapeCheck().subscribe();
+    http.expectOne('/api/shape-check').flush({});
+    api.shapeVerdicts().subscribe();
+    http.expectOne('/api/shape-check/verdicts').flush([]);
+  });
+
+  it('PUTs a shape verdict with the body as given', () => {
+    const body = { verdict: 'on_route' as const, note: 'ok', rater: 'ana' };
+    let result: unknown;
+    api.putShapeVerdict('f 1', body).subscribe((r) => (result = r));
+    const req = http.expectOne('/api/shape-check/verdicts/f%201');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual(body);
+    req.flush({ stop_id: 'f 1', ...body, updated_at: '2026-01-01T00:00:00Z' });
+    expect(result).toMatchObject({ stop_id: 'f 1' });
+  });
+
+  it('maps a missing shape-check file to the API detail', () => {
+    let error: unknown;
+    api.shapeCheck().subscribe({ error: (e) => (error = e) });
+    http
+      .expectOne('/api/shape-check')
+      .flush(
+        { detail: 'run experiments/explore/shape_check.py' },
+        { status: 404, statusText: 'x' },
+      );
+    expect((error as ApiError).message).toBe('run experiments/explore/shape_check.py');
+  });
 });

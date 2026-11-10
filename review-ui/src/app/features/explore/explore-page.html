@@ -1,0 +1,228 @@
+<div class="layout">
+  <aside class="runs" aria-label="Runs">
+    <h1 class="runs-title">Runs</h1>
+    @if (runs.isLoading() && !runs.hasValue()) {
+      <app-state-message kind="loading" title="Loading runs…" />
+    } @else if (runsError(); as err) {
+      <app-state-message
+        kind="error"
+        title="Could not load the runs"
+        [message]="err.message"
+        actionLabel="Try again"
+        (action)="reloadRuns()"
+      />
+    } @else if (allRuns().length === 0) {
+      <app-state-message
+        kind="empty"
+        title="No exploration runs yet"
+        message="Run experiments/explore/agent_dry_run.py to record some."
+      />
+    } @else {
+      <label class="filter">
+        Harness
+        <select [value]="harness() ?? ''" (change)="setHarness($any($event.target).value)">
+          <option value="">All versions ({{ runs.value()?.length }})</option>
+          @for (v of versionOptions(); track v.version) {
+            <option [value]="v.version" [selected]="v.version === harness()">
+              {{ v.label }} ({{ v.runs }})
+            </option>
+          }
+        </select>
+      </label>
+      @if (runList().length === 0) {
+        <app-state-message
+          kind="empty"
+          title="No runs of this harness version"
+          actionLabel="Show all versions"
+          (action)="setHarness('')"
+        />
+      } @else {
+        <app-run-list
+          [runs]="runList()"
+          [selectedId]="runId() ?? null"
+          [harness]="harness() ?? null"
+        />
+      }
+    }
+  </aside>
+
+  <section class="main">
+    @if (!runId()) {
+      @if (runList().length > 0) {
+        <app-state-message kind="empty" title="Select a run" message="Pick one on the left." />
+      }
+    } @else if (run.isLoading() && !run.hasValue()) {
+      <app-state-message kind="loading" title="Loading run…" />
+    } @else if (runError(); as err) {
+      <app-state-message
+        kind="error"
+        title="Could not load this run"
+        [message]="err.message"
+        actionLabel="Try again"
+        (action)="reloadRun()"
+      />
+    } @else if (loadedRun(); as r) {
+      <app-run-header [run]="r" />
+      <p class="hint">
+        <kbd>←</kbd> <kbd>→</kbd> previous / next event, <kbd>Home</kbd> <kbd>End</kbd> first /
+        last, <kbd>,</kbd> <kbd>.</kbd> previous / next photo, <kbd>[</kbd> <kbd>]</kbd> previous /
+        next run
+      </p>
+
+      <div class="work">
+        <div class="left">
+          <div class="map-wrap">
+            <div class="toggles" role="group" aria-label="Map layers">
+              <label>
+                <input type="checkbox" [checked]="showFeatures()" (change)="toggleFeatures()" />
+                OSM features
+              </label>
+            </div>
+            <app-geo-map
+              label="Map of the path, candidates and photos of this run"
+              [layers]="layers()"
+              [bounds]="bounds()"
+              [fitPadding]="50"
+              (layerClick)="onLayerClick($event)"
+            />
+            <ul class="legend" aria-label="Map legend">
+              @for (l of legend; track l.kind) {
+                <li>
+                  <span
+                    class="geo-marker"
+                    [class]="'geo-marker pin-' + l.kind"
+                    aria-hidden="true"
+                    >{{ l.letter }}</span
+                  >
+                  {{ l.label }}
+                </li>
+              }
+              @for (k of osmLegend; track k.code) {
+                <li>
+                  <span class="geo-marker pin-feature" aria-hidden="true">{{ k.code }}</span>
+                  {{ k.label }}
+                </li>
+              }
+              <li>
+                <span class="geo-marker camera past" aria-hidden="true">1</span> Photo (numbered,
+                cone = view)
+              </li>
+              <li>
+                <span class="path-key" aria-hidden="true">➤</span> Bus path (direction of travel)
+              </li>
+              @for (c of candidateLegend; track c.status) {
+                <li>
+                  <span
+                    class="geo-marker diamond"
+                    [class]="'geo-marker diamond cand-' + c.status"
+                    aria-hidden="true"
+                    >◆</span
+                  >
+                  Candidate {{ c.label }}
+                </li>
+              }
+            </ul>
+          </div>
+
+          @if (stopPhotos().length > 0) {
+            <section class="stop-photos" aria-label="Stop photos">
+              <h2>Stop photos</h2>
+              <ul>
+                @for (sp of stopPhotos(); track sp.index) {
+                  <li>
+                    <button type="button" class="stop-photo" (click)="openPhoto(sp.index)">
+                      <img [src]="sp.url" [alt]="'Stop photo ' + sp.index" loading="lazy" />
+                      <span class="cap"
+                        ><strong>Photo {{ sp.index }}</strong> · fov {{ sp.fov }}°</span
+                      >
+                    </button>
+                  </li>
+                }
+              </ul>
+            </section>
+          }
+
+          <ol class="film" aria-label="Photos in the order taken">
+            @for (p of photos(); track p.photo.index) {
+              <li [class.group-start]="p.groupStart" [class.group-end]="p.groupEnd">
+                @if (p.groupStart) {
+                  <span class="group-tag">{{ p.groupTag }}</span>
+                }
+                <button
+                  type="button"
+                  class="frame"
+                  [class.later]="p.later"
+                  [class.current]="current()?.photos?.includes(p.photo.index)"
+                  [attr.aria-current]="current()?.photos?.includes(p.photo.index) ? 'true' : null"
+                  (click)="goToPhoto(p.photo.index)"
+                >
+                  <img [src]="p.photo.url" alt="" loading="lazy" />
+                  <span class="cap">
+                    <strong>Photo {{ p.photo.index }}</strong>
+                    <span class="toward">{{ p.label }}</span>
+                    @if (p.photo.source === 'tiles') {
+                      <span class="tiles-tag" title="Rendered from Map Tiles">tiles</span>
+                    }
+                    @if (p.photo.opening) {
+                      <span class="opening" title="Taken before the model's first turn"
+                        >opening</span
+                      >
+                    }
+                  </span>
+                </button>
+              </li>
+            }
+          </ol>
+
+          @if (current(); as c) {
+            <app-event-detail [event]="c" [run]="r" (photoOpen)="openPhoto($event)" />
+          } @else {
+            <app-state-message kind="empty" title="This run has no events" />
+          }
+        </div>
+
+        <nav class="timeline" aria-label="Events in order">
+          <h2 class="tl-title">
+            Events <span class="muted">{{ position() }} / {{ events().length }}</span>
+          </h2>
+          <ol>
+            @for (row of rows(); track row.event.seq) {
+              <li>
+                <button
+                  #stepEl
+                  type="button"
+                  class="step"
+                  [attr.data-seq]="row.event.seq"
+                  [class.photo-step]="row.event.photos.length > 0"
+                  [class.thought]="row.kind.thought"
+                  [class.danger]="row.kind.danger"
+                  [attr.aria-current]="row.event.seq === current()?.seq ? 'step' : null"
+                  (click)="goTo(row.event.seq)"
+                >
+                  <span class="seq">{{ row.event.seq }}</span>
+                  <span class="kind" [title]="row.kind.label"
+                    ><span aria-hidden="true">{{ row.kind.glyph }}</span
+                    ><span class="visually-hidden">{{ row.kind.label }}: </span></span
+                  >
+                  <span class="sum">
+                    @if (row.kind.thought) {
+                      <q>{{ row.line }}</q>
+                    } @else {
+                      @if (row.event.kind !== 'tool_error') {
+                        <span class="tool mono">{{ row.event.kind }}</span>
+                      }
+                      {{ row.line }}
+                    }
+                  </span>
+                  <span class="used" [title]="r.budget_unit + ' used'"
+                    >{{ row.event.budget_used }}/{{ r.budget_max }}</span
+                  >
+                </button>
+              </li>
+            }
+          </ol>
+        </nav>
+      </div>
+    }
+  </section>
+</div>

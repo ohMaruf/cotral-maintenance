@@ -1,0 +1,49 @@
+<div class="groups">
+  @for (group of groups(); track group.version) {
+    <section class="group" [attr.aria-label]="'Harness ' + group.label">
+      <h2 class="group-head">
+        <button
+          type="button"
+          class="toggle"
+          [attr.aria-expanded]="group.open"
+          (click)="toggle(group.version)"
+        >
+          <span class="chev" aria-hidden="true">{{ group.open ? '▾' : '▸' }}</span>
+          <span class="mono version">{{ group.label }}</span>
+          <span class="muted"
+            >{{ group.count }} {{ group.count === 1 ? 'run' : 'runs' }} · {{ group.summary }}</span
+          >
+        </button>
+      </h2>
+      @if (group.open) {
+        <ul class="runs" [attr.aria-label]="'Exploration runs, harness ' + group.label">
+          @for (item of group.items; track item.run.run_id) {
+            <li>
+              <a
+                class="run"
+                [routerLink]="['/explore', item.run.run_id]"
+                [queryParams]="query()"
+                [attr.aria-current]="item.run.run_id === selectedId() ? 'true' : null"
+              >
+                <span class="top">
+                  <span class="id mono">{{ item.run.stop_id }}</span>
+                  <app-badge [tone]="item.outcome.tone">{{ item.outcome.label }}</app-badge>
+                </span>
+                <span class="name">{{ item.run.name }}</span>
+                <span class="meta">
+                  <span>{{ item.budget }}</span>
+                  <span title="Error: GTFS → verified, then submitted → verified">{{
+                    item.errors
+                  }}</span>
+                  @if (item.run.model) {
+                    <span class="mono">{{ item.run.model }}</span>
+                  }
+                </span>
+              </a>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  }
+</div>

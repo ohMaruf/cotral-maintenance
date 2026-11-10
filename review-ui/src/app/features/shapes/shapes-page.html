@@ -1,0 +1,268 @@
+<div class="layout">
+  @if (check.isLoading() && !check.hasValue()) {
+    <app-state-message class="full" kind="loading" title="Loading the shape check…" />
+  } @else if (error(); as err) {
+    <app-state-message
+      class="full"
+      kind="error"
+      title="Could not load the shape check"
+      [message]="err.message"
+      actionLabel="Try again"
+      (action)="reload()"
+    />
+  } @else if (stops().length === 0) {
+    <app-state-message
+      class="full"
+      kind="empty"
+      title="No stops to check"
+      message="The shape check contains no stops."
+    />
+  } @else {
+    <aside class="list" aria-label="Stops">
+      <p class="progress" role="status">
+        {{ visible().length }} stops to check · {{ judgedVisible() }} judged
+      </p>
+      <div class="filters" role="group" aria-label="Filter by flag">
+        <button
+          type="button"
+          class="chip"
+          [attr.aria-pressed]="filter() === null"
+          (click)="setFilter(null)"
+        >
+          All
+        </button>
+        @for (f of filterOptions(); track f) {
+          <button
+            type="button"
+            class="chip"
+            [attr.aria-pressed]="filter() === f"
+            (click)="setFilter(f)"
+          >
+            {{ flagLabelOf(f) }}
+          </button>
+        }
+      </div>
+      <div class="io">
+        <a class="btn" href="/api/shape-check/verdicts.csv" download>Export CSV</a>
+        <button type="button" class="btn" [disabled]="importing()" (click)="csvInput.click()">
+          Import CSV
+        </button>
+        <input
+          #csvInput
+          class="visually-hidden"
+          type="file"
+          accept=".csv,text/csv"
+          tabindex="-1"
+          aria-label="CSV file to import"
+          (change)="onImport($event)"
+        />
+      </div>
+      @if (importMessage(); as msg) {
+        <p class="note-msg" role="status">{{ msg }}</p>
+      }
+      @if (store.loadError(); as msg) {
+        <p class="warn" role="alert">
+          Could not load saved verdicts: {{ msg }}
+          <button type="button" class="btn" (click)="store.load()">Try again</button>
+        </p>
+      }
+      <ul>
+        @for (item of items(); track item.stop.id) {
+          <li>
+            <a
+              class="stop"
+              [routerLink]="['/shapes', item.stop.id]"
+              replaceUrl
+              [attr.aria-current]="item.stop.id === selected()?.id ? 'true' : null"
+            >
+              <span class="label"
+                ><span class="mono">{{ item.stop.id }}</span> · {{ item.stop.offset_m }} m ·
+                {{ item.short }}</span
+              >
+              @if (item.badge; as b) {
+                <app-badge [tone]="b.tone">{{ b.label }}</app-badge>
+              }
+              <span class="flags">
+                @for (f of item.flags; track f) {
+                  <app-badge class="flag">{{ f }}</app-badge>
+                }
+              </span>
+            </a>
+          </li>
+        }
+      </ul>
+    </aside>
+
+    <section class="map-col">
+      <div class="toggles" role="group" aria-label="Map layers">
+        @for (t of toggleOptions; track t.key) {
+          <label>
+            <input type="checkbox" [checked]="toggles()[t.key]" (change)="toggle(t.key)" />
+            {{ t.label }}
+          </label>
+        }
+      </div>
+      <app-geo-map
+        label="Map of the stop, its positions and the GTFS shapes"
+        [layers]="layers()"
+        [bounds]="bounds()"
+        [fitPadding]="80"
+        [fitMaxZoom]="19"
+      />
+      <ul class="legend" aria-label="Map legend">
+        <li><span class="geo-marker pin-gtfs" aria-hidden="true">G</span> GTFS</li>
+        <li><span class="geo-marker pin-places" aria-hidden="true">P</span> Places</li>
+        <li><span class="geo-marker pin-verified" aria-hidden="true">V</span> Verified</li>
+        <li><span class="geo-marker dot" aria-hidden="true"></span> Neighbour stop</li>
+        <li>➤ direction of travel</li>
+        <li>
+          <svg class="swatch-line" width="28" height="6" aria-hidden="true">
+            <line
+              x1="0"
+              y1="3"
+              x2="28"
+              y2="3"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-dasharray="6 6"
+            />
+          </svg>
+          raw GTFS shape
+        </li>
+        <li>
+          <svg class="swatch-line" width="28" height="6" aria-hidden="true">
+            <line x1="0" y1="3" x2="28" y2="3" stroke="currentColor" stroke-width="4" />
+          </svg>
+          snapped to roads
+        </li>
+        @for (k of osmLegend; track k.code) {
+          <li>
+            <span class="geo-marker pin-feature" aria-hidden="true">{{ k.code }}</span>
+            {{ k.label }}
+          </li>
+        }
+      </ul>
+    </section>
+
+    @if (detail(); as d) {
+      <section class="detail" aria-label="Selected stop">
+        <h1>
+          <span class="mono">{{ d.stop.id }}</span> · {{ d.short }}
+        </h1>
+        <p class="meta">
+          Verifier moved it {{ d.stop.offset_m }} m · sign: {{ d.stop.has_sign || '?'
+          }}{{ d.stop.comments ? ' · ' + d.stop.comments : '' }}
+        </p>
+        <p class="flag-row" aria-label="Flags">
+          @for (f of d.flags; track f) {
+            <app-badge tone="warn">{{ f }}</app-badge>
+          }
+        </p>
+        <p class="meta">
+          Distance to V:
+          @for (x of d.distances; track x.key; let last = $last) {
+            {{ x.key }} {{ x.m }} m{{ last ? '' : ' · ' }}
+          }
+        </p>
+
+        @if (d.routes.length > 0) {
+          <table>
+            <caption class="visually-hidden">
+              Shapes serving this stop
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Shape</th>
+                <th scope="col">Trips</th>
+                <th scope="col">V → shape</th>
+                <th scope="col">V → path</th>
+                <th scope="col">G → shape</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of d.routes; track r.route.shape) {
+                <tr>
+                  <td>
+                    <i class="swatch" [style.background]="r.color" aria-hidden="true"></i>
+                    {{ r.route.shape }}
+                  </td>
+                  <td>{{ r.route.trips }}</td>
+                  <td>{{ r.route.truth_m }} m {{ r.route.truth_side }}</td>
+                  <td>{{ r.path }}</td>
+                  <td>{{ r.route.gtfs_m }} m</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        } @else {
+          <p class="meta">No shape for the trips serving this stop.</p>
+        }
+
+        @if (d.features.length > 0) {
+          <h2 class="sub">OSM features within 200 m</h2>
+          <ul class="features">
+            @for (x of d.features; track x.feature.id) {
+              <li>
+                <span class="geo-marker pin-feature" aria-hidden="true">{{
+                  codeOf(x.feature.kind)
+                }}</span>
+                {{ x.feature.kind }} · {{ x.m }} m{{ x.text ? ' · ' + x.text : '' }}
+              </li>
+            }
+          </ul>
+        }
+
+        <p class="links">
+          <a [href]="d.streetViewV" target="_blank" rel="noopener">Street View at V</a>
+          <a [href]="d.streetViewG" target="_blank" rel="noopener">Street View at G</a>
+          <a [href]="d.mapsV" target="_blank" rel="noopener">Maps at V</a>
+        </p>
+
+        <div class="verdicts" role="group" aria-label="Verdict">
+          @for (v of verdictButtons; track v.value) {
+            <button
+              type="button"
+              class="btn verdict"
+              [class]="'btn verdict ' + v.value"
+              [attr.aria-pressed]="entry().verdict === v.value"
+              (click)="verdict(v.value)"
+            >
+              {{ v.label }}
+            </button>
+          }
+        </div>
+        <p class="status" role="status">
+          @if (saving()) {
+            Saving…
+          }
+        </p>
+        @if (saveError(); as msg) {
+          <p class="error" role="alert">
+            Not saved: {{ msg }}
+            <button type="button" class="btn" (click)="store.dismissError()">Dismiss</button>
+          </p>
+        }
+
+        <label class="note-label" for="note">Note</label>
+        <textarea
+          id="note"
+          rows="3"
+          maxlength="2000"
+          placeholder="Note (optional)"
+          [value]="entry().note"
+          (input)="onNote($any($event.target).value)"
+          (blur)="onNoteBlur()"
+        ></textarea>
+
+        <div class="nav">
+          <button type="button" class="btn" (click)="move(-1)">← Previous</button>
+          <button type="button" class="btn" (click)="move(1)">Next →</button>
+        </div>
+        <p class="hint">
+          Keys: <kbd>←</kbd> <kbd>→</kbd> to move, <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> for the
+          verdict. Verdicts are saved on the server.
+        </p>
+      </section>
+    }
+  }
+</div>

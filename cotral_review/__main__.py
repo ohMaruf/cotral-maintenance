@@ -70,6 +70,14 @@ def build_parser() -> argparse.ArgumentParser:
                        help="scores CSV of a model; repeatable; replaces the defaults "
                             + ", ".join(f"{m}={p}" for m, p in DEFAULT_SCORES.items()))
     serve.add_argument("--gemma-raw-dir", type=Path, default=base.gemma_raw_dir)
+    serve.add_argument("--agent-runs-dir", type=Path, default=base.agent_runs_dir,
+                       help="one directory per exploration run (record.json, photos/, transcript.jsonl)")
+    serve.add_argument("--truth-csv", type=Path, default=base.truth_csv)
+    serve.add_argument("--osm-store", type=Path, default=base.osm_store, help="SQLite OSM store")
+    serve.add_argument("--places-csv", type=Path, default=base.places_csv)
+    serve.add_argument("--shape-check-json", type=Path, default=base.shape_check_json)
+    serve.add_argument("--shape-verdicts-db", type=Path, default=base.shape_verdicts_db,
+                       help="SQLite file of the shape check verdicts")
     serve.add_argument("--frontend-dist", type=Path, default=base.frontend_dist)
     serve.add_argument("--seed", type=int, default=None, help="seed of the pair selection")
 
@@ -93,7 +101,10 @@ def main(argv: list[str] | None = None) -> int:
 
         settings = replace(
             Settings.from_env(), images_dir=args.images_dir, gemma_raw_dir=args.gemma_raw_dir,
-            database=args.database, frontend_dist=args.frontend_dist, host=args.host, port=args.port,
+            agent_runs_dir=args.agent_runs_dir,
+            truth_csv=args.truth_csv, osm_store=args.osm_store, places_csv=args.places_csv,
+            shape_check_json=args.shape_check_json, shape_verdicts_db=args.shape_verdicts_db, database=args.database, frontend_dist=args.frontend_dist,
+            host=args.host, port=args.port,
             seed=args.seed, score_sources=dict(args.scores) if args.scores else dict(DEFAULT_SCORES),
         )
         uvicorn.run(create_app(settings), host=settings.host, port=settings.port, log_level="info")

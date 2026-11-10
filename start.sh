@@ -30,7 +30,7 @@ port_free $BFF_PORT || die "port $BFF_PORT is already in use"
 [[ $mode == prod ]] || port_free $UI_PORT || die "port $UI_PORT is already in use"
 
 log "Python dependencies"
-uv sync --quiet --extra review --project $ROOT
+uv sync --quiet --inexact --extra review --project $ROOT  # --inexact: keep other extras (agent, osm)
 
 log "Node $(<$UI/.node-version) via fnm"
 eval "$(fnm env --shell zsh)"

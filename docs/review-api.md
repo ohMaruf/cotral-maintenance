@@ -8,6 +8,8 @@ errors keep FastAPI's default list form). Base path `/api`. The BFF binds to
 127.0.0.1 only; in development the Angular dev server proxies `/api` to it
 (`review-ui/proxy.conf.json`). In production the BFF serves `review-ui/dist` at `/`.
 
+The explore and shape-check pages have their own contract: `docs/explore-api.md`.
+
 ## Types
 
 ```ts

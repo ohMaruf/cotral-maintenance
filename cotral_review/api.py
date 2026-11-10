@@ -12,9 +12,12 @@ from fastapi.responses import FileResponse, HTMLResponse
 from . import schemas
 from .catalog import CATEGORIES, models_for, photo_description
 from .config import Settings
+from .explore_api import router as explore_router
+from .explore_state import ExploreState
 from .judgments import DuplicatePair, JudgmentRepository
 from .judgments import Judgment as JudgmentRow
 from .pairs import next_pair, remaining
+from .shapes_api import router as shapes_router
 from .stops import Stop, StopIndex, load_index
 
 logger = logging.getLogger(__name__)
@@ -168,7 +171,7 @@ def mount_frontend(app: FastAPI, dist: Path) -> None:
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
-    """Build the app; loads the stops once."""
+    """Build the app; loads the stops and the explore reference data once."""
     settings = settings or Settings.from_env()
     app = FastAPI(title="Cotral review", docs_url="/docs", openapi_url="/api/openapi.json")
     app.state.review = AppState(
@@ -177,6 +180,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         judgments=JudgmentRepository(settings.database),
         rng=random.Random(settings.seed),
     )
+    app.state.explore = ExploreState.load(settings)
     app.include_router(api)
+    app.include_router(explore_router)
+    app.include_router(shapes_router)
     mount_frontend(app, settings.frontend_dist)
     return app

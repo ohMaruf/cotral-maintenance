@@ -57,6 +57,13 @@ are the explorer's reference images.
 Long runs: start them in `tmux` (or `nohup`); Ctrl-C (or losing the session) loses only the stops in
 flight. `uv run cotral status RUN` shows progress; `uv run cotral usage` the month's Google usage.
 
+### GPU memory (16 GB)
+
+The explorer server holds Qwen3.8-27B UD-Q2_K_XL and its projector (10.7 GB) plus one KV cache of 96k tokens
+shared by 4 slots (2 explorers, 2 confirmers); on the M5 the whole process took 13.3 GB. If llama-server
+runs out of memory on the card (see `runs/RUN/logs/explorer-server.log`), lower `-c` in the `remote`
+profile (65536), or run one explorer (`concurrency = 1`, `-np 2`). The scorer runs alone, after it.
+
 ### Google budget
 
 Every Street View and Places request is counted per API key and calendar month in

@@ -1,0 +1,1 @@
+imagine a slug in a maze. the sky view should give more freedom to the model.

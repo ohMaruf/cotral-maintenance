@@ -14,60 +14,46 @@ Both sides implement exactly this; change it here first.
 
 ## Data on disk (read by the BFF)
 
-| Setting (`Settings` field) | Default | Written by |
+The explorations come from the one run the app shows (`docs/review-api.md`, "Data: one run";
+`docs/pipeline.md`, "The run store"), opened read-only. One exploration per stop of the run,
+its `run_id` is the `stop_id`.
+
+| Source | What |
+|---|---|
+| `run.sqlite`: `explorations` | status, reason, found position, scan date, models, harness, billing, turns, seconds, and `record` |
+| `run.sqlite`: `stops`, `starts` | name, GTFS position, start position (OSM, Places or GTFS) |
+| `run.sqlite`: `photos`, `transcripts` | every photo taken; the explorer's conversation, one JSON object per line |
+| `media/<2>/<sha256>.jpg` | the photos, content-addressed |
+
+Other files (`Settings` fields; any may be missing, see each endpoint):
+
+| Setting | Default | Written by |
 |---|---|---|
-| `agent_runs_dir` | `data/agent_runs` | `experiments/explore/agent_dry_run.py`: one directory per run, `<stop_id>_<UTC time>/` (the `cache/` directory is not a run) |
-| `truth_csv` | `data/ground_truth_manual.csv` | `experiments/explore/ground_truth.py` (`stop_id, lat, lon, ...`) |
+| `truth_csv` | `data/ground_truth_manual.csv` | `experiments/explore/ground_truth.py` (`stop_id, lat, lon, ...`); optional: without it no `verified` position and no errors |
 | `osm_store` | `data/osm/osm.sqlite3` | `experiments/explore/build_osm_store.py` (read with `cotral_maintenance.osm_store.OsmStore`) |
-| `places_csv` | `data/stops_corrected.csv` | phase 1; rows with `coord_source == "places"` (`stop_id, stop_lat, stop_lon`) |
-| `shape_check_json` | `data/shape_check/stops.json` | `experiments/explore/shape_check.py` |
+| `shape_check_json` | `data/shape_check/stops.json` | `experiments/explore/shape_check.py`; unrelated to runs |
 | `shape_verdicts_db` | `data/shape_verdicts.sqlite3` | the BFF (verdicts) |
 
-Any of these may be missing; see each endpoint. Exploration records are read **on
-every request** (no startup cache): runs are added while the app is open, and a
-debugging view must never show stale data. The other files are read at startup.
+Explorations are read **on every request** (no startup cache). The other files are read at startup.
 
-Exploration records are explorer-specific. The BFF turns each into the `Exploration`
-shape below through an adapter chosen by the record's layout. Today there is one: the
-LLM explorer (`cotral_maintenance/explorer/`, run by `agent_dry_run.py`). A run
-directory holds:
-- `record.json` (`"layout": "agent-explorer/1"`), written by the explorer's tool server
-  after every tool call: the stop, the snapped path, starting positions, hints,
-  panoramas, `photos`, `candidates`, `events` (one per tool call, in order, with
-  `tool`, `args`, `result` text or `error`, `photos` taken, `photos_used`, and in newer
-  runs `sweeps_used`) and
-  `outcome` (`null` while the run is going on);
-- `photos/` (the photos, named in `record.photos[].file`);
-- `transcript.jsonl`: the model's session as Claude Code `stream-json` lines; its
-  `assistant` messages hold the model's text (its reasoning) and `tool_use` blocks in
-  order; the final `{"type": "result"}` line holds the model's report;
-- `config.json` (`stop_id`, `model`), `summary.json` (written when the run ends).
-Three generations of the record exist under the same layout; the BFF reads all of them.
-**Oldest** runs spend photos (`max_photos` 14; photos `toward` is `forward`/`backward`/`across`/`target`/
-`confirm`; the checklist comes from the `answer_checklist` tool; no `budget`). **Sweep** runs carry a
-`budget` without a `unit` (`{sweeps, zooms, confirms, used: {...}}`): a `sweep` takes two wide photos
-of one panorama (`toward` `sweep_ahead`/`sweep_behind`, same `shot`) and only sweeps count against
-the budget (events carry `sweeps_used`); `zoom` photos (`parent` = the photo zoomed into) and
-`confirm` photos are capped separately. **Images** runs carry `budget.unit == "images"`
-(`{unit, images: 12, stop_photos: 2, confirms: 6, used: {images, sweeps, zooms, stop_photos,
-confirms, billed}}`): the budget is billed Street View Static API images (max 14 per stop: 12 for
-the explorer, 2 kept back for the stop photos). A `sweep` is ONE 640x640 photo (`toward`
-`sweep_ahead` or `sweep_behind`, its own `shot`), a `zoom` is one image, `confirm` takes no photo (the
-confirmer judges the zoom the candidate was marked on: `confirm_photo`). On `submit_found` the harness
-takes photos of the stop (`toward` `stop_photo`; the record's `outcome.stop_photos` lists the files and
-`outcome.close_up` the confirming zoom), which feed the next pipeline stage. Photos carry `billed`
-(fetched from Google rather than the cache); events carry `budget_used` directly. The BFF hides the
-differences: when `budget.unit` is present it is used generically (`budget_unit` = the unit,
-`budget_used` = `used[unit]`, `budget_max` = `budget[unit]`), else sweeps, else photos. The record's
-`shared` stretches (where the bus drives a road twice) are not exposed yet.
-**Harness 0.6+** (see `docs/explore-harness-versions.md`) adds `record.harness`
-(`{version, git_commit, git_dirty, prompt_sha256, explorer_model, confirmer_model}`, also in
-`config.json`, which the BFF falls back to), `record.billed_requests` (`{static, tiles}`: requests
-actually sent to Google, cache hits excluded), `budget.tiles` and `budget.used.tiles`/`look_froms`,
-photo `source` (`static`|`tiles`) and `tiles` (tiles paid for the view), the photo `toward` values
-`aimed` (opening photo aimed at an OSM start) and `look_from` (a narrow view of a candidate from
-another panorama; the matching event kind is `look_from`), and `starts[0].kind` (`osm_ref`,
-`osm_nearest`, `places`, `gtfs`). Records without `harness` are version `"unversioned"`.
+`explorations.record` is JSON of layout `"agent-explorer/1"` (written by the explorer's
+session, `cotral_maintenance/explorer/session.py`): the stop, the snapped `path`, `starts`,
+`photos`, `candidates`, `events` (one per tool call, in order, with `tool`, `args`, `result`
+text or `error`, `photos` taken, `photos_used`, `budget_used`), `budget`
+(`{unit: "images", images, stop_photos, tiles, confirms, used: {...}}`) and `outcome`. In the
+run store every photo `file` and the paths in `events[].photos`, `outcome.stop_photos` and
+`outcome.close_up` are media sha256s. A stop that was never searched (`no_imagery`, `error`)
+has a record with an `outcome` only: its exploration has no photos, events, candidates or path.
+The BFF takes the status, reason, billing, turns, seconds, models, harness and scan date from
+the row's columns, and the rest from the record when it is there.
+
+`transcripts.lines` is the explorer's conversation as written by the pipeline: JSON lines with
+`turn`, and per model turn `reasoning`, `content`, `tool_calls`, `usage`, `timings`; per tool
+call `tool`, `result`, `images`; per confirmation `confirm`, `attempt`, `photo`, `status`.
+The BFF interleaves the model's reasoning and text (`thought` events) with the record's tool
+events: tool lines are matched to the record's events in order by tool name. The whole
+transcript is also returned as `transcript`.
+
 The frontend must render an event of an unknown `kind` generically (summary + raw
 JSON), never fail on it.
 
@@ -88,35 +74,38 @@ interface Position {
 
 // ---------- Explore ----------
 
-type Outcome = "found" | "not_found" | "no_imagery" | "failed" | "running";  // running: no outcome yet
+type Outcome = "found" | "not_found" | "no_imagery" | "error";  // the exploration's status
 
 interface Harness {
-  version: string;            // "0.6.0"; "unversioned" for runs recorded before versioning
-  git_commit: string | null;
-  git_dirty: boolean | null;
+  version: string;            // `harness.version`, "0.11.1"
+  git_commit: string | null;  // `harness.git.commit`
+  git_dirty: boolean | null;  // `harness.git.dirty`
   prompt_sha256: string | null;
-  explorer_model: string | null;
-  confirmer_model: string | null;
+  explorer_model: string | null;   // `explorer.model`
+  confirmer_model: string | null;  // `explorer.confirmer`, e.g. "same model, fresh call"
 }
 
 interface ExplorationSummary {
-  run_id: string;             // run directory name, e.g. "f9388_20261107T161806"; [A-Za-z0-9_.-]+
+  run_id: string;             // = stop_id: one exploration per stop of the run
   stop_id: string;
   name: string;
-  outcome: Outcome | string;  // unknown outcomes are passed through
-  outcome_reason: string | null;  // e.g. "photo budget used"
-  model: string | null;       // the model id from the transcript (e.g. "claude-haiku-5-5"), else config.json's
+  outcome: Outcome | string;  // `explorations.status`; unknown outcomes are passed through
+  outcome_reason: string | null;  // `explorations.reason`, e.g. "the explorer ended: outcome"
+  model: string | null;       // `explorations.explorer.model`, e.g. "qwen3.8-27b"
+  turns: number;              // model turns
+  seconds: number;            // wall time of the exploration
+  scan_date: string | null;   // the found stop's panorama date, "YYYY-MM"
   photos: number;             // photos taken
-  max_photos: number;         // oldest runs: the photo budget (14); sweep runs: the sweep cap (12); images runs: 14
-  budget_unit: "images" | "sweeps" | "photos";  // budget.unit; "sweeps" for a unit-less `budget`; else "photos"
-  budget_used: number;        // used[unit] / photos taken (oldest); show as "5/12 images"
-  budget_max: number;         // budget[unit] / max_photos (oldest)
-  billed_used: number | null; // images actually fetched from Google (cache hits are free); null unless images run
-  stop_photos_used: number;   // stop photos the harness took of the found stop; 0 before the new format
-  harness: Harness;           // version "unversioned" when the record has none
-  billed_static: number | null;  // record.billed_requests.static: Static requests sent to Google; null when not recorded
-  billed_tiles: number | null;   // record.billed_requests.tiles
-  tiles_used: number | null;  // budget.used.tiles; null for runs without a tile budget
+  max_photos: number;         // the record's cap (14)
+  budget_unit: "images" | "sweeps" | "photos";  // "images" (the only unit the pipeline writes)
+  budget_used: number;        // budget.used.images; show as "5/12 images"; 0 without a search
+  budget_max: number;         // budget.images; 0 without a search
+  billed_used: number | null; // images actually fetched from Google (cache hits are free); null without a search
+  stop_photos_used: number;   // stop photos the harness took of the found stop
+  harness: Harness;           // from `explorations.harness`: version, prompt hash, git commit/dirty
+  billed_static: number;      // `explorations.billed_static`: Static requests sent to Google
+  billed_tiles: number;       // `explorations.billed_tiles`
+  tiles_used: number | null;  // budget.used.tiles; null without a search
   tiles_max: number | null;   // budget.tiles (42 in 0.6)
   start_kind: "osm_ref" | "osm_nearest" | "places" | "gtfs" | string | null;  // record.starts[0].kind; unknown kinds pass through
   zooms_used: number;         // 0 for old runs
@@ -124,13 +113,13 @@ interface ExplorationSummary {
   events: number;
   err_gtfs_m: number | null;  // GTFS position -> verified
   err_found_m: number | null; // the submitted position -> verified; null if not found or no truth
-  started_at: string | null;  // ISO 8601
-  finished_at: string | null; // when the record was last saved after the outcome was set; null while running
+  started_at: string;         // ISO 8601
+  finished_at: string;
 }
 
 interface ExplorationPhoto {
   index: number;              // 1-based, order taken; "PHOTO N" in the results
-  url: string;                // "/api/explorations/f9388_20261107T161806/photos/03_<pano>_12.0_90_0.jpg"
+  url: string;                // "/api/explorations/f7824/photos/<sha256>.jpg"
   pano_id: string;
   lat: number;                // camera (panorama) position
   lon: number;
@@ -142,17 +131,15 @@ interface ExplorationPhoto {
   right_m: number;            // from the path's centre line (+ right of travel)
   source: "static" | "tiles"; // Street View Static API or Map Tiles; "static" when not recorded
   tiles: number;              // tiles paid for this view; 0 for Static photos
-  toward: string;             // oldest: "forward", "backward", "across", "target", "confirm";
-                              // sweep runs: "sweep_ahead", "sweep_behind", "zoom", "confirm";
-                              // images runs: "sweep_ahead", "sweep_behind", "zoom", "stop_photo";
-                              // 0.5+: "aimed" (opening photo aimed at the start); 0.6+: "look_from"
+  toward: string;             // "aimed" (opening photo aimed at the start), "sweep_ahead", "sweep_behind",
+                              // "zoom", "look_from", "stop_photo"; unknown values pass through
   billed: boolean | null;     // fetched from Google (billed) vs cache; null when the record does not say
-  width: number | null;       // pixels; null for old runs
+  width: number | null;       // pixels
   height: number | null;
-  shot: number;               // the sweep a sweep photo belongs to (sweep runs: both photos of a sweep share it; images runs: one photo per shot); 0 otherwise
+  shot: number;               // the sweep a sweep photo belongs to; 0 otherwise
   parent: number | null;      // zoom: the photo index it was taken from
   opening: boolean;           // one of the two photos the harness takes before the model's first turn
-  copyright: string | null;   // shown with the photo when present
+  copyright: string | null;   // "© Google" (every photo is Street View); shown with the photo
 }
 
 type EventKind =
@@ -196,9 +183,10 @@ interface Exploration extends ExplorationSummary {
   limits: { along_from: number; along_to: number };  // the searched stretch, metres along the path
   path: LatLon[];             // the bus's path (snapped to roads), in travel order
   candidates: ExplorationCandidate[];
-  report: string | null;      // the model's final report, when the run has ended
+  report: string | null;      // the model's last text (transcript), when it said anything after its last tool call
   photo_list: ExplorationPhoto[]; // by index
   event_list: ExplorationEvent[]; // by seq
+  transcript: unknown[];      // `transcripts.lines`, parsed: the explorer's conversation, raw
   stop_photos: number[];      // ExplorationPhoto.index of the stop photos of a found images run; [] otherwise
   close_up: number | null;    // ExplorationPhoto.index of the confirming zoom of a found images run
 }
@@ -275,10 +263,10 @@ interface ShapeVerdict {
 
 | Method | Path | Response |
 |---|---|---|
-| GET | `/api/explorations?harness=0.6.0` | `ExplorationSummary[]`, sorted by `run_id`; `[]` if the directory is missing. Optional `harness`: only the runs of that harness version (`unversioned` for runs without one; an unknown version gives `[]`) |
+| GET | `/api/explorations?harness=0.6.0` | `ExplorationSummary[]`, in the run's stop order. Optional `harness`: only the runs of that harness version (`unversioned` for runs without one; an unknown version gives `[]`) |
 | GET | `/api/explorations/harness-versions` | `{version: string, runs: number}[]`: the versions present with their run counts, newest first (numeric per dotted part), `unversioned` last |
-| GET | `/api/explorations/{run_id}` | `Exploration`; 404 if unknown; 422 if the record has a layout no adapter reads |
-| GET | `/api/explorations/{run_id}/photos/{file}` | `image/jpeg`; 404 unless `file` is a photo of that run and exists |
+| GET | `/api/explorations/{stop_id}` | `Exploration`; 404 if the stop has no exploration; 422 if its record does not match its layout |
+| GET | `/api/explorations/{stop_id}/photos/{sha}.jpg` | `image/jpeg`; 404 unless `sha` is a photo of that stop (its `photos` rows, or its stop photos) and the file exists |
 | GET | `/api/shape-check` | `ShapeCheck`; 404 `{"detail": "...run experiments/explore/shape_check.py"}` if the file is missing |
 | GET | `/api/shape-check/verdicts` | `ShapeVerdict[]`, sorted by `stop_id` |
 | PUT | `/api/shape-check/verdicts/{stop_id}` | body `{"verdict": ShapeVerdictValue \| null, "note": str, "rater"?: str \| null}` → 200 `ShapeVerdict` |
@@ -298,15 +286,13 @@ so its CSV can be imported by the frontend (one PUT per row with a verdict or no
 ## Rules
 
 - Events are in the order they happened. Thoughts and tool calls are interleaved as in
-  the transcript: a `thought` comes before the tool call it led to. The record's events
-  are matched to the transcript's `tool_use` blocks in order (tool name
-  `mcp__explorer__<kind>`); a `tool_use` with no record event (refused before it reached
-  the explorer) becomes a `tool_error` event with the transcript's error text. Without
-  a transcript (a run being written), the record's events alone are listed.
+  the transcript: a `thought` comes before the tool calls of its turn. A tool line of
+  the transcript takes the next record event when the tool name matches; record events the
+  transcript does not account for are added at the end (and without a transcript, the
+  record's events alone are listed).
 - `photos_used` never decreases and equals the photos taken so far; `budget_used` never decreases either.
-- A run is listed as soon as its `record.json` exists, also while it is going on
-  (`outcome: "running"`); reloading shows its progress.
-- Run ids and photo file names are validated (`[A-Za-z0-9_.-]+`) and resolved
-  inside their directory; anything else is 404.
-- Photos never change once downloaded: `Cache-Control: public, max-age=86400`.
-- Street View copyright, when the record carries it, is displayed with the photo.
+- The stop id is looked up in the run (a parameter, never a path): an unknown id is 404. A photo name
+  must be `<64 lowercase hex>.jpg` and the hash one of that stop's photos; anything else is 404.
+  Files are served from the run's `media/` only.
+- Photos never change: `Cache-Control: public, max-age=86400`.
+- Street View copyright is displayed with the photo.

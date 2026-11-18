@@ -1,7 +1,8 @@
 # review-ui
 
-Angular frontend for the local stop review tool (scores table, Versus pairwise rating,
-photo viewer). It talks to the FastAPI backend-for-frontend in `../cotral_review/`; the
+Angular frontend for the local stop review tool (the run's results, scores table, Versus
+pairwise rating, exploration replay, shape check, photo viewer). It shows one pipeline run
+(`runs/<RUN>`, see `../docs/review-api.md`). It talks to the FastAPI backend-for-frontend in `../cotral_review/`; the
 contract is `../docs/review-api.md`.
 
 Node is pinned in `.node-version` (24, via fnm: `eval "$(fnm env)" && fnm use`).
@@ -10,7 +11,8 @@ Node is pinned in `.node-version` (24, via fnm: `eval "$(fnm env)" && fnm use`).
 
 ```sh
 # terminal 1: backend (repo root)
-.venv/bin/python -m cotral_review serve --port 8765 [--database path/to.sqlite3]
+.venv/bin/python -m cotral_review serve --run runs/<RUN> --port 8765 [--database path/to.sqlite3]
+# or everything at once: ./start.sh --run runs/<RUN>
 
 # terminal 2
 cd review-ui

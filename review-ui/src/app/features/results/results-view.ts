@@ -1,13 +1,12 @@
 import { CategoryKind, ResultRow, RunInfo } from '../../core/api/api.types';
 
 export type ScoreKey =
+  | 'priority'
   | 'shelter'
   | 'seating'
-  | 'signage'
-  | 'lighting'
   | 'waiting_area'
   | 'accessibility'
-  | 'requires_maintenance'
+  | 'lighting'
   | 'stop_visible';
 
 export interface ScoreColumn {
@@ -18,13 +17,12 @@ export interface ScoreColumn {
 
 /** The scores of a result row, in display order. */
 export const SCORE_COLUMNS: readonly ScoreColumn[] = [
-  { key: 'requires_maintenance', label: 'Overall', kind: 'level' },
+  { key: 'priority', label: 'Priority', kind: 'probability' },
   { key: 'shelter', label: 'Shelter', kind: 'level' },
   { key: 'seating', label: 'Seating', kind: 'level' },
-  { key: 'signage', label: 'Signage', kind: 'level' },
-  { key: 'lighting', label: 'Lighting', kind: 'level' },
   { key: 'waiting_area', label: 'Waiting area', kind: 'level' },
   { key: 'accessibility', label: 'Access', kind: 'level' },
+  { key: 'lighting', label: 'Street lamp', kind: 'probability' },
   { key: 'stop_visible', label: 'Visible', kind: 'probability' },
 ];
 

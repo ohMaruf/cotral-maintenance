@@ -27,7 +27,9 @@ class ReadOnlyRunStore(RunStore):
         version = self._conn.execute("PRAGMA user_version").fetchone()[0]
         if version != SCHEMA_VERSION:
             self._conn.close()
-            raise RunStoreError(f"{db} has schema {version}; this code reads {SCHEMA_VERSION}")
+            raise RunStoreError(f"{db} has schema {version}; this code reads {SCHEMA_VERSION}. Upgrade it with "
+                                f"`uv run cotral status {root.name}` (scores of older schemas are dropped: re-score "
+                                f"with `uv run cotral run {root.name} --resume --phases score`)")
 
     def close(self) -> None:
         with self._lock:

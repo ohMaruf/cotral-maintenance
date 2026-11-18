@@ -1,8 +1,9 @@
 """The run's final table: one row per stop, from its GTFS record to its maintenance scores.
 
-Written to <run>/results.csv. Stops are ranked by `requires_maintenance` (0 good .. 4 severe) among
-those scored with the stop visible; every other stop is listed after them with `needs_review` set and
-the reason, so a person can check what the pipeline could not.
+Written to <run>/results.csv. Stops are ranked by `priority` (0 nothing to do .. 1: the mean of the
+needs, shelter, seating, waiting area, accessibility and no street lamp) among those scored with the
+stop visible; every other stop is listed after them with `needs_review` set and the reason, so a
+person can check what the pipeline could not.
 """
 
 import csv
@@ -39,7 +40,7 @@ def rows(run: RunStore) -> list[dict]:
             d["found_from_gtfs_m"] = round(distance_m(d["gtfs_lat"], d["gtfs_lon"], d["lat"], d["lon"]), 1)
         d["needs_review"], d["review_reason"] = _review(d)
         out.append(d)
-    ranked = sorted((d for d in out if not d["needs_review"]), key=lambda d: -d["requires_maintenance"])
+    ranked = sorted((d for d in out if not d["needs_review"]), key=lambda d: -d["priority"])
     for i, d in enumerate(ranked, 1):
         d["rank"] = i
     return ranked + [d for d in out if d["needs_review"]]
@@ -53,7 +54,7 @@ def _review(d: dict) -> tuple[bool, str]:
                 "error": "the search failed"}.get(d["status"], d["status"])
         reason = (d.get("explore_reason") or "").removeprefix("the explorer ended: ")
         return True, f"{text} ({reason})" if reason and d["status"] != "no_imagery" else text
-    if d["requires_maintenance"] is None:
+    if d["priority"] is None:
         return True, "not scored yet"
     if d["stop_visible"] is not None and d["stop_visible"] < VISIBLE_MIN:
         return True, "the scorer does not see the stop in its photos"

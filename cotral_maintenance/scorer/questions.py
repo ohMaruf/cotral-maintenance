@@ -1,9 +1,16 @@
-"""What the scorer is asked about a found stop: 8 questions (Imajev's limit), on the explorer's 1-2 stop photos.
+"""What the scorer is asked about a found stop, on the explorer's 1-2 stop photos (Imajev: at most 8 questions).
 
-Seven maintenance scores on a 0-4 scale (the expected level under the model's probabilities) and
-whether the stop is visible at all. For shelter, seating, signage and lighting, level 4 includes
-"missing": a stop without them needs maintenance. `stop_visible` guards the rest: when the photos
-do not show the stop, the scores describe something else and the stop goes to a person.
+The explorer only reports a stop it has confirmed, so the stop itself is not asked about: the
+sign (or shelter, or markings) is what it confirmed, recorded as the exploration's `evidence`.
+The scorer judges what is around it:
+  - shelter, seating, waiting_area, accessibility: 0 (good) .. 4 on a 0-4 scale, the expected
+    level under the model's probabilities. For shelter and seating, level 4 includes "missing":
+    a stop without them needs maintenance.
+  - lighting: the probability that a street lamp stands at the stop. Its pole is enough, even when
+    the lamp at the top is out of the photo; poles that carry overhead wires are not lamps.
+  - stop_visible: the probability that the photos show the stop at all. When they don't, the other
+    answers describe something else and the stop goes to a person.
+`priority` (computed, not asked) combines the needs into one number to rank the stops by.
 """
 
 from .imajev import Question
@@ -25,8 +32,6 @@ AREA_LEVELS = [
 ELEMENTS = {
     "shelter": "the bus shelter (a covered structure where passengers wait)",
     "seating": "seating for waiting passengers (benches or seats)",
-    "signage": "the bus stop sign (a sign on a pole, possibly with a timetable panel)",
-    "lighting": "lighting at the stop (street lamps near the waiting area, or lights in the shelter)",
 }
 AREAS = {
     "waiting_area": "the waiting area (pavement or platform surface, cleanliness, litter, weeds, overgrown "
@@ -34,8 +39,29 @@ AREAS = {
     "accessibility": "accessibility (a proper raised platform or kerb, step-free access, even surfaces, no obstacles "
                      "for wheelchairs or prams)",
 }
-SCORES = (*ELEMENTS, *AREAS, "requires_maintenance")
+SCORES = (*ELEMENTS, *AREAS)  # 0 good .. 4 severe / missing
+LIGHTING = "lighting"  # probability that there is a street lamp
 VISIBLE = "stop_visible"
+LIGHTING_INSTRUCTIONS = (
+    "Is there a street lamp at the bus stop: a lighting pole standing on the stop's side of the road, within "
+    "about 15 m of the stop, or a light in its shelter?")
+LIGHTING_CRITERIA = {
+    "true": "a street lamp pole (a pole with a lamp head or arm, typically metal or concrete, standing alone by the "
+            "road) is near the stop; the pole alone is enough, even if its top and the lamp are cut off by the photo",
+    "false": "no lamp pole near the stop. Poles that carry overhead electric or telephone wires (wooden or concrete "
+             "poles with cables running between them, insulators, transformers) are NOT street lamps, unless a lamp "
+             "is mounted on them",
+}
+
+
+def priority(values: dict[str, float | None]) -> float | None:
+    """The stop's need for maintenance, 0 (nothing to do) .. 1: the mean of the needs, each scaled to 0-1
+    (a 0-4 level / 4, and the absence of a street lamp). None when nothing was scored."""
+    needs = [values[k] / 4 for k in SCORES if values.get(k) is not None]
+    if values.get(LIGHTING) is not None:
+        needs.append(1 - values[LIGHTING])
+    return round(sum(needs) / len(needs), 4) if needs else None
+
 
 EVIDENCE_TEXT = {
     "cotral_sign": "a Cotral bus stop sign",
@@ -53,11 +79,7 @@ PHOTO_ROLES = (
 def questions() -> list[Question]:
     qs = [Question(name, "score", f"State of {what}?", ELEMENT_LEVELS) for name, what in ELEMENTS.items()]
     qs += [Question(name, "score", f"State of {what}?", AREA_LEVELS) for name, what in AREAS.items()]
-    qs.append(Question(
-        "requires_maintenance", "score",
-        "Overall, how much does this bus stop require maintenance or improvement? Count missing facilities and "
-        "anything else visible at the stop (road surface, graffiti, vandalism, litter, drainage, vegetation, hazards).",
-        AREA_LEVELS))
+    qs.append(Question(LIGHTING, "noul", LIGHTING_INSTRUCTIONS, LIGHTING_CRITERIA))
     qs.append(Question(VISIBLE, "noul", "Is the bus stop (its sign, shelter or stop markings) visible in the photos?"))
     return qs
 

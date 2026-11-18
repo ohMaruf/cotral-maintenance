@@ -88,12 +88,12 @@ def without_search(store: RunStore, stop_id: str, status: str, reason: str) -> N
         [], [])
 
 
-def score(store: RunStore, stop_id: str, maintenance: float, visible: float = 0.9) -> None:
+def score(store: RunStore, stop_id: str, priority: float, visible: float = 0.9) -> None:
     exploration = store.exploration(stop_id)
     store.put_score({
         "stop_id": stop_id, "photos": exploration["stop_photos"], "scorer": {"model": "imajev-4b"},
-        **{c: 1.0 for c in SCORE_COLUMNS}, "requires_maintenance": maintenance, "stop_visible": visible,
-        "answers": {c: ANSWER for c in SCORE_COLUMNS if c != "signage"} | {"signage": {**ANSWER, "abstained": True}},
+        **{c: 1.0 for c in SCORE_COLUMNS}, "priority": priority, "stop_visible": visible,
+        "answers": {c: ANSWER for c in SCORE_COLUMNS if c != "lighting"} | {"lighting": {**ANSWER, "abstained": True}},
         "seconds": 3.0})
 
 

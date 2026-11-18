@@ -3,8 +3,8 @@
 ```
 GTFS stop ──► ingest ──────────────────► explore ───────────────────────► score ───────────► results.csv
               OSM (Geofabrik) object,     LLM explorer in Street View:     Imajev on the 1-2
-              else Places, else GTFS:     finds the stop, confirms it,     stop photos: 7 scores
-              where the search starts     keeps 1-2 photos of it           (0-4) + stop visible
+              else Places, else GTFS:     finds the stop, confirms it,     stop photos: what is around
+              where the search starts     keeps 1-2 photos of it           the stop -> a priority
 ```
 
 One command runs it all, resumable at any point: `uv run cotral run RUN --limit 20`.
@@ -98,7 +98,7 @@ rsync -a server:cotral-maintenance/runs/RUN/ runs/RUN/
 Then the review app reads it: `./start.sh --run runs/RUN` (http://localhost:4200; `--port N` for another
 port, `--bff-port N` if 8765 is taken).
 
-## The run store (`cotral_maintenance/runstore.py`, schema version 1)
+## The run store (`cotral_maintenance/runstore.py`, schema version 2)
 
 SQLite, one row per stop and phase. JSON columns are UTF-8 JSON text. Photos are referenced by the
 sha256 of their bytes; the file is `media/<first 2 hex>/<sha256>.jpg`.
@@ -111,7 +111,7 @@ sha256 of their bytes; the file is `media/<first 2 hex>/<sha256>.jpg`.
 | `explorations` | stop_id | `status` (`found` / `not_found` / `no_imagery` / `error`), `reason`, `lat`, `lon`, `position_basis`, `evidence`, `plate_text`, `scan_date`, `stop_photos` JSON `[sha256]` (1-2), `explorer` JSON, `harness` JSON, `billed_static`, `billed_tiles`, `turns`, `seconds`, `started_at`, `finished_at`, `record` JSON |
 | `photos` | stop_id, idx | every photo of the search: `media`, `toward` (`opening_before`, `opening_after`, `sweep_ahead`, `sweep_behind`, `zoom`, `look_from`, `stop_photo`), `pano_id`, `date`, `heading`, `fov`, `pitch`, `width`, `height`, `lat`, `lon` (camera) |
 | `transcripts` | stop_id | `lines`: JSON lines, the explorer's turns, tool results, confirmer calls |
-| `scores` | stop_id | `photos` JSON `[sha256]`, `scorer` JSON, `shelter`, `seating`, `signage`, `lighting`, `waiting_area`, `accessibility`, `requires_maintenance` (0 good .. 4 missing / severe), `stop_visible` (0-1), `answers` JSON (per question: probabilities, `unknown_probability`, `confidence`, `abstained`) |
+| `scores` | stop_id | `photos` JSON `[sha256]`, `scorer` JSON, `priority` (0 nothing to do .. 1: the mean of the needs below, each scaled to 0-1, with the absence of a lamp as a need), `shelter`, `seating`, `waiting_area`, `accessibility` (0 good .. 4 missing / severe), `lighting` (P(a street lamp at the stop)), `stop_visible` (0-1), `answers` JSON (per question: probabilities, `unknown_probability`, `confidence`, `abstained`) |
 | `usage` | month, key_id, api | billed requests this run made |
 | `invocations` | seq | each `cotral run`: times, status, host (GPU), args, git, counts |
 
@@ -120,6 +120,24 @@ sha256 of their bytes; the file is `media/<first 2 hex>/<sha256>.jpg`.
 `starts`, `hints`, `others`, `previous`, `next`, `shared`, `panoramas`, `cells`, `photos`,
 `candidates`, `events`, `outcome`, where every photo `file` (and every path in `events[].photos`,
 `outcome.stop_photos`, `outcome.close_up`) is a media sha256.
+
+## What is scored
+
+The explorer reports a stop only once it has confirmed it (a stop sign, or a shelter or stop markings
+when there is no sign: the exploration's `evidence` says which), so the stop itself is not scored.
+Imajev judges what is around it, on the 1-2 stop photos:
+
+| Score | Scale | Question |
+|---|---|---|
+| `shelter`, `seating` | 0 good .. 4 missing / unusable | the state of the shelter, of the seating |
+| `waiting_area`, `accessibility` | 0 good .. 4 severe | pavement, litter, vegetation; kerb, step-free access |
+| `lighting` | probability | is there a street lamp at the stop (the pole is enough, even with its top out of the photo; poles carrying overhead wires are not lamps) |
+| `stop_visible` | probability | do the photos show the stop at all (below 0.5: the stop goes to a person) |
+
+`priority`, what the results are ranked by, is the mean of the needs: the four levels / 4 and
+`1 - lighting`. A run of schema 1 (with signage and an overall score) is upgraded when the pipeline
+opens it: its scores are dropped, its explorations kept; `cotral run RUN --resume --phases score`
+scores it again.
 
 ## Measured
 

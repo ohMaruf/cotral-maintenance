@@ -13,8 +13,8 @@ export const CATALOG: Catalog = {
     { key: 'shelter', label: 'Shelter', kind: 'level', description: 'Is there a shelter?' },
     { key: 'classifiable', label: 'Sign visible', kind: 'probability', description: 'Sign?' },
     {
-      key: 'requires_maintenance',
-      label: 'Overall maintenance',
+      key: 'priority',
+      label: 'Priority',
       kind: 'level',
       description: 'Needs maintenance?',
     },
@@ -81,15 +81,15 @@ export function judgmentResponse(
     },
     left: stop(left, {
       scores: {
-        clef: { shelter: 3.2, classifiable: 0.9, requires_maintenance: 3.1 },
-        gemma: { shelter: 3, classifiable: 1, requires_maintenance: 3 },
+        clef: { shelter: 3.2, classifiable: 0.9, priority: 3.1 },
+        gemma: { shelter: 3, classifiable: 1, priority: 3 },
       },
       evidence: { gemma: { shelter: 'The roof is broken.' } },
     }),
     right: stop(right, {
       scores: {
-        clef: { shelter: 0.4, classifiable: 0.2, requires_maintenance: 0.8 },
-        gemma: { shelter: 0, classifiable: 0, requires_maintenance: 1 },
+        clef: { shelter: 0.4, classifiable: 0.2, priority: 0.8 },
+        gemma: { shelter: 0, classifiable: 0, priority: 1 },
       },
       evidence: {},
     }),

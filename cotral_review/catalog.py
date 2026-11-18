@@ -27,8 +27,13 @@ class Model:
 
 _LABELS = {
     "waiting_area": "Waiting area",
-    "requires_maintenance": "Overall maintenance",
+    "lighting": "Street lamp",
+    "stop_visible": "Stop visible",
 }
+# Not a question: computed from the answers (scorer/questions.py, `priority`), and what stops are ranked by.
+PRIORITY = Category("priority", "Priority", "probability",
+                    "Need for maintenance, 0 (nothing to do) to 1: the mean of shelter, seating, waiting area and "
+                    "accessibility (each level / 4) and the absence of a street lamp")
 
 
 def _category(question) -> Category:
@@ -37,7 +42,7 @@ def _category(question) -> Category:
     return Category(question.name, label, kind, question.instructions)
 
 
-CATEGORIES = [_category(q) for q in questions()]
+CATEGORIES = [PRIORITY, *(_category(q) for q in questions())]
 CATEGORY_KEYS = [c.key for c in CATEGORIES]
 
 

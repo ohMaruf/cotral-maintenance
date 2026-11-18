@@ -11,24 +11,24 @@ import {
 } from './results-view';
 
 const rows: ResultRow[] = [
-  resultRow('a', { rank: 1, name: 'Alpha', requires_maintenance: 4, found_from_gtfs_m: 30 }),
-  resultRow('b', { rank: 2, name: 'beta', requires_maintenance: 2, found_from_gtfs_m: 80 }),
+  resultRow('a', { rank: 1, name: 'Alpha', priority: 4, found_from_gtfs_m: 30 }),
+  resultRow('b', { rank: 2, name: 'beta', priority: 2, found_from_gtfs_m: 80 }),
   resultRow('c', {
     rank: null,
     name: 'Gamma',
     needs_review: true,
-    requires_maintenance: null,
+    priority: null,
     found_from_gtfs_m: null,
     status: 'not_found',
   }),
-  resultRow('d', { rank: 3, name: 'Delta', requires_maintenance: 1, found_from_gtfs_m: null }),
+  resultRow('d', { rank: 3, name: 'Delta', priority: 1, found_from_gtfs_m: null }),
 ];
 const ids = (list: ResultRow[]) => list.map((r) => r.stop_id);
 
 describe('results-view', () => {
   it('parses the URL params, ignoring unknown values', () => {
     expect(parseSort('shelter')).toBe('shelter');
-    expect(parseSort('requires_maintenance')).toBe('requires_maintenance');
+    expect(parseSort('priority')).toBe('priority');
     expect(parseSort('nope')).toBeNull();
     expect(parseSort(undefined)).toBeNull();
     expect(parseShow('review')).toBe('review');
@@ -53,8 +53,8 @@ describe('results-view', () => {
   });
 
   it('sorts by a score in both directions with missing values last', () => {
-    expect(ids(sortRows(rows, 'requires_maintenance', 'desc'))).toEqual(['a', 'b', 'd', 'c']);
-    expect(ids(sortRows(rows, 'requires_maintenance', 'asc'))).toEqual(['d', 'b', 'a', 'c']);
+    expect(ids(sortRows(rows, 'priority', 'desc'))).toEqual(['a', 'b', 'd', 'c']);
+    expect(ids(sortRows(rows, 'priority', 'asc'))).toEqual(['d', 'b', 'a', 'c']);
     expect(ids(sortRows(rows, 'distance', 'asc'))).toEqual(['a', 'b', 'c', 'd']);
   });
 

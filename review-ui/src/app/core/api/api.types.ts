@@ -86,13 +86,14 @@ export interface ResultRow {
   needs_review: boolean;
   /** Empty when none. */
   review_reason: string;
+  /** 0 (nothing to do) .. 1: the mean of the needs; what ranked rows are ordered by. */
+  priority: number | null;
   shelter: number | null;
   seating: number | null;
-  signage: number | null;
-  lighting: number | null;
   waiting_area: number | null;
   accessibility: number | null;
-  requires_maintenance: number | null;
+  /** Probability that a street lamp stands at the stop. */
+  lighting: number | null;
   stop_visible: number | null;
   /** The exploration's status; null: not explored yet. */
   status: string | null;

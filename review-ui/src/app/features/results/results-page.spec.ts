@@ -8,8 +8,8 @@ import { RUN_INFO, resultRow } from './results-testing';
 import { ResultsPage } from './results-page';
 
 const rows: ResultRow[] = [
-  resultRow('a', { rank: 1, name: 'Alpha', requires_maintenance: 3.8, shelter: 4 }),
-  resultRow('b', { rank: 2, name: 'Beta', requires_maintenance: 1.2, shelter: 0 }),
+  resultRow('a', { rank: 1, name: 'Alpha', priority: 0.8, shelter: 4 }),
+  resultRow('b', { rank: 2, name: 'Beta', priority: 0.3, shelter: 0 }),
   resultRow('c', {
     rank: null,
     name: 'Gamma',
@@ -18,11 +18,10 @@ const rows: ResultRow[] = [
     status: 'not_found',
     shelter: null,
     seating: null,
-    signage: null,
     lighting: null,
     waiting_area: null,
     accessibility: null,
-    requires_maintenance: null,
+    priority: null,
     stop_visible: null,
     found_from_gtfs_m: null,
     evidence: null,
@@ -69,7 +68,7 @@ describe('ResultsPage', () => {
     expect(names()).toEqual(['Alpha', 'Beta', 'Gamma']);
     const first = el.querySelector('tbody tr')!;
     expect(first.querySelector('.rank')!.textContent).toBe('1');
-    expect(first.querySelectorAll('td.score')).toHaveLength(8);
+    expect(first.querySelectorAll('td.score')).toHaveLength(7);
     expect(first.querySelector('a.name')!.getAttribute('href')).toBe('/explore/a');
     expect(first.querySelector('.nowrap')!.textContent).toContain('42.4 m');
     expect(el.querySelectorAll('tbody tr')[2].querySelector('.rank')!.textContent).toBe('–');

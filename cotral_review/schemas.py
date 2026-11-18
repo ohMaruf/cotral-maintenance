@@ -124,13 +124,12 @@ class ResultRow(BaseModel):
     name: str
     needs_review: bool
     review_reason: str
+    priority: float | None
     shelter: float | None
     seating: float | None
-    signage: float | None
-    lighting: float | None
     waiting_area: float | None
     accessibility: float | None
-    requires_maintenance: float | None
+    lighting: float | None
     stop_visible: float | None
     status: str | None
     explore_reason: str | None

@@ -28,7 +28,7 @@ from typing import Any
 
 from .provenance import utc_now
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 DB_NAME = "run.sqlite"
 MEDIA_DIR = "media"
 LOGS_DIR = "logs"
@@ -108,22 +108,21 @@ CREATE TABLE IF NOT EXISTS transcripts (
     lines    TEXT NOT NULL
 );
 
--- Phase 3, score: the maintenance scores, from the stop photos.
+-- Phase 3, score: what is around each found stop, from its stop photos (the stop itself was confirmed by the explorer).
 CREATE TABLE IF NOT EXISTS scores (
-    stop_id              TEXT PRIMARY KEY REFERENCES stops(stop_id),
-    photos               TEXT NOT NULL,   -- JSON: [sha256, ...] the photos scored
-    scorer               TEXT NOT NULL,   -- JSON: model, files, revisions, rotations, calibration
-    shelter              REAL,            -- 0 good .. 4 missing / unusable (expected level)
-    seating              REAL,
-    signage              REAL,
-    lighting             REAL,
-    waiting_area         REAL,            -- 0 good .. 4 severe
-    accessibility        REAL,
-    requires_maintenance REAL,
-    stop_visible         REAL,            -- probability the stop is visible in the photos (0-1)
-    answers              TEXT NOT NULL,   -- JSON: per question, probabilities, unknown probability, confidence
-    seconds              REAL NOT NULL,
-    scored_at            TEXT NOT NULL
+    stop_id        TEXT PRIMARY KEY REFERENCES stops(stop_id),
+    photos         TEXT NOT NULL,   -- JSON: [sha256, ...] the photos scored
+    scorer         TEXT NOT NULL,   -- JSON: model, files, revisions, rotations, calibration
+    priority       REAL,            -- 0 nothing to do .. 1: the mean of the needs below, each scaled to 0-1
+    shelter        REAL,            -- 0 good .. 4 missing / unusable (expected level)
+    seating        REAL,
+    waiting_area   REAL,            -- 0 good .. 4 severe
+    accessibility  REAL,
+    lighting       REAL,            -- probability that a street lamp stands at the stop (0-1)
+    stop_visible   REAL,            -- probability that the photos show the stop (0-1)
+    answers        TEXT NOT NULL,   -- JSON: per question, probabilities, unknown probability, confidence
+    seconds        REAL NOT NULL,
+    scored_at      TEXT NOT NULL
 );
 
 -- Billed Google requests made by this run (the cross-run ledger lives in the cache).
@@ -148,8 +147,11 @@ CREATE TABLE IF NOT EXISTS invocations (
 );
 """
 
-SCORE_COLUMNS = ("shelter", "seating", "signage", "lighting", "waiting_area", "accessibility",
-                 "requires_maintenance", "stop_visible")
+SCORE_COLUMNS = ("priority", "shelter", "seating", "waiting_area", "accessibility", "lighting", "stop_visible")
+# Older schemas this code upgrades in place. 1 -> 2: new score questions (no signage, no overall score, lighting as
+# the presence of a lamp, a computed priority); scores are cheap to redo, so they are dropped and every exploration
+# is kept: the next `cotral run RUN --resume` scores the stops again.
+MIGRATIONS = {1: "DROP TABLE scores;"}
 
 
 class RunStoreError(Exception):
@@ -181,7 +183,10 @@ class RunStore:
             self._conn.executescript(SCHEMA)
             self._conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         elif version != SCHEMA_VERSION:
-            raise RunStoreError(f"{db} has schema {version}; this code reads {SCHEMA_VERSION}")
+            if version not in MIGRATIONS:
+                raise RunStoreError(f"{db} has schema {version}; this code reads {SCHEMA_VERSION}")
+            self._conn.executescript(MIGRATIONS[version] + SCHEMA)
+            self._conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
 
     @property
     def logs_dir(self) -> Path:

@@ -1,7 +1,7 @@
 import { ScoreMap } from '../../core/api/api.types';
 import { modelAgreement } from './agreement';
 
-const s = (v?: number): ScoreMap => (v === undefined ? {} : { clef: { requires_maintenance: v } });
+const s = (v?: number): ScoreMap => (v === undefined ? {} : { clef: { priority: v } });
 
 describe('modelAgreement', () => {
   it('agrees when the chosen side has the higher overall score', () => {

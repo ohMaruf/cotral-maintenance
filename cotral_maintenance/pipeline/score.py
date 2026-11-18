@@ -57,6 +57,7 @@ def score_stop(run: RunStore, scorer: Scorer, stop_id: str) -> None:
     for name in SCORE_COLUMNS:
         a = answers.get(name)
         values[name] = None if a is None else round(a["score"] if a["type"] == "score" else a["noul"], 4)
+    values["priority"] = Q.priority(values)
     run.put_score({"stop_id": stop_id, "photos": photos, "scorer": scorer.describe(), **values, "answers": answers,
                    "seconds": round(seconds, 2)})
 

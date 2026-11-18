@@ -34,7 +34,7 @@ def test_results_rank_the_worst_first_then_list_what_needs_review(client):
     assert reasons[0].startswith("the explorer did not find the stop") and "Street View" in reasons[1]
     assert reasons[2] == "not scored yet" and rows[0]["review_reason"] == ""
     worst = rows[0]
-    assert (worst["requires_maintenance"], worst["shelter"], worst["stop_visible"]) == (4.0, 1.0, 0.9)
+    assert (worst["priority"], worst["shelter"], worst["stop_visible"]) == (4.0, 1.0, 0.9)
     assert (worst["status"], worst["evidence"], worst["explorer_model"], worst["scorer_model"]) == (
         "found", "cotral_sign", "qwen3.8-27b", "imajev-4b")
     assert (worst["lat"], worst["lon"], worst["start_source"], worst["found_from_gtfs_m"]) == (

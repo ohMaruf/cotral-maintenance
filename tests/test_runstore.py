@@ -33,10 +33,10 @@ def run(tmp_path):
     store.close()
 
 
-def score_row(stop_id, maintenance, visible=0.9, photos=()):
-    return {"stop_id": stop_id, "photos": list(photos), "scorer": {"model": "imajev-4b"}, "shelter": 1.0,
-            "seating": 1.0, "signage": 0.5, "lighting": 2.0, "waiting_area": 1.0, "accessibility": 2.0,
-            "requires_maintenance": maintenance, "stop_visible": visible, "answers": {}, "seconds": 3.0}
+def score_row(stop_id, priority, visible=0.9, photos=()):
+    return {"stop_id": stop_id, "photos": list(photos), "scorer": {"model": "imajev-4b"}, "priority": priority,
+            "shelter": 1.0, "seating": 1.0, "waiting_area": 1.0, "accessibility": 2.0, "lighting": 0.8,
+            "stop_visible": visible, "answers": {}, "seconds": 3.0}
 
 
 def test_missing_run_is_refused(tmp_path):
@@ -67,7 +67,7 @@ def test_media_is_content_addressed(run):
 def test_exploration_replaces_older_results_and_forget_cascades(run):
     sha = run.put_media(b"x")
     run.put_exploration(exploration("f1", photos=[sha]), [photo_row(1, sha)], [{"turn": 1}])
-    run.put_score(score_row("f1", 2.0, photos=[sha]))
+    run.put_score(score_row("f1", 0.5, photos=[sha]))
     run.put_exploration(exploration("f1", "not_found"), [], [])  # explored again: the old score goes
     assert run.query("SELECT COUNT(*) FROM scores")[0][0] == 0
     assert run.query("SELECT COUNT(*) FROM photos")[0][0] == 0
@@ -82,19 +82,19 @@ def test_usage_accumulates(run):
 
 
 def test_results_rank_scored_stops_and_list_the_rest_for_review(run):
-    for stop_id, maintenance in (("f1", 1.0), ("f2", 3.0)):
+    for stop_id, priority in (("f1", 0.2), ("f2", 0.7)):
         run.put_exploration(exploration(stop_id), [], [])
-        run.put_score(score_row(stop_id, maintenance))
+        run.put_score(score_row(stop_id, priority))
     run.put_exploration(exploration("f3", "not_found"), [], [])
     run.put_exploration(exploration("f4"), [], [])
-    run.put_score(score_row("f4", 4.0, visible=0.2))
+    run.put_score(score_row("f4", 0.9, visible=0.2))
     out = rows(run)
     assert [(r["stop_id"], r.get("rank")) for r in out][:2] == [("f2", 1), ("f1", 2)]
     review = {r["stop_id"]: r["review_reason"] for r in out if r["needs_review"]}
     assert review == {"f3": "the explorer did not find the stop (stalled)",
                       "f4": "the scorer does not see the stop in its photos"}
     path, n = write_results(run)
-    assert n == 4 and "requires_maintenance" in open(path).readline()
+    assert n == 4 and "priority" in open(path).readline()
 
 
 def test_bundle_round_trip_with_only_stop_photos(tmp_path, run):
@@ -121,3 +121,20 @@ def test_record_paths_become_media_hashes():
     assert out["photos"][0]["file"] == "aaa"
     assert out["events"][0]["photos"] == ["mmm", "other"]
     assert out["outcome"]["stop_photos"] == ["aaa"]
+
+
+def test_schema_1_runs_keep_their_explorations_and_lose_their_scores(tmp_path):
+    import sqlite3
+
+    root = tmp_path / "old"
+    store = RunStore(root, create=True)
+    store.add_stops(STOPS[:1])
+    store.put_exploration(exploration("f1"), [], [])
+    store.close()
+    with sqlite3.connect(root / "run.sqlite") as conn:  # what a schema 1 run looked like
+        conn.executescript("DROP TABLE scores; CREATE TABLE scores (stop_id TEXT, requires_maintenance REAL);"
+                           "INSERT INTO scores VALUES ('f1', 3.0); PRAGMA user_version=1;")
+    with RunStore(root) as upgraded:
+        assert upgraded.exploration("f1")["status"] == "found"
+        assert upgraded.query("SELECT COUNT(*) FROM scores")[0][0] == 0
+        upgraded.put_score(score_row("f1", 0.4))

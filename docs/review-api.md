@@ -31,11 +31,14 @@ in its own SQLite files. It refuses to start, with a message, when the run is mi
 type CategoryKind = "level" | "probability";
 
 interface Category {
-  key: string;          // "shelter", "seating", "signage", "lighting", "waiting_area",
-                        // "accessibility", "requires_maintenance", "stop_visible"
-  label: string;        // "Shelter", ..., "Overall maintenance", "Stop visible"
+  key: string;          // "priority", "shelter", "seating", "waiting_area", "accessibility",
+                        // "lighting", "stop_visible"
+  label: string;        // "Priority", "Shelter", ..., "Street lamp", "Stop visible"
   kind: CategoryKind;   // "level": 0 (good) .. 4 (missing / severe); "probability": 0 .. 1
-  description: string;  // the question asked to the scorer (cotral_maintenance/scorer/questions.py)
+                        // (priority: the computed need, 0 nothing to do .. 1; lighting: P(a street lamp
+                        // at the stop); stop_visible: P(the photos show the stop))
+  description: string;  // the question asked to the scorer (cotral_maintenance/scorer/questions.py),
+                        // or for priority how it is computed
 }
 
 interface Model {
@@ -92,14 +95,13 @@ interface ResultRow {                 // one row of results.csv (cotral_maintena
   name: string;
   needs_review: boolean;
   review_reason: string;              // "" when none
-  shelter: number | null;             // the 8 scores; null until scored
+  priority: number | null;            // 0 .. 1, what ranked rows are ordered by; null until scored
+  shelter: number | null;             // 0 good .. 4 missing / severe
   seating: number | null;
-  signage: number | null;
-  lighting: number | null;
   waiting_area: number | null;
   accessibility: number | null;
-  requires_maintenance: number | null;
-  stop_visible: number | null;
+  lighting: number | null;            // P(a street lamp at the stop)
+  stop_visible: number | null;        // P(the photos show the stop)
   status: string | null;              // the exploration's status; null: not explored yet
   explore_reason: string | null;
   evidence: string | null;            // what identified the stop: cotral_sign, shelter_only, ...
@@ -159,9 +161,9 @@ order); 422 invalid body, `left == right`, or `winner` not one of the two.
 - Judgments are permanent ground truth for evaluating ranking functions
   (stop embedding + location → real score): a function is right on a judgment when
   it scores `winner` above `loser`.
-- A model "agrees" with a judgment when its `requires_maintenance` is higher for
-  `winner` than for `loser`; equal values are a tie. `requires_maintenance` is the
-  overall verdict category.
+- A model "agrees" with a judgment when its `priority` is higher for
+  `winner` than for `loser`; equal values are a tie. `priority` is the
+  category stops are ranked by.
 - Missing values: a cell with fewer than two model values is never a disagreement;
   stops without a value sort last in either direction.
 - Stops have one or two photos. A run with no scored stops has an empty `/api/stops` and no model.

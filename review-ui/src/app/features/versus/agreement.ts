@@ -1,7 +1,7 @@
 import { ScoreMap } from '../../core/api/api.types';
 
-/** The catalog category that holds a model's overall "needs maintenance" verdict. */
-export const OVERALL_CATEGORY = 'requires_maintenance';
+/** The catalog category stops are ranked by: the scorer's computed need for maintenance. */
+export const OVERALL_CATEGORY = 'priority';
 
 export type Side = 'left' | 'right';
 export type Choice = Side | 'skip';

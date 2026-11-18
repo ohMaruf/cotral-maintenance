@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, model_validator
 class Category(BaseModel):
     key: str
     label: str
-    kind: Literal["level", "probability"]
+    kind: Literal["condition", "probability"]
     description: str
 
 
@@ -124,13 +124,16 @@ class ResultRow(BaseModel):
     name: str
     needs_review: bool
     review_reason: str
-    priority: float | None
+    condition: float | None
+    has_shelter: float | None
     shelter: float | None
+    has_seating: float | None
     seating: float | None
     waiting_area: float | None
     accessibility: float | None
-    lighting: float | None
+    has_lamp: float | None
     stop_visible: float | None
+    missing: list[str] | None = None
     status: str | None
     explore_reason: str | None
     evidence: str | None

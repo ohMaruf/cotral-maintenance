@@ -18,10 +18,10 @@ export class ScoreBar {
   readonly label = input<string>('');
   readonly evidence = input<string | undefined>();
 
-  protected readonly text = computed(() => formatScore(this.value(), this.kind()));
+  protected readonly text = computed(() => formatScore(this.value()));
   protected readonly width = computed(() => {
     const v = this.value();
-    return v === undefined ? 0 : fraction(v, this.kind()) * 100;
+    return v === undefined ? 0 : fraction(v) * 100;
   });
   protected readonly color = computed(() => {
     const v = this.value();

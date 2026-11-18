@@ -11,24 +11,24 @@ import {
 } from './results-view';
 
 const rows: ResultRow[] = [
-  resultRow('a', { rank: 1, name: 'Alpha', priority: 4, found_from_gtfs_m: 30 }),
-  resultRow('b', { rank: 2, name: 'beta', priority: 2, found_from_gtfs_m: 80 }),
+  resultRow('a', { rank: 1, name: 'Alpha', condition: 0.2, found_from_gtfs_m: 30 }),
+  resultRow('b', { rank: 2, name: 'beta', condition: 0.5, found_from_gtfs_m: 80 }),
   resultRow('c', {
     rank: null,
     name: 'Gamma',
     needs_review: true,
-    priority: null,
+    condition: null,
     found_from_gtfs_m: null,
     status: 'not_found',
   }),
-  resultRow('d', { rank: 3, name: 'Delta', priority: 1, found_from_gtfs_m: null }),
+  resultRow('d', { rank: 3, name: 'Delta', condition: 0.9, found_from_gtfs_m: null }),
 ];
 const ids = (list: ResultRow[]) => list.map((r) => r.stop_id);
 
 describe('results-view', () => {
   it('parses the URL params, ignoring unknown values', () => {
     expect(parseSort('shelter')).toBe('shelter');
-    expect(parseSort('priority')).toBe('priority');
+    expect(parseSort('condition')).toBe('condition');
     expect(parseSort('nope')).toBeNull();
     expect(parseSort(undefined)).toBeNull();
     expect(parseShow('review')).toBe('review');
@@ -36,10 +36,11 @@ describe('results-view', () => {
     expect(parseShow('x')).toBe('all');
   });
 
-  it('starts names and ranks upwards and scores worst first', () => {
+  it('starts names, ranks and scores (0 is bad) upwards, and the biggest move first', () => {
     expect(defaultDirection('rank')).toBe('asc');
     expect(defaultDirection('name')).toBe('asc');
-    expect(defaultDirection('lighting')).toBe('desc');
+    expect(defaultDirection('condition')).toBe('asc');
+    expect(defaultDirection('has_lamp')).toBe('asc');
     expect(defaultDirection('distance')).toBe('desc');
   });
 
@@ -53,8 +54,8 @@ describe('results-view', () => {
   });
 
   it('sorts by a score in both directions with missing values last', () => {
-    expect(ids(sortRows(rows, 'priority', 'desc'))).toEqual(['a', 'b', 'd', 'c']);
-    expect(ids(sortRows(rows, 'priority', 'asc'))).toEqual(['d', 'b', 'a', 'c']);
+    expect(ids(sortRows(rows, 'condition', 'asc'))).toEqual(['a', 'b', 'd', 'c']);
+    expect(ids(sortRows(rows, 'condition', 'desc'))).toEqual(['d', 'b', 'a', 'c']);
     expect(ids(sortRows(rows, 'distance', 'asc'))).toEqual(['a', 'b', 'c', 'd']);
   });
 
@@ -65,7 +66,7 @@ describe('results-view', () => {
   });
 
   it('keeps the incoming order of ties', () => {
-    const tied = [resultRow('x', { shelter: 2 }), resultRow('y', { shelter: 2 })];
+    const tied = [resultRow('x', { shelter: 0.5 }), resultRow('y', { shelter: 0.5 })];
     expect(ids(sortRows(tied, 'shelter', 'desc'))).toEqual(['x', 'y']);
     expect(ids(sortRows(tied, 'shelter', 'asc'))).toEqual(['x', 'y']);
   });

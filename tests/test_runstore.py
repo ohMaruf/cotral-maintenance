@@ -33,10 +33,10 @@ def run(tmp_path):
     store.close()
 
 
-def score_row(stop_id, priority, visible=0.9, photos=()):
-    return {"stop_id": stop_id, "photos": list(photos), "scorer": {"model": "imajev-4b"}, "priority": priority,
-            "shelter": 1.0, "seating": 1.0, "waiting_area": 1.0, "accessibility": 2.0, "lighting": 0.8,
-            "stop_visible": visible, "answers": {}, "seconds": 3.0}
+def score_row(stop_id, condition, visible=0.9, photos=()):
+    return {"stop_id": stop_id, "photos": list(photos), "scorer": {"model": "imajev-4b"}, "condition": condition,
+            "has_shelter": 0.1, "shelter": None, "has_seating": 0.9, "seating": 0.75, "waiting_area": 0.75,
+            "accessibility": 0.5, "has_lamp": 0.8, "stop_visible": visible, "answers": {}, "seconds": 3.0}
 
 
 def test_missing_run_is_refused(tmp_path):
@@ -82,19 +82,20 @@ def test_usage_accumulates(run):
 
 
 def test_results_rank_scored_stops_and_list_the_rest_for_review(run):
-    for stop_id, priority in (("f1", 0.2), ("f2", 0.7)):
+    for stop_id, condition in (("f1", 0.7), ("f2", 0.2)):
         run.put_exploration(exploration(stop_id), [], [])
-        run.put_score(score_row(stop_id, priority))
+        run.put_score(score_row(stop_id, condition))
     run.put_exploration(exploration("f3", "not_found"), [], [])
     run.put_exploration(exploration("f4"), [], [])
-    run.put_score(score_row("f4", 0.9, visible=0.2))
+    run.put_score(score_row("f4", 0.1, visible=0.2))
     out = rows(run)
-    assert [(r["stop_id"], r.get("rank")) for r in out][:2] == [("f2", 1), ("f1", 2)]
+    assert [(r["stop_id"], r.get("rank")) for r in out][:2] == [("f2", 1), ("f1", 2)]  # worst condition first
+    assert out[0]["missing"] == "shelter"
     review = {r["stop_id"]: r["review_reason"] for r in out if r["needs_review"]}
     assert review == {"f3": "the explorer did not find the stop (stalled)",
                       "f4": "the scorer does not see the stop in its photos"}
     path, n = write_results(run)
-    assert n == 4 and "priority" in open(path).readline()
+    assert n == 4 and "condition" in open(path).readline()
 
 
 def test_bundle_round_trip_with_only_stop_photos(tmp_path, run):
@@ -123,7 +124,8 @@ def test_record_paths_become_media_hashes():
     assert out["outcome"]["stop_photos"] == ["aaa"]
 
 
-def test_schema_1_runs_keep_their_explorations_and_lose_their_scores(tmp_path):
+@pytest.mark.parametrize("old", [1, 2])
+def test_older_runs_keep_their_explorations_and_lose_their_scores(tmp_path, old):
     import sqlite3
 
     root = tmp_path / "old"
@@ -131,9 +133,9 @@ def test_schema_1_runs_keep_their_explorations_and_lose_their_scores(tmp_path):
     store.add_stops(STOPS[:1])
     store.put_exploration(exploration("f1"), [], [])
     store.close()
-    with sqlite3.connect(root / "run.sqlite") as conn:  # what a schema 1 run looked like
-        conn.executescript("DROP TABLE scores; CREATE TABLE scores (stop_id TEXT, requires_maintenance REAL);"
-                           "INSERT INTO scores VALUES ('f1', 3.0); PRAGMA user_version=1;")
+    with sqlite3.connect(root / "run.sqlite") as conn:  # an older run's scores table
+        conn.executescript("DROP TABLE scores; CREATE TABLE scores (stop_id TEXT, priority REAL);"
+                           f"INSERT INTO scores VALUES ('f1', 3.0); PRAGMA user_version={old};")
     with RunStore(root) as upgraded:
         assert upgraded.exploration("f1")["status"] == "found"
         assert upgraded.query("SELECT COUNT(*) FROM scores")[0][0] == 0

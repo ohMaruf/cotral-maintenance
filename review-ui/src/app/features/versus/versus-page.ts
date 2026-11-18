@@ -17,7 +17,7 @@ import { ScoreBar } from '../../shared/score-bar/score-bar';
 import { StateMessage } from '../../shared/state-message/state-message';
 import { StopHeader } from '../../shared/stop-header/stop-header';
 import { PhotoViewerService } from '../photo-viewer/photo-viewer.service';
-import { Agreement, Choice, OVERALL_CATEGORY, Side, modelAgreement } from './agreement';
+import { Agreement, Choice, Side, modelAgreement } from './agreement';
 import { VersusStore } from './versus-store';
 
 interface RevealCell {
@@ -48,8 +48,8 @@ function cellsFor(stop: StopDetail, category: Category, models: Model[]): Reveal
   }));
 }
 
-function describe(label: string, a: Agreement, overall: Category | undefined): string {
-  const fmt = (v: number) => formatScore(v, overall?.kind ?? 'level');
+function describe(label: string, a: Agreement): string {
+  const fmt = (v: number) => formatScore(v);
   switch (a.kind) {
     case 'agrees':
       return `${label} agrees (${fmt(a.left)} vs ${fmt(a.right)})`;
@@ -91,20 +91,12 @@ export class VersusPage {
         left,
         right,
         disagree:
-          modelsDisagree(
-            left.map((c) => c.value),
-            category.kind,
-          ) ||
-          modelsDisagree(
-            right.map((c) => c.value),
-            category.kind,
-          ),
+          modelsDisagree(left.map((c) => c.value)) || modelsDisagree(right.map((c) => c.value)),
       };
     });
-    const overall = categories.find((c) => c.key === OVERALL_CATEGORY);
     const agreements: AgreementView[] = models.map((model) => {
       const agreement = modelAgreement(res.left.scores, res.right.scores, model.key, choice);
-      return { model, agreement, text: describe(model.label, agreement, overall) };
+      return { model, agreement, text: describe(model.label, agreement) };
     });
     return { rows, agreements, models };
   });

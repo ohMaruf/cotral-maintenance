@@ -5,9 +5,9 @@ from typing import Literal
 
 from cotral_maintenance.scorer.questions import questions
 
-CategoryKind = Literal["level", "probability"]
+CategoryKind = Literal["condition", "probability"]
 MODEL_KEY = "imajev"
-MODEL_DESCRIPTION = "Expected level under Imajev's calibrated probabilities"
+MODEL_DESCRIPTION = "Expected level under Imajev's calibrated probabilities, scaled to 0 (bad) .. 1 (good)"
 
 
 @dataclass(frozen=True)
@@ -26,23 +26,26 @@ class Model:
 
 
 _LABELS = {
+    "has_shelter": "Shelter present",
+    "has_seating": "Seating present",
+    "has_lamp": "Street lamp",
     "waiting_area": "Waiting area",
-    "lighting": "Street lamp",
     "stop_visible": "Stop visible",
 }
-# Not a question: computed from the answers (scorer/questions.py, `priority`), and what stops are ranked by.
-PRIORITY = Category("priority", "Priority", "probability",
-                    "Need for maintenance, 0 (nothing to do) to 1: the mean of shelter, seating, waiting area and "
-                    "accessibility (each level / 4) and the absence of a street lamp")
+# Not a question: computed from the answers (scorer/questions.py, `condition`), and what stops are ranked by
+# (ascending: the lowest condition needs maintenance most).
+CONDITION = Category("condition", "Condition", "condition",
+                     "Computed, not asked: the mean of the conditions that apply (shelter and seating when "
+                     "present, waiting area, accessibility), 0 (bad) to 1 (good)")
 
 
 def _category(question) -> Category:
-    kind: CategoryKind = "probability" if question.type == "noul" else "level"
+    kind: CategoryKind = "probability" if question.type == "noul" else "condition"
     label = _LABELS.get(question.name, question.name.replace("_", " ").capitalize())
     return Category(question.name, label, kind, question.instructions)
 
 
-CATEGORIES = [PRIORITY, *(_category(q) for q in questions())]
+CATEGORIES = [CONDITION, *(_category(q) for q in questions())]
 CATEGORY_KEYS = [c.key for c in CATEGORIES]
 
 

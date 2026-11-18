@@ -26,6 +26,11 @@ def profiles_of(run: RunStore) -> list[schemas.Profile]:
     return sorted(found, key=lambda p: (len(p.key), p.key))
 
 
+def _missing(text: str | None) -> list[str] | None:
+    """results.csv lists the missing elements as "shelter;seating"; None when the stop is not scored."""
+    return None if text is None else text.split(";") if text else []
+
+
 @router.get("/run")
 def get_run(state: State) -> schemas.RunInfo:
     run = state.run
@@ -39,6 +44,7 @@ def get_results(state: State) -> list[schemas.ResultRow]:
     photos = {r["stop_id"]: json.loads(r["stop_photos"])
               for r in run.query("SELECT stop_id, stop_photos FROM explorations")}
     return [
-        schemas.ResultRow(**d, photos=[photo_url(d["stop_id"], f"{sha}.jpg") for sha in photos.get(d["stop_id"], [])])
+        schemas.ResultRow(**{**d, "missing": _missing(d["missing"])},
+                          photos=[photo_url(d["stop_id"], f"{sha}.jpg") for sha in photos.get(d["stop_id"], [])])
         for d in rows(run)
     ]

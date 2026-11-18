@@ -1,8 +1,8 @@
 """The run's final table: one row per stop, from its GTFS record to its maintenance scores.
 
-Written to <run>/results.csv. Stops are ranked by `priority` (0 nothing to do .. 1: the mean of the
-needs, shelter, seating, waiting area, accessibility and no street lamp) among those scored with the
-stop visible; every other stop is listed after them with `needs_review` set and the reason, so a
+Written to <run>/results.csv. Stops are ranked by `condition`, worst first (0 bad .. 1 good: the mean
+of the conditions that apply; a missing shelter or bench has none and is listed in `missing`) among
+those scored with the stop visible; every other stop is listed after them with `needs_review` set and the reason, so a
 person can check what the pipeline could not.
 """
 
@@ -14,9 +14,10 @@ import math
 from ..fileutils import write_atomic
 from ..geo import distance_m
 from ..runstore import SCORE_COLUMNS, RunStore, media_path
+from ..scorer.questions import missing
 
 VISIBLE_MIN = 0.5
-COLUMNS = ("rank", "stop_id", "name", "needs_review", "review_reason", *SCORE_COLUMNS, "status", "evidence",
+COLUMNS = ("rank", "stop_id", "name", "needs_review", "review_reason", *SCORE_COLUMNS, "missing", "status", "evidence",
            "plate_text", "lat", "lon", "found_from_gtfs_m", "position_basis", "scan_date", "start_source",
            "start_lat", "start_lon", "gtfs_lat", "gtfs_lon", "stop_photos", "explore_reason", "explorer_model",
            "scorer_model")
@@ -38,9 +39,10 @@ def rows(run: RunStore) -> list[dict]:
         d["scorer_model"] = json.loads(d.pop("scorer"))["model"] if d.get("scorer") else None
         if d["lat"] is not None:
             d["found_from_gtfs_m"] = round(distance_m(d["gtfs_lat"], d["gtfs_lon"], d["lat"], d["lon"]), 1)
+        d["missing"] = ";".join(missing(d)) if d["condition"] is not None else None
         d["needs_review"], d["review_reason"] = _review(d)
         out.append(d)
-    ranked = sorted((d for d in out if not d["needs_review"]), key=lambda d: -d["priority"])
+    ranked = sorted((d for d in out if not d["needs_review"]), key=lambda d: d["condition"])
     for i, d in enumerate(ranked, 1):
         d["rank"] = i
     return ranked + [d for d in out if d["needs_review"]]
@@ -54,7 +56,7 @@ def _review(d: dict) -> tuple[bool, str]:
                 "error": "the search failed"}.get(d["status"], d["status"])
         reason = (d.get("explore_reason") or "").removeprefix("the explorer ended: ")
         return True, f"{text} ({reason})" if reason and d["status"] != "no_imagery" else text
-    if d["priority"] is None:
+    if d["condition"] is None:
         return True, "not scored yet"
     if d["stop_visible"] is not None and d["stop_visible"] < VISIBLE_MIN:
         return True, "the scorer does not see the stop in its photos"

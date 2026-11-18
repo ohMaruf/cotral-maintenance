@@ -1,10 +1,9 @@
-import { CategoryKind, Photo } from '../../core/api/api.types';
+import { Photo } from '../../core/api/api.types';
 
-/** Levels: up to one decimal ("2", "2.4"). Probabilities: two decimals ("0.82"). */
-export function formatScore(value: number | null | undefined, kind: CategoryKind): string {
+/** Every score is 0..1: two decimals ("0.82"); a dash for a missing value. */
+export function formatScore(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '–';
-  if (kind === 'probability') return value.toFixed(2);
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  return value.toFixed(2);
 }
 
 export function formatDistance(meters: number | null): string | null {

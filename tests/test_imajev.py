@@ -76,7 +76,8 @@ def test_answers_are_calibrated_jev_answers():
 
 def test_stop_questions_fit_imajev_limits():
     qs = Q.questions()
-    assert len(qs) <= 8 and {q.name for q in qs} == set(Q.SCORES) | {Q.LIGHTING, Q.VISIBLE}
+    assert len(qs) <= 8 and {q.name for q in qs} == set(Q.CONDITIONS) | {"has_shelter", "has_seating", Q.LAMP,
+                                                                           Q.VISIBLE}
     assert all(2 <= len(q.criteria) <= 10 for q in qs if q.type == "score")
     assert len(json.dumps(Q.state("Roma", "cotral_sign", 2))) < 32_000
 
@@ -126,8 +127,19 @@ def test_unknown_is_the_last_candidate():
     assert candidates(NOUL)[-1][0] == UNKNOWN
 
 
-def test_priority_is_the_mean_of_the_needs():
-    assert Q.priority({"shelter": 4.0, "seating": 0.0, "waiting_area": 2.0, "accessibility": 2.0, "lighting": 1.0}) \
-        == pytest.approx((1 + 0 + 0.5 + 0.5 + 0) / 5)
-    assert Q.priority({"shelter": None, "lighting": 0.0}) == 1.0
-    assert Q.priority({}) is None
+def score(level):
+    probs = {str(i): float(i == level) for i in range(5)}
+    return {"type": "score", "score": float(level), "probabilities": probs}
+
+
+def noul(p):
+    return {"type": "noul", "noul": p}
+
+
+def test_missing_elements_have_no_condition_and_high_is_good():
+    v = Q.values({"has_shelter": noul(0.1), "shelter": score(0), "has_seating": noul(0.9), "seating": score(1),
+                  "waiting_area": score(4), "accessibility": score(2), "has_lamp": noul(0.2), "stop_visible": noul(1)})
+    assert v["shelter"] is None and v["seating"] == 0.25 and v["waiting_area"] == 1.0
+    assert v["condition"] == pytest.approx((0.25 + 1.0 + 0.5) / 3, abs=1e-4)
+    assert Q.missing(v) == ["shelter", "lamp"]
+    assert Q.condition({}) is None

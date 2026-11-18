@@ -17,26 +17,30 @@ def test_health(client):
 def test_catalog(client):
     body = client.get("/api/catalog").json()
     keys = [c["key"] for c in body["categories"]]
-    assert keys == ["priority", "shelter", "seating", "waiting_area", "accessibility", "lighting", "stop_visible"]
+    assert keys == ["condition", "has_shelter", "shelter", "has_seating", "seating", "waiting_area", "accessibility",
+                    "has_lamp", "stop_visible"]
     kinds = {c["key"]: c["kind"] for c in body["categories"]}
-    assert kinds["stop_visible"] == kinds["lighting"] == kinds["priority"] == "probability"
-    assert kinds["shelter"] == "level"
+    assert kinds["stop_visible"] == kinds["has_lamp"] == kinds["has_shelter"] == kinds["has_seating"] == "probability"
+    assert kinds["condition"] == kinds["shelter"] == kinds["seating"] == "condition"
+    assert kinds["waiting_area"] == kinds["accessibility"] == "condition"
     labels = {c["key"]: c["label"] for c in body["categories"]}
-    assert labels["stop_visible"] == "Stop visible" and labels["lighting"] == "Street lamp"
+    assert labels["stop_visible"] == "Stop visible" and labels["has_lamp"] == "Street lamp"
+    assert labels["has_shelter"] == "Shelter present" and labels["condition"] == "Condition"
     assert all(c["label"] and c["description"] for c in body["categories"])
     assert body["models"] == [{"key": "imajev", "label": "imajev-4b",
-                               "description": "Expected level under Imajev's calibrated probabilities"}]
+                               "description": "Expected level under Imajev's calibrated probabilities, scaled to 0 (bad) .. 1 (good)"}]
 
 
 def test_stops_are_the_scored_ones_in_run_order(client):
     stops = client.get("/api/stops").json()
     assert [s["stop_id"] for s in stops] == IDS  # not the unscored, not-found or no-imagery stops
     first = stops[0]
-    assert first["scores"] == {"imajev": {"priority": 1.0, "shelter": 1.0, "seating": 1.0, "waiting_area": 1.0,
-                                          "accessibility": 1.0, "lighting": 1.0, "stop_visible": 0.9}}
-    assert stops[3]["scores"]["imajev"]["priority"] == 4.0
+    assert first["scores"] == {"imajev": {"condition": 0.9, "has_shelter": 1.0, "shelter": 1.0, "has_seating": 1.0,
+                                          "seating": 1.0, "waiting_area": 1.0, "accessibility": 1.0, "has_lamp": 1.0,
+                                          "stop_visible": 0.9}}
+    assert stops[3]["scores"]["imajev"]["condition"] == 0.3
     assert first["evidence"]["imajev"]["shelter"] == "unknown 23%, confidence 0.41"
-    assert first["evidence"]["imajev"]["lighting"] == "abstained, unknown 23%, confidence 0.41"
+    assert first["evidence"]["imajev"]["has_lamp"] == "abstained, unknown 23%, confidence 0.41"
     assert client.get("/api/stops/b2").json()["name"] == "Stop b2"
 
 

@@ -1,6 +1,10 @@
 // Hand-written mirror of docs/review-api.md. Change the contract first.
 
-export type CategoryKind = 'level' | 'probability';
+/**
+ * Every value is 0 (bad) .. 1 (good). 'condition': the state of something that is there;
+ * 'probability': the chance that it is there (or true).
+ */
+export type CategoryKind = 'condition' | 'probability';
 
 export interface Category {
   key: string;
@@ -86,15 +90,25 @@ export interface ResultRow {
   needs_review: boolean;
   /** Empty when none. */
   review_reason: string;
-  /** 0 (nothing to do) .. 1: the mean of the needs; what ranked rows are ordered by. */
-  priority: number | null;
+  /** 0 (bad) .. 1 (good): the mean of the conditions that apply; ranked rows are ordered by it, ascending. */
+  condition: number | null;
+  /** Probability that there is a shelter at the stop. */
+  has_shelter: number | null;
+  /** 0 (unusable) .. 1 (good); null when there is no shelter. */
   shelter: number | null;
+  /** Probability that there is seating at the stop. */
+  has_seating: number | null;
+  /** 0 (unusable) .. 1 (good); null when there is no seating. */
   seating: number | null;
+  /** 0 (severe) .. 1 (good). */
   waiting_area: number | null;
+  /** 0 (inaccessible) .. 1 (fully accessible). */
   accessibility: number | null;
   /** Probability that a street lamp stands at the stop. */
-  lighting: number | null;
+  has_lamp: number | null;
   stop_visible: number | null;
+  /** What the stop lacks: "shelter", "seating", "lamp"; null until scored. */
+  missing: string[] | null;
   /** The exploration's status; null: not explored yet. */
   status: string | null;
   explore_reason: string | null;

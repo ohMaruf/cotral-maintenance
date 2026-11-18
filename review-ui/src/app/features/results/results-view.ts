@@ -1,28 +1,34 @@
 import { CategoryKind, ResultRow, RunInfo } from '../../core/api/api.types';
 
 export type ScoreKey =
-  | 'priority'
+  | 'condition'
+  | 'has_shelter'
   | 'shelter'
+  | 'has_seating'
   | 'seating'
   | 'waiting_area'
   | 'accessibility'
-  | 'lighting'
+  | 'has_lamp'
   | 'stop_visible';
 
 export interface ScoreColumn {
   key: ScoreKey;
   label: string;
   kind: CategoryKind;
+  /** The element this column rates; its cell says "missing" when the stop lacks it. */
+  element?: 'shelter' | 'seating';
 }
 
 /** The scores of a result row, in display order. */
 export const SCORE_COLUMNS: readonly ScoreColumn[] = [
-  { key: 'priority', label: 'Priority', kind: 'probability' },
-  { key: 'shelter', label: 'Shelter', kind: 'level' },
-  { key: 'seating', label: 'Seating', kind: 'level' },
-  { key: 'waiting_area', label: 'Waiting area', kind: 'level' },
-  { key: 'accessibility', label: 'Access', kind: 'level' },
-  { key: 'lighting', label: 'Street lamp', kind: 'probability' },
+  { key: 'condition', label: 'Condition', kind: 'condition' },
+  { key: 'has_shelter', label: 'Shelter present', kind: 'probability' },
+  { key: 'shelter', label: 'Shelter', kind: 'condition', element: 'shelter' },
+  { key: 'has_seating', label: 'Seating present', kind: 'probability' },
+  { key: 'seating', label: 'Seating', kind: 'condition', element: 'seating' },
+  { key: 'waiting_area', label: 'Waiting area', kind: 'condition' },
+  { key: 'accessibility', label: 'Access', kind: 'condition' },
+  { key: 'has_lamp', label: 'Street lamp', kind: 'probability' },
   { key: 'stop_visible', label: 'Visible', kind: 'probability' },
 ];
 
@@ -45,9 +51,15 @@ export function parseShow(raw: string | null | undefined): Show {
   return raw === 'ranked' || raw === 'review' ? raw : 'all';
 }
 
-/** The direction a column starts with: names and ranks upwards, scores worst first. */
+/** The direction a column starts with: names, ranks and scores (0 is bad) upwards, worst first; moves furthest first. */
 export function defaultDirection(key: SortKey): SortDirection {
-  return key === 'rank' || key === 'name' ? 'asc' : 'desc';
+  return key === 'distance' ? 'desc' : 'asc';
+}
+
+/** "shelter, seating": what the stop lacks; "none" when it lacks nothing, "–" until it is scored. */
+export function missingText(missing: readonly string[] | null): string {
+  if (missing === null) return '–';
+  return missing.length ? missing.join(', ') : 'none';
 }
 
 export function filterRows(rows: readonly ResultRow[], show: Show, query: string): ResultRow[] {

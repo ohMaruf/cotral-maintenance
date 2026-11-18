@@ -28,23 +28,24 @@ in its own SQLite files. It refuses to start, with a message, when the run is mi
 ## Types
 
 ```ts
-type CategoryKind = "level" | "probability";
+type CategoryKind = "condition" | "probability";
 
 interface Category {
-  key: string;          // "priority", "shelter", "seating", "waiting_area", "accessibility",
-                        // "lighting", "stop_visible"
-  label: string;        // "Priority", "Shelter", ..., "Street lamp", "Stop visible"
-  kind: CategoryKind;   // "level": 0 (good) .. 4 (missing / severe); "probability": 0 .. 1
-                        // (priority: the computed need, 0 nothing to do .. 1; lighting: P(a street lamp
-                        // at the stop); stop_visible: P(the photos show the stop))
+  key: string;          // "condition", "has_shelter", "shelter", "has_seating", "seating",
+                        // "waiting_area", "accessibility", "has_lamp", "stop_visible"
+  label: string;        // "Condition", "Shelter present", "Shelter", ..., "Street lamp", "Stop visible"
+  kind: CategoryKind;   // every value is 0 (bad) .. 1 (good).
+                        // "condition": the state of something that is there (condition, shelter, seating,
+                        // waiting_area, accessibility); "probability": P(it is there / true)
+                        // (has_shelter, has_seating, has_lamp, stop_visible)
   description: string;  // the question asked to the scorer (cotral_maintenance/scorer/questions.py),
-                        // or for priority how it is computed
+                        // or for condition how it is computed
 }
 
 interface Model {
   key: string;          // "imajev": one model per run, the scorer
   label: string;        // the scorer's model name in the run, e.g. "imajev-4b"
-  description: string;  // "Expected level under Imajev's calibrated probabilities"
+  description: string;  // "Expected level under Imajev's calibrated probabilities, scaled to 0 (bad) .. 1 (good)"
 }
 
 interface Photo {
@@ -95,13 +96,16 @@ interface ResultRow {                 // one row of results.csv (cotral_maintena
   name: string;
   needs_review: boolean;
   review_reason: string;              // "" when none
-  priority: number | null;            // 0 .. 1, what ranked rows are ordered by; null until scored
-  shelter: number | null;             // 0 good .. 4 missing / severe
-  seating: number | null;
-  waiting_area: number | null;
-  accessibility: number | null;
-  lighting: number | null;            // P(a street lamp at the stop)
+  condition: number | null;           // 0 bad .. 1 good; ranked rows are ordered by it, ascending; null until scored
+  has_shelter: number | null;         // P(a shelter at the stop)
+  shelter: number | null;             // 0 unusable .. 1 good; null when there is no shelter (has_shelter < 0.5)
+  has_seating: number | null;         // P(seating at the stop)
+  seating: number | null;             // like shelter
+  waiting_area: number | null;        // 0 severe .. 1 good
+  accessibility: number | null;       // 0 inaccessible .. 1 fully accessible
+  has_lamp: number | null;            // P(a street lamp at the stop)
   stop_visible: number | null;        // P(the photos show the stop)
+  missing: string[] | null;           // elements the stop lacks: "shelter", "seating", "lamp"; null until scored
   status: string | null;              // the exploration's status; null: not explored yet
   explore_reason: string | null;
   evidence: string | null;            // what identified the stop: cotral_sign, shelter_only, ...
@@ -161,9 +165,9 @@ order); 422 invalid body, `left == right`, or `winner` not one of the two.
 - Judgments are permanent ground truth for evaluating ranking functions
   (stop embedding + location → real score): a function is right on a judgment when
   it scores `winner` above `loser`.
-- A model "agrees" with a judgment when its `priority` is higher for
-  `winner` than for `loser`; equal values are a tie. `priority` is the
-  category stops are ranked by.
+- A model "agrees" with a judgment when its `condition` is lower for
+  `winner` than for `loser` (the winner needs maintenance more); equal values are a tie.
+  `condition` is the category stops are ranked by, worst (lowest) first.
 - Missing values: a cell with fewer than two model values is never a disagreement;
   stops without a value sort last in either direction.
 - Stops have one or two photos. A run with no scored stops has an empty `/api/stops` and no model.

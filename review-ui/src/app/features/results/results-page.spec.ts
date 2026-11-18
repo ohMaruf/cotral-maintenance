@@ -8,20 +8,30 @@ import { RUN_INFO, resultRow } from './results-testing';
 import { ResultsPage } from './results-page';
 
 const rows: ResultRow[] = [
-  resultRow('a', { rank: 1, name: 'Alpha', priority: 0.8, shelter: 4 }),
-  resultRow('b', { rank: 2, name: 'Beta', priority: 0.3, shelter: 0 }),
+  resultRow('a', { rank: 1, name: 'Alpha', condition: 0.2, shelter: 0.1 }),
+  resultRow('b', {
+    rank: 2,
+    name: 'Beta',
+    condition: 0.6,
+    shelter: null,
+    has_shelter: 0.1,
+    missing: ['shelter'],
+  }),
   resultRow('c', {
     rank: null,
     name: 'Gamma',
     needs_review: true,
     review_reason: 'the explorer did not find the stop (call cap)',
     status: 'not_found',
+    has_shelter: null,
     shelter: null,
+    has_seating: null,
     seating: null,
-    lighting: null,
+    has_lamp: null,
+    missing: null,
     waiting_area: null,
     accessibility: null,
-    priority: null,
+    condition: null,
     stop_visible: null,
     found_from_gtfs_m: null,
     evidence: null,
@@ -68,10 +78,20 @@ describe('ResultsPage', () => {
     expect(names()).toEqual(['Alpha', 'Beta', 'Gamma']);
     const first = el.querySelector('tbody tr')!;
     expect(first.querySelector('.rank')!.textContent).toBe('1');
-    expect(first.querySelectorAll('td.score')).toHaveLength(7);
+    expect(first.querySelectorAll('td.score')).toHaveLength(9);
     expect(first.querySelector('a.name')!.getAttribute('href')).toBe('/explore/a');
     expect(first.querySelector('.nowrap')!.textContent).toContain('42.4 m');
     expect(el.querySelectorAll('tbody tr')[2].querySelector('.rank')!.textContent).toBe('–');
+  });
+
+  it('says missing for a shelter the stop lacks, and lists what is missing', () => {
+    const [alpha, beta, gamma] = [...el.querySelectorAll('tbody tr')];
+    expect(alpha.querySelector('td.missing')!.textContent).toContain('none');
+    expect(alpha.querySelectorAll('td.score .gone')).toHaveLength(0);
+    expect(beta.querySelector('td.missing')!.textContent).toContain('shelter');
+    expect(beta.querySelectorAll('td.score .gone')).toHaveLength(1);
+    expect(beta.querySelector('td.score .gone')!.textContent).toContain('missing');
+    expect(gamma.querySelector('td.missing')!.textContent).toContain('–');
   });
 
   it('shows the stop photos as thumbnails and opens them in the viewer', () => {
@@ -109,14 +129,14 @@ describe('ResultsPage', () => {
   });
 
   it('sorts by a score with missing values last, and flips the direction', async () => {
-    fixture.componentRef.setInput('sort', 'shelter');
+    fixture.componentRef.setInput('sort', 'condition');
     await fixture.whenStable();
     expect(names()).toEqual(['Alpha', 'Beta', 'Gamma']);
-    expect(el.querySelector('th[aria-sort="descending"]')!.textContent).toContain('Shelter');
-    fixture.componentRef.setInput('dir', 'asc');
+    expect(el.querySelector('th[aria-sort="ascending"]')!.textContent).toContain('Condition');
+    fixture.componentRef.setInput('dir', 'desc');
     await fixture.whenStable();
     expect(names()).toEqual(['Beta', 'Alpha', 'Gamma']);
-    expect(el.querySelector('th[aria-sort="ascending"]')).not.toBeNull();
+    expect(el.querySelector('th[aria-sort="descending"]')).not.toBeNull();
   });
 
   it('says so when nothing matches', async () => {

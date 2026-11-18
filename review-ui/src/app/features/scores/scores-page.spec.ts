@@ -6,8 +6,8 @@ import { CATALOG, stop } from '../../testing';
 import { ScoresPage } from './scores-page';
 
 const stops = [
-  stop('a', { name: 'Alpha', scores: { clef: { shelter: 0.5 }, gemma: { shelter: 3 } } }),
-  stop('b', { name: 'Beta', scores: { clef: { shelter: 4 }, gemma: { shelter: 4 } } }),
+  stop('a', { name: 'Alpha', scores: { clef: { shelter: 0.1 }, gemma: { shelter: 0.8 } } }),
+  stop('b', { name: 'Beta', scores: { clef: { shelter: 1 }, gemma: { shelter: 1 } } }),
   stop('c', { name: 'Gamma' }),
 ];
 
@@ -38,9 +38,9 @@ describe('ScoresPage', () => {
     expect(cells).toHaveLength(CATALOG.categories.length * CATALOG.models.length);
   });
 
-  it('highlights a category where the models disagree by 2+ levels', () => {
+  it('highlights a category where the models disagree by 0.5 or more', () => {
     const disagree = el.querySelectorAll('tbody tr:first-child td.disagree');
-    expect(disagree).toHaveLength(2); // Alpha shelter: 0.5 vs 3
+    expect(disagree).toHaveLength(2); // Alpha shelter: 0.1 vs 0.8
     expect(el.querySelectorAll('tbody tr:nth-child(2) td.disagree')).toHaveLength(0);
   });
 

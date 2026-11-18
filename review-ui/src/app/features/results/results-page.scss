@@ -195,8 +195,19 @@ tbody .sticky {
   text-align: right;
 }
 
+.gone {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-style: italic;
+}
+
+.missing {
+  font-size: var(--text-sm);
+}
+
 .nowrap,
-.score {
+.score,
+.missing {
   white-space: nowrap;
 }
 

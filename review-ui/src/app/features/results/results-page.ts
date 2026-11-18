@@ -21,6 +21,7 @@ import {
   exploredSummary,
   filterRows,
   parseShow,
+  missingText,
   parseSort,
   sortRows,
 } from './results-view';
@@ -33,6 +34,9 @@ interface Item {
   date: string;
   photos: Photo[];
   scores: (number | undefined)[];
+  /** Per score column: the stop lacks the element it rates. */
+  gone: boolean[];
+  missing: string;
 }
 
 const SHOWS: { value: Show; label: string }[] = [
@@ -118,6 +122,8 @@ export class ResultsPage {
       date: row.scan_date ? formatImageryDate(row.scan_date) : '',
       photos: viewerPhotos(row),
       scores: SCORE_COLUMNS.map((c) => row[c.key] ?? undefined),
+      gone: SCORE_COLUMNS.map((c) => !!c.element && !!row.missing?.includes(c.element)),
+      missing: missingText(row.missing),
     }));
   });
 

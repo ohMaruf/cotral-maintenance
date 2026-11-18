@@ -10,12 +10,12 @@ import {
 } from './format';
 
 describe('format', () => {
-  it('formats scores per kind and shows a dash for missing values', () => {
-    expect(formatScore(2, 'level')).toBe('2');
-    expect(formatScore(2.44, 'level')).toBe('2.4');
-    expect(formatScore(0.8, 'probability')).toBe('0.80');
-    expect(formatScore(undefined, 'level')).toBe('–');
-    expect(formatScore(null, 'probability')).toBe('–');
+  it('formats scores with two decimals and shows a dash for missing values', () => {
+    expect(formatScore(1)).toBe('1.00');
+    expect(formatScore(0.444)).toBe('0.44');
+    expect(formatScore(0.8)).toBe('0.80');
+    expect(formatScore(undefined)).toBe('–');
+    expect(formatScore(null)).toBe('–');
   });
 
   it('formats imagery dates', () => {

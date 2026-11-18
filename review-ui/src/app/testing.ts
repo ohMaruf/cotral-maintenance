@@ -10,13 +10,18 @@ import {
 
 export const CATALOG: Catalog = {
   categories: [
-    { key: 'shelter', label: 'Shelter', kind: 'level', description: 'Is there a shelter?' },
+    {
+      key: 'shelter',
+      label: 'Shelter',
+      kind: 'condition',
+      description: 'Condition of the shelter?',
+    },
     { key: 'classifiable', label: 'Sign visible', kind: 'probability', description: 'Sign?' },
     {
-      key: 'priority',
-      label: 'Priority',
-      kind: 'level',
-      description: 'Needs maintenance?',
+      key: 'condition',
+      label: 'Condition',
+      kind: 'condition',
+      description: 'Computed from the other conditions',
     },
   ],
   models: [
@@ -81,15 +86,15 @@ export function judgmentResponse(
     },
     left: stop(left, {
       scores: {
-        clef: { shelter: 3.2, classifiable: 0.9, priority: 3.1 },
-        gemma: { shelter: 3, classifiable: 1, priority: 3 },
+        clef: { shelter: 0.2, classifiable: 0.9, condition: 0.3 },
+        gemma: { shelter: 0.25, classifiable: 1, condition: 0.25 },
       },
       evidence: { gemma: { shelter: 'The roof is broken.' } },
     }),
     right: stop(right, {
       scores: {
-        clef: { shelter: 0.4, classifiable: 0.2, priority: 0.8 },
-        gemma: { shelter: 0, classifiable: 0, priority: 1 },
+        clef: { shelter: 0.9, classifiable: 0.2, condition: 0.8 },
+        gemma: { shelter: 1, classifiable: 0, condition: 1 },
       },
       evidence: {},
     }),

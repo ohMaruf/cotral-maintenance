@@ -75,7 +75,7 @@ export class ScoresPage {
     parseSort(this.sort(), this.categories(), this.models()),
   );
   protected readonly direction = computed<SortDirection>(() =>
-    this.dir() === 'asc' ? 'asc' : 'desc',
+    this.dir() === 'desc' ? 'desc' : 'asc',
   );
 
   protected readonly rows = computed<Row[]>(() => {
@@ -99,10 +99,7 @@ export class ScoresPage {
         return {
           category,
           cells,
-          disagree: modelsDisagree(
-            cells.map((c) => c.value),
-            category.kind,
-          ),
+          disagree: modelsDisagree(cells.map((c) => c.value)),
         };
       }),
     }));
@@ -124,7 +121,8 @@ export class ScoresPage {
   protected setSort(category: string, model: string): void {
     const current = this.sortKey();
     const same = current?.category === category && current.model === model;
-    const dir: SortDirection = same && this.direction() === 'desc' ? 'asc' : 'desc';
+    // Worst (lowest) first by default; clicking the active column flips it.
+    const dir: SortDirection = same && this.direction() === 'asc' ? 'desc' : 'asc';
     void this.router.navigate([], {
       queryParams: { sort: serializeSort({ category, model }), dir },
       queryParamsHandling: 'merge',

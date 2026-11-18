@@ -53,11 +53,8 @@ def score_stop(run: RunStore, scorer: Scorer, stop_id: str) -> None:
     t0 = time.monotonic()
     answers = scorer.answer(qs, Q.state(stop["name"], exploration["evidence"], len(data)), data)
     seconds = time.monotonic() - t0
-    values = {}
-    for name in SCORE_COLUMNS:
-        a = answers.get(name)
-        values[name] = None if a is None else round(a["score"] if a["type"] == "score" else a["noul"], 4)
-    values["priority"] = Q.priority(values)
+    values = Q.values(answers)
+    values = {c: values.get(c) for c in SCORE_COLUMNS}
     run.put_score({"stop_id": stop_id, "photos": photos, "scorer": scorer.describe(), **values, "answers": answers,
                    "seconds": round(seconds, 2)})
 

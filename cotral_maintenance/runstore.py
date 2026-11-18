@@ -28,7 +28,7 @@ from typing import Any
 
 from .provenance import utc_now
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 DB_NAME = "run.sqlite"
 MEDIA_DIR = "media"
 LOGS_DIR = "logs"
@@ -113,12 +113,14 @@ CREATE TABLE IF NOT EXISTS scores (
     stop_id        TEXT PRIMARY KEY REFERENCES stops(stop_id),
     photos         TEXT NOT NULL,   -- JSON: [sha256, ...] the photos scored
     scorer         TEXT NOT NULL,   -- JSON: model, files, revisions, rotations, calibration
-    priority       REAL,            -- 0 nothing to do .. 1: the mean of the needs below, each scaled to 0-1
-    shelter        REAL,            -- 0 good .. 4 missing / unusable (expected level)
+    condition      REAL,            -- 0 bad .. 1 good: the mean of the conditions below that apply; ranked by, worst first
+    has_shelter    REAL,            -- probability that the element is there (0-1); below 0.5 it is missing
+    shelter        REAL,            -- 0 unusable .. 1 good, only when the element is there (else NULL)
+    has_seating    REAL,
     seating        REAL,
-    waiting_area   REAL,            -- 0 good .. 4 severe
-    accessibility  REAL,
-    lighting       REAL,            -- probability that a street lamp stands at the stop (0-1)
+    waiting_area   REAL,            -- 0 severe .. 1 good
+    accessibility  REAL,            -- 0 inaccessible .. 1 fully accessible
+    has_lamp       REAL,            -- probability that a street lamp stands at the stop (0-1)
     stop_visible   REAL,            -- probability that the photos show the stop (0-1)
     answers        TEXT NOT NULL,   -- JSON: per question, probabilities, unknown probability, confidence
     seconds        REAL NOT NULL,
@@ -147,11 +149,13 @@ CREATE TABLE IF NOT EXISTS invocations (
 );
 """
 
-SCORE_COLUMNS = ("priority", "shelter", "seating", "waiting_area", "accessibility", "lighting", "stop_visible")
+SCORE_COLUMNS = ("condition", "has_shelter", "shelter", "has_seating", "seating", "waiting_area", "accessibility",
+                 "has_lamp", "stop_visible")
 # Older schemas this code upgrades in place. 1 -> 2: new score questions (no signage, no overall score, lighting as
 # the presence of a lamp, a computed priority); scores are cheap to redo, so they are dropped and every exploration
-# is kept: the next `cotral run RUN --resume` scores the stops again.
-MIGRATIONS = {1: "DROP TABLE scores;"}
+# is kept: the next `cotral run RUN --resume` scores the stops again. 2 -> 3: presence and condition asked apart,
+# 0 bad .. 1 good, ranked by condition; dropped the same way.
+MIGRATIONS = {1: "DROP TABLE scores;", 2: "DROP TABLE scores;"}
 
 
 class RunStoreError(Exception):

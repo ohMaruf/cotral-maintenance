@@ -88,12 +88,12 @@ def without_search(store: RunStore, stop_id: str, status: str, reason: str) -> N
         [], [])
 
 
-def score(store: RunStore, stop_id: str, priority: float, visible: float = 0.9) -> None:
+def score(store: RunStore, stop_id: str, condition: float, visible: float = 0.9) -> None:
     exploration = store.exploration(stop_id)
     store.put_score({
         "stop_id": stop_id, "photos": exploration["stop_photos"], "scorer": {"model": "imajev-4b"},
-        **{c: 1.0 for c in SCORE_COLUMNS}, "priority": priority, "stop_visible": visible,
-        "answers": {c: ANSWER for c in SCORE_COLUMNS if c != "lighting"} | {"lighting": {**ANSWER, "abstained": True}},
+        **{c: 1.0 for c in SCORE_COLUMNS}, "condition": condition, "stop_visible": visible,
+        "answers": {c: ANSWER for c in SCORE_COLUMNS if c != "has_lamp"} | {"has_lamp": {**ANSWER, "abstained": True}},
         "seconds": 3.0})
 
 
@@ -107,7 +107,7 @@ def build_run(root: Path) -> Path:
     store.put_start({"stop_id": "b2", "source": "places", "lat": 41.0, "lon": 12.0004, "places": {"status": "ok"}})
     for i, stop_id in enumerate(IDS):
         found_stop(store, stop_id, lat=41.0001 + i / 1000)
-        score(store, stop_id, 1.0 + i)
+        score(store, stop_id, round(0.9 - 0.2 * i, 1))
     found_stop(store, UNSCORED)
     without_search(store, NOT_FOUND, "not_found", "call cap")
     without_search(store, NO_IMAGERY, "no_imagery", "no Street View from 2024 on along the path")

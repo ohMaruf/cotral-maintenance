@@ -2,65 +2,99 @@
 
 The explorer only reports a stop it has confirmed, so the stop itself is not asked about: the
 sign (or shelter, or markings) is what it confirmed, recorded as the exploration's `evidence`.
-The scorer judges what is around it:
-  - shelter, seating, waiting_area, accessibility: 0 (good) .. 4 on a 0-4 scale, the expected
-    level under the model's probabilities. For shelter and seating, level 4 includes "missing":
-    a stop without them needs maintenance.
-  - lighting: the probability that a street lamp stands at the stop. Its pole is enough, even when
-    the lamp at the top is out of the photo; poles that carry overhead wires are not lamps.
+The scorer judges what is around it. Every value is 0 (bad) .. 1 (good):
+  - has_shelter, has_seating, has_lamp: the probability that the element is there. Cotral puts a
+    shelter or a bench at some stops and not at others, so a missing element is not a defect: it
+    has no condition, and is listed in `missing` (below 0.5).
+  - shelter, seating: the condition of the element, only when it is there (else None). Asked on a
+    0 (unusable) .. 4 (good) scale; the value is the expected level / 4.
+  - waiting_area, accessibility: always there, rated the same way.
   - stop_visible: the probability that the photos show the stop at all. When they don't, the other
     answers describe something else and the stop goes to a person.
-`priority` (computed, not asked) combines the needs into one number to rank the stops by.
+`condition` (computed, not asked) is the mean of the conditions that apply; stops are ranked by it,
+worst first. A lamp's condition cannot be judged from daytime photos, so lighting is presence only.
 """
 
 from .imajev import Question
 
-ELEMENT_LEVELS = [
-    "Present and in good condition",
-    "Present, minor issues: dirt, faded paint, light wear",
-    "Present, moderate wear or damage that should be fixed",
-    "Present, significant damage or deficiency",
-    "Missing, broken or unusable",
+PRESENT_MIN = 0.5
+ELEMENT_LEVELS = [  # worst first: the level is the condition
+    "Broken, damaged so that it cannot be used",
+    "Significant damage or deficiency",
+    "Moderate wear or damage that should be fixed",
+    "Minor issues: dirt, faded paint, light wear",
+    "Good condition",
 ]
 AREA_LEVELS = [
-    "Good: no maintenance needed",
-    "Minor issues: dirt, litter, light wear",
-    "Moderate problems that should be fixed",
-    "Significant problems",
     "Severe: unsafe or unusable",
+    "Significant problems",
+    "Moderate problems that should be fixed",
+    "Minor issues: dirt, litter, light wear",
+    "Good: no maintenance needed",
 ]
-ELEMENTS = {
-    "shelter": "the bus shelter (a covered structure where passengers wait)",
-    "seating": "seating for waiting passengers (benches or seats)",
+ACCESS_LEVELS = [
+    "Inaccessible: no pavement or platform, passengers wait on the roadside, verge or ditch",
+    "Poor: a narrow or broken surface, no kerb, steps or obstacles in the way",
+    "Partial: a surface to wait on, but no raised kerb or no step-free path to it",
+    "Mostly accessible: a raised kerb or platform and step-free access, with minor obstacles",
+    "Fully accessible: a raised platform or kerb at bus floor height, step-free, even and unobstructed",
+]
+ELEMENTS = {  # name: (presence question, what to rate)
+    "shelter": ("Is there a bus shelter (a covered structure where passengers wait) at the stop?",
+                "the bus shelter at the stop"),
+    "seating": ("Is there seating for waiting passengers (a bench or seats, also inside a shelter) at the stop?",
+                "the seating (bench or seats) at the stop"),
 }
 AREAS = {
-    "waiting_area": "the waiting area (pavement or platform surface, cleanliness, litter, weeds, overgrown "
-                    "vegetation, standing space)",
-    "accessibility": "accessibility (a proper raised platform or kerb, step-free access, even surfaces, no obstacles "
-                     "for wheelchairs or prams)",
+    "waiting_area": ("the waiting area (pavement or platform surface, cleanliness, litter, weeds, overgrown "
+                     "vegetation, standing space)", AREA_LEVELS),
+    "accessibility": ("accessibility of the stop for passengers, including wheelchair users and prams",
+                      ACCESS_LEVELS),
 }
-SCORES = (*ELEMENTS, *AREAS)  # 0 good .. 4 severe / missing
-LIGHTING = "lighting"  # probability that there is a street lamp
+LAMP = "has_lamp"
 VISIBLE = "stop_visible"
-LIGHTING_INSTRUCTIONS = (
-    "Is there a street lamp at the bus stop: a lighting pole standing on the stop's side of the road, within "
-    "about 15 m of the stop, or a light in its shelter?")
-LIGHTING_CRITERIA = {
-    "true": "a street lamp pole (a pole with a lamp head or arm, typically metal or concrete, standing alone by the "
-            "road) is near the stop; the pole alone is enough, even if its top and the lamp are cut off by the photo",
-    "false": "no lamp pole near the stop. Poles that carry overhead electric or telephone wires (wooden or concrete "
-             "poles with cables running between them, insulators, transformers) are NOT street lamps, unless a lamp "
-             "is mounted on them",
+CONDITIONS = (*ELEMENTS, *AREAS)
+LAMP_INSTRUCTIONS = "Is there a street lamp at the bus stop, within about 20 m of it, or a light in its shelter?"
+LAMP_CRITERIA = {
+    "true": "a street lamp is near the stop: a slender metal or concrete pole with a lamp head or a curved arm. The "
+            "pole alone is enough, even when its top and the lamp are cut off by the photo",
+    "false": "no street lamp near the stop. Wooden or concrete poles that only carry overhead electric or telephone "
+             "wires are not street lamps",
 }
 
 
-def priority(values: dict[str, float | None]) -> float | None:
-    """The stop's need for maintenance, 0 (nothing to do) .. 1: the mean of the needs, each scaled to 0-1
-    (a 0-4 level / 4, and the absence of a street lamp). None when nothing was scored."""
-    needs = [values[k] / 4 for k in SCORES if values.get(k) is not None]
-    if values.get(LIGHTING) is not None:
-        needs.append(1 - values[LIGHTING])
-    return round(sum(needs) / len(needs), 4) if needs else None
+def present(name: str) -> str:
+    return f"has_{name}"
+
+
+def condition(values: dict[str, float | None]) -> float | None:
+    """The stop's condition, 0 (bad) .. 1 (good): the mean of the conditions that apply (a missing shelter or
+    seating has none). None when nothing was rated."""
+    rated = [values[k] for k in CONDITIONS if values.get(k) is not None]
+    return round(sum(rated) / len(rated), 4) if rated else None
+
+
+def missing(values: dict) -> list[str]:
+    """The elements the stop lacks: shelter, seating, lamp (presence below 0.5)."""
+    return [name for name in (*ELEMENTS, "lamp")
+            if values.get(present(name)) is not None and values[present(name)] < PRESENT_MIN]
+
+
+def values(answers: dict) -> dict[str, float | None]:
+    """The score columns from the scorer's answers."""
+    out = {}
+    for name, a in answers.items():
+        if a is None:
+            out[name] = None
+        elif a["type"] == "score":  # expected level / top level
+            out[name] = round(a["score"] / max(float(k) for k in a["probabilities"]), 4)
+        else:
+            out[name] = round(a["noul"], 4)
+    for name in ELEMENTS:
+        if out.get(present(name)) is not None and out[present(name)] < PRESENT_MIN:
+            out[name] = None
+    out["condition"] = condition(out)
+    return out
 
 
 EVIDENCE_TEXT = {
@@ -77,9 +111,12 @@ PHOTO_ROLES = (
 
 
 def questions() -> list[Question]:
-    qs = [Question(name, "score", f"State of {what}?", ELEMENT_LEVELS) for name, what in ELEMENTS.items()]
-    qs += [Question(name, "score", f"State of {what}?", AREA_LEVELS) for name, what in AREAS.items()]
-    qs.append(Question(LIGHTING, "noul", LIGHTING_INSTRUCTIONS, LIGHTING_CRITERIA))
+    qs = []
+    for name, (ask, what) in ELEMENTS.items():
+        qs.append(Question(present(name), "noul", ask))
+        qs.append(Question(name, "score", f"Condition of {what}? If there is none, answer unknown.", ELEMENT_LEVELS))
+    qs += [Question(name, "score", f"State of {what}?", levels) for name, (what, levels) in AREAS.items()]
+    qs.append(Question(LAMP, "noul", LAMP_INSTRUCTIONS, LAMP_CRITERIA))
     qs.append(Question(VISIBLE, "noul", "Is the bus stop (its sign, shelter or stop markings) visible in the photos?"))
     return qs
 

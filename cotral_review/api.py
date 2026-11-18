@@ -2,23 +2,25 @@
 
 import logging
 import random
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
+from fastapi import APIRouter, FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse, HTMLResponse
 
 from . import schemas
-from .catalog import CATEGORIES, models_for, photo_description
+from .catalog import CATEGORIES, model_for
 from .config import Settings
 from .explore_api import router as explore_router
 from .explore_state import ExploreState
 from .judgments import DuplicatePair, JudgmentRepository
 from .judgments import Judgment as JudgmentRow
+from .media import COPYRIGHT, photo_file
 from .pairs import next_pair, remaining
+from .results_api import router as results_router
+from .run import open_run
 from .shapes_api import router as shapes_router
-from .stops import Stop, StopIndex, load_index
+from .state import AppState, State
+from .stops import Stop, load_index
 
 logger = logging.getLogger(__name__)
 
@@ -29,29 +31,13 @@ NO_FRONTEND = (
 )
 
 
-@dataclass
-class AppState:
-    settings: Settings
-    stops: StopIndex
-    judgments: JudgmentRepository
-    rng: random.Random
-
-
-def get_state(request: Request) -> AppState:
-    return request.app.state.review
-
-
-State = Annotated[AppState, Depends(get_state)]
-
-
 def summary_of(stop: Stop) -> schemas.StopSummary:
     return schemas.StopSummary(
         stop_id=stop.stop_id, name=stop.name, lat=stop.lat, lon=stop.lon, imagery_date=stop.imagery_date,
         photos=[
             schemas.Photo(
-                view=p.view, description=photo_description(p.view),
-                url=f"/api/stops/{stop.stop_id}/photos/{p.file}",
-                distance_m=p.distance_m, heading=p.heading, copyright=p.copyright,
+                view=p.view, description=p.description, url=f"/api/stops/{stop.stop_id}/photos/{p.sha}.jpg",
+                distance_m=None, heading=p.heading, copyright=COPYRIGHT,
             )
             for p in stop.photos
         ],
@@ -92,7 +78,7 @@ def health() -> schemas.Health:
 def catalog(state: State) -> schemas.Catalog:
     return schemas.Catalog(
         categories=[schemas.Category(**vars(c)) for c in CATEGORIES],
-        models=[schemas.Model(**vars(m)) for m in models_for(state.stops.models)],
+        models=[schemas.Model(**vars(model_for(state.stops.model_label)))] if state.stops.models else [],
     )
 
 
@@ -109,13 +95,10 @@ def get_stop(stop_id: str, state: State) -> schemas.StopDetail:
 @api.get("/stops/{stop_id}/photos/{file}", response_class=FileResponse, responses={200: {"content": {"image/jpeg": {}}}})
 def get_photo(stop_id: str, file: str, state: State) -> FileResponse:
     stop = require_stop(state, stop_id)
-    if stop.photo(file) is None:
+    path = photo_file(state.run, stop.photo_shas(), file)
+    if path is None:
         raise HTTPException(404, f"unknown photo {file}")
-    root = state.settings.images_dir.resolve()
-    path = (root / stop_id / file).resolve()
-    if not path.is_relative_to(root) or not path.is_file():
-        raise HTTPException(404, f"unknown photo {file}")
-    # Photos never change once downloaded.
+    # A photo's name is its hash: it never changes.
     return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 
@@ -171,17 +154,20 @@ def mount_frontend(app: FastAPI, dist: Path) -> None:
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
-    """Build the app; loads the stops and the explore reference data once."""
+    """Build the app over the run named in the settings (RunStoreError if there is none)."""
     settings = settings or Settings.from_env()
+    run = open_run(settings.run)
     app = FastAPI(title="Cotral review", docs_url="/docs", openapi_url="/api/openapi.json")
     app.state.review = AppState(
         settings=settings,
-        stops=load_index(settings.images_dir, settings.score_sources, settings.gemma_raw_dir),
+        run=run,
+        stops=load_index(run),
         judgments=JudgmentRepository(settings.database),
         rng=random.Random(settings.seed),
     )
-    app.state.explore = ExploreState.load(settings)
+    app.state.explore = ExploreState.load(settings, run)
     app.include_router(api)
+    app.include_router(results_router)
     app.include_router(explore_router)
     app.include_router(shapes_router)
     mount_frontend(app, settings.frontend_dist)

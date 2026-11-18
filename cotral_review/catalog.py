@@ -1,11 +1,13 @@
-"""What the models are asked and how to name it: categories and models, in display order."""
+"""What the scorer is asked and how to name it: categories and the model, in display order."""
 
 from dataclasses import dataclass
 from typing import Literal
 
-from cotral_maintenance.scoring import QUESTIONS, VIEW_ROLES
+from cotral_maintenance.scorer.questions import questions
 
 CategoryKind = Literal["level", "probability"]
+MODEL_KEY = "imajev"
+MODEL_DESCRIPTION = "Expected level under Imajev's calibrated probabilities"
 
 
 @dataclass(frozen=True)
@@ -26,36 +28,31 @@ class Model:
 _LABELS = {
     "waiting_area": "Waiting area",
     "requires_maintenance": "Overall maintenance",
-    "classifiable": "Sign visible",
 }
 
 
-def _category(key: str) -> Category:
-    question = QUESTIONS[key]
-    kind: CategoryKind = "probability" if question["type"] == "noul" else "level"
-    return Category(key, _LABELS.get(key, key.replace("_", " ").capitalize()), kind, question["instructions"])
+def _category(question) -> Category:
+    kind: CategoryKind = "probability" if question.type == "noul" else "level"
+    label = _LABELS.get(question.name, question.name.replace("_", " ").capitalize())
+    return Category(question.name, label, kind, question.instructions)
 
 
-CATEGORIES = [_category(key) for key in QUESTIONS]
+CATEGORIES = [_category(q) for q in questions()]
 CATEGORY_KEYS = [c.key for c in CATEGORIES]
 
-MODELS = [
-    Model("clef", "Clef", "Probability-weighted expected level"),
-    Model("gemma", "Gemma", "Integer level, structured tool call"),
-]
+
+def model_for(scorer_model: str | None) -> Model:
+    return Model(MODEL_KEY, scorer_model or "Imajev", MODEL_DESCRIPTION)
 
 
-def models_for(keys: list[str]) -> list[Model]:
-    """The known models first, in display order, then any other configured model."""
-    known = {m.key: m for m in MODELS}
-    return [known[k] for k in known if k in keys] + [Model(k, k.capitalize(), "") for k in keys if k not in known]
-
-
-def photo_description(view: str) -> str:
-    """"About 24 m before the mapped stop position" for sweep_1; the view name otherwise."""
-    role = VIEW_ROLES.get(view)
-    if role is None:
-        return view.replace("_", " ").capitalize()
-    where = role.split(", ", 1)[1].rsplit(" along the road", 1)[0]
-    return where[0].upper() + where[1:]
-
+def evidence_text(answer: dict) -> str | None:
+    """"unknown 23%, confidence 0.41" from one entry of `scores.answers`; None when it has neither."""
+    unknown, confidence = answer.get("unknown_probability"), answer.get("confidence")
+    parts = []
+    if unknown is not None:
+        parts.append(f"unknown {unknown:.0%}")
+    if confidence is not None:
+        parts.append(f"confidence {confidence:.2f}")
+    if not parts:
+        return None
+    return ("abstained, " if answer.get("abstained") else "") + ", ".join(parts)

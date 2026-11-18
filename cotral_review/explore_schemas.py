@@ -42,29 +42,32 @@ class ExplorationSummary(BaseModel):
     run_id: str
     stop_id: str
     name: str
-    outcome: str  # found, not_found, no_imagery, failed, running; unknown outcomes are passed through
+    outcome: str  # the exploration's status: found, not_found, no_imagery, error; unknown ones are passed through
     outcome_reason: str | None
     model: str | None
+    turns: int
+    seconds: float
+    scan_date: str | None
     photos: int
     max_photos: int
-    budget_unit: BudgetUnit  # what the budget counts: images (newest), sweeps (two photos each), photos (oldest)
+    budget_unit: BudgetUnit  # what the budget counts: images (the only unit the pipeline writes)
     budget_used: int
     budget_max: int
     zooms_used: int  # 0 for runs without a zoom budget
     confirms_used: int
-    billed_used: int | None = None  # Street View images actually fetched (cache hits are free); None when not recorded
+    billed_used: int | None = None  # Street View images actually fetched (cache hits are free); None without a search
     stop_photos_used: int = 0  # photos the harness took of the found stop
     harness: Harness
-    billed_static: int | None = None  # requests actually sent to Google (cache hits excluded); None when not recorded
-    billed_tiles: int | None = None
-    tiles_used: int | None = None  # tiles paid for, of tiles_max; None for runs without a tile budget
+    billed_static: int  # requests actually sent to Google (cache hits excluded)
+    billed_tiles: int
+    tiles_used: int | None = None  # tiles paid for, of tiles_max; None without a search
     tiles_max: int | None = None
     start_kind: str | None = None  # StartKind of the start position (`record.starts[0].kind`); unknown kinds pass through
-    events: int
+    events: int  # tool calls of the run (`Exploration.event_list` also holds the model's thoughts)
     err_gtfs_m: float | None
     err_found_m: float | None
-    started_at: str | None
-    finished_at: str | None
+    started_at: str
+    finished_at: str
 
 
 class ExplorationPhoto(BaseModel):
@@ -148,6 +151,7 @@ class Exploration(ExplorationSummary):
     report: str | None
     photo_list: list[ExplorationPhoto]
     event_list: list[ExplorationEvent]
+    transcript: list[Any]  # `transcripts.lines`, parsed: the explorer's conversation, raw
     stop_photos: list[int] = []  # ExplorationPhoto.index of the harness's photos of the found stop; [] if not found
     close_up: int | None = None  # ExplorationPhoto.index of the confirming zoom of a found run
 

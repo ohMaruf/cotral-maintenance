@@ -1,28 +1,30 @@
-"""Stops as the review tool sees them: manifest, photos, model scores and evidence.
+"""Stops as the review tool sees them: the run's scored stops, their photos, scores and evidence.
 
-Loaded once at startup into an immutable index; the data does not change while serving.
+Loaded once at startup into an immutable index; the run does not change while serving.
 """
 
-import csv
 import json
 import logging
 from dataclasses import dataclass, field
-from pathlib import Path
 
-from cotral_maintenance.storage import MANIFEST_NAME
+from cotral_maintenance.runstore import SCORE_COLUMNS, RunStore
 
-from .catalog import CATEGORY_KEYS
+from .catalog import MODEL_KEY, evidence_text
 
 logger = logging.getLogger(__name__)
+
+PHOTO_DESCRIPTIONS = (
+    "From the panorama that confirmed the stop",
+    "From about 12 m before the stop",
+)
 
 
 @dataclass(frozen=True)
 class PhotoFile:
     view: str
-    file: str
-    distance_m: float | None
+    description: str
+    sha: str
     heading: float | None
-    copyright: str | None
 
 
 @dataclass
@@ -35,19 +37,20 @@ class Stop:
     photos: list[PhotoFile]
     # model key -> category key -> value
     scores: dict[str, dict[str, float]] = field(default_factory=dict)
-    # model key -> category key -> one-sentence reason, where the model gives one
+    # model key -> category key -> short text
     evidence: dict[str, dict[str, str]] = field(default_factory=dict)
 
-    def photo(self, file: str) -> PhotoFile | None:
-        return next((p for p in self.photos if p.file == file), None)
+    def photo_shas(self) -> set[str]:
+        return {p.sha for p in self.photos}
 
 
 class StopIndex:
-    """All stops with a manifest, by stop id."""
+    """The scored stops, by stop id, in the run's order."""
 
-    def __init__(self, stops: dict[str, Stop], models: list[str]) -> None:
-        self._stops = dict(sorted(stops.items()))
-        self.models = models
+    def __init__(self, stops: dict[str, Stop], model_label: str | None = None) -> None:
+        self._stops = stops
+        self.model_label = model_label
+        self.models = [MODEL_KEY] if stops else []
 
     def __len__(self) -> int:
         return len(self._stops)
@@ -65,58 +68,32 @@ class StopIndex:
         return list(self._stops)
 
 
-def load_manifests(images_dir: Path) -> dict[str, Stop]:
-    stops = {}
-    for manifest_path in sorted(images_dir.glob(f"*/{MANIFEST_NAME}")):
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        stop = manifest["stop"]
-        photos = []
-        for image in manifest["images"]:
-            shot = image.get("shot") or {}
-            photos.append(PhotoFile(
-                view=image["view"], file=image["file"], distance_m=shot.get("distance_m"),
-                heading=shot.get("heading"), copyright=(shot.get("pano") or {}).get("copyright"),
-            ))
-        stops[stop["stop_id"]] = Stop(
-            stop_id=stop["stop_id"], name=stop["name"], lat=stop["lat"], lon=stop["lon"],
-            imagery_date=manifest.get("imagery_date"), photos=photos,
+def load_index(run: RunStore) -> StopIndex:
+    taken = {(r["stop_id"], r["media"]): r for r in run.query(
+        "SELECT stop_id, media, heading, date FROM photos WHERE toward = 'stop_photo'")}
+    stops: dict[str, Stop] = {}
+    label = None
+    for r in run.query(
+            "SELECT s.stop_id, s.name, s.gtfs_lat, s.gtfs_lon, st.lat AS start_lat, st.lon AS start_lon, "
+            "e.lat, e.lon, e.scan_date, e.stop_photos, sc.scorer, sc.answers, "
+            + ", ".join(f"sc.{c}" for c in SCORE_COLUMNS) +
+            " FROM stops s JOIN scores sc USING (stop_id) LEFT JOIN starts st USING (stop_id) "
+            "LEFT JOIN explorations e USING (stop_id) ORDER BY s.position"):
+        stop_id = r["stop_id"]
+        shas = json.loads(r["stop_photos"] or "[]")[:len(PHOTO_DESCRIPTIONS)]
+        rows = [taken.get((stop_id, sha)) for sha in shas]
+        photos = [PhotoFile(f"stop_photo_{i}", PHOTO_DESCRIPTIONS[i - 1], sha, row["heading"] if row else None)
+                  for i, (sha, row) in enumerate(zip(shas, rows), 1)]
+        date = r["scan_date"] or next((row["date"] for row in rows if row and row["date"]), None)
+        lat, lon = next(((a, b) for a, b in ((r["lat"], r["lon"]), (r["start_lat"], r["start_lon"]),
+                                            (r["gtfs_lat"], r["gtfs_lon"])) if a is not None))
+        answers = json.loads(r["answers"])
+        stops[stop_id] = Stop(
+            stop_id=stop_id, name=r["name"], lat=lat, lon=lon, imagery_date=date, photos=photos,
+            scores={MODEL_KEY: {c: r[c] for c in SCORE_COLUMNS if r[c] is not None}},
+            evidence={MODEL_KEY: {c: text for c in SCORE_COLUMNS
+                                  if isinstance(answers.get(c), dict) and (text := evidence_text(answers[c]))}},
         )
-    return stops
-
-
-def attach_scores(stops: dict[str, Stop], model: str, scores_csv: Path) -> bool:
-    """Add one model's scores CSV (the phase 3 layout) to the stops it covers.
-    Returns False when the file does not exist."""
-    if not scores_csv.is_file():
-        logger.warning("no scores for %s at %s", model, scores_csv)
-        return False
-    with scores_csv.open(encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            stop = stops.get(row["stop_id"])
-            if stop is not None:
-                stop.scores[model] = {k: float(row[k]) for k in CATEGORY_KEYS if row.get(k) not in (None, "")}
-    return True
-
-
-def attach_gemma_evidence(stops: dict[str, Stop], raw_dir: Path, model: str = "gemma") -> None:
-    """Gemma's per-category reasons, from the raw records of experiments/gemma."""
-    if not raw_dir.is_dir():
-        return
-    for path in sorted(raw_dir.glob("*.json")):
-        record = json.loads(path.read_text(encoding="utf-8"))
-        stop, args = stops.get(record["stop"]["stop_id"]), record.get("arguments")
-        if stop is None or not args:
-            continue
-        reasons = {k: args[f"{k}_evidence"] for k in CATEGORY_KEYS if f"{k}_evidence" in args}
-        if "sign_evidence" in args:
-            reasons["classifiable"] = args["sign_evidence"]
-        stop.evidence[model] = reasons
-
-
-def load_index(images_dir: Path, score_sources: dict[str, Path], gemma_raw_dir: Path) -> StopIndex:
-    stops = load_manifests(images_dir)
-    models = [m for m, path in score_sources.items() if attach_scores(stops, m, path)]
-    if "gemma" in models:
-        attach_gemma_evidence(stops, gemma_raw_dir)
-    logger.info("loaded %d stops, models %s", len(stops), models)
-    return StopIndex(stops, models)
+        label = label or json.loads(r["scorer"]).get("model")
+    logger.info("loaded %d scored stops", len(stops))
+    return StopIndex(stops, label)

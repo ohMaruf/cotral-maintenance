@@ -5,6 +5,8 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 
+from cotral_maintenance.runstore import RunStore
+
 from .config import Settings
 from .explore_schemas import ShapeCheck
 from .explorations import ExplorationRepository
@@ -20,11 +22,10 @@ class ExploreState:
     verdicts: ShapeVerdictRepository
 
     @classmethod
-    def load(cls, settings: Settings) -> "ExploreState":
-        positions = PositionIndex.load(settings.truth_csv, settings.places_csv)
+    def load(cls, settings: Settings, run: RunStore) -> "ExploreState":
         return cls(
             explorations=ExplorationRepository(
-                settings.agent_runs_dir, positions, OsmLookup(settings.osm_store)),
+                run, PositionIndex.load(settings.truth_csv), OsmLookup(settings.osm_store)),
             shape_check=load_shape_check(settings.shape_check_json),
             verdicts=ShapeVerdictRepository(settings.shape_verdicts_db),
         )

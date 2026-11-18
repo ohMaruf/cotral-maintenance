@@ -2,6 +2,7 @@ import csv
 import io
 import json
 import sqlite3
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -17,13 +18,9 @@ URL = "/api/shape-check"
 
 
 @pytest.fixture
-def shape_settings(tmp_path: Path) -> Settings:
+def shape_settings(settings: Settings, tmp_path: Path) -> Settings:
     write_shape_check(tmp_path / "stops.json")
-    return Settings(
-        shape_check_json=tmp_path / "stops.json", shape_verdicts_db=tmp_path / "verdicts.sqlite3",
-        agent_runs_dir=tmp_path / "raw", images_dir=tmp_path / "none", score_sources={},
-        database=tmp_path / "review.sqlite3", frontend_dist=tmp_path / "dist",
-    )
+    return replace(settings, shape_check_json=tmp_path / "stops.json")
 
 
 @pytest.fixture

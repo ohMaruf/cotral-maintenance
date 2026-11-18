@@ -1,12 +1,13 @@
 #!/usr/bin/env zsh
 # Start the review app: the BFF (FastAPI) and the web app (Angular).
 #
-#   ./start.sh          development: BFF on :8765, Angular dev server on :4200
-#                       (live reload; /api is proxied to the BFF)
-#   ./start.sh --prod   build the web app once and let the BFF serve it on :8765
+#   ./start.sh --run runs/<RUN>          development: BFF on :8765, Angular dev server on :4200
+#                                        (live reload; /api is proxied to the BFF)
+#   ./start.sh --prod --run runs/<RUN>   build the web app once and let the BFF serve it on :8765
 #
-# Dependencies are installed when missing or out of date. Ctrl-C stops everything.
-# Extra arguments after the mode go to `cotral_review serve`, e.g. --database PATH.
+# --run is the run directory to show (relative to the repository root); it falls back to
+# $COTRAL_REVIEW_RUN. Dependencies are installed when missing or out of date. Ctrl-C stops everything.
+# Other arguments after the mode go to `cotral_review serve`, e.g. --database PATH.
 emulate -L zsh
 setopt err_exit no_unset pipe_fail
 
@@ -17,10 +18,24 @@ UI_PORT=4200
 
 mode=dev
 if [[ ${1:-} == --prod ]]; then mode=prod; shift; fi
-if [[ ${1:-} == (-h|--help) ]]; then sed -n '2,9p' $0; exit 0; fi
+if [[ ${1:-} == (-h|--help) ]]; then sed -n '2,10p' $0; exit 0; fi
 
 log() { print -P "%B[start]%b $*" }
 die() { print -P "%F{red}[start]%f $*" >&2; exit 1 }
+
+typeset -a bff_args
+while (( $# )); do
+  case $1 in
+    --run) (( $# > 1 )) || die "--run needs a run directory, e.g. --run runs/<RUN>"
+           export COTRAL_REVIEW_RUN=$2; shift 2 ;;
+    --run=*) export COTRAL_REVIEW_RUN=${1#--run=}; shift ;;
+    *) bff_args+=($1); shift ;;
+  esac
+done
+set -- $bff_args
+[[ -n ${COTRAL_REVIEW_RUN:-} ]] || die "no run to show: ./start.sh --run runs/<RUN>"
+run_dir=$COTRAL_REVIEW_RUN; [[ $run_dir == /* ]] || run_dir=$ROOT/$run_dir
+[[ -f $run_dir/run.sqlite ]] || die "no run at $run_dir (missing run.sqlite)"
 
 (( $+commands[uv] )) || die "uv is not installed (https://docs.astral.sh/uv/)"
 (( $+commands[fnm] )) || die "fnm is not installed (brew install fnm)"

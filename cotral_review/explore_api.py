@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/explorations")
 
 @router.get("")
 def list_explorations(state: Explore, harness: str | None = None) -> list[schemas.ExplorationSummary]:
-    """All runs by id; `?harness=0.6.0` keeps the runs of that harness version ("unversioned" for the old ones)."""
+    """All explorations in the run's stop order; `?harness=0.11.1` keeps those of that harness version."""
     return state.explorations.list(harness)
 
 
@@ -36,9 +36,9 @@ def get_exploration(run_id: str, state: Explore) -> schemas.Exploration:
 def get_exploration_photo(run_id: str, file: str, state: Explore) -> FileResponse:
     try:
         path = state.explorations.photo_path(run_id, file)
-    except (UnknownRun, UnknownLayout) as error:
+    except UnknownRun as error:
         raise HTTPException(404, f"unknown photo {file}") from error
     if path is None:
         raise HTTPException(404, f"unknown photo {file}")
-    # Photos never change once downloaded.
+    # A photo's name is its hash: it never changes.
     return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})

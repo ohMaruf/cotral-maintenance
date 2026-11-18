@@ -98,3 +98,54 @@ class JudgmentCreated(BaseModel):
 
 class Health(BaseModel):
     status: Literal["ok"] = "ok"
+
+
+class Profile(BaseModel):
+    key: str
+    name: str
+    description: str
+
+
+class RunInfo(BaseModel):
+    name: str
+    stops: int
+    ingested: dict[str, int]
+    explored: dict[str, int]
+    scored: int
+    billed: dict[str, int]
+    profiles: list[Profile]
+
+
+class ResultRow(BaseModel):
+    """One row of the run's results table (`pipeline/export.py`), with the stop photos as URLs."""
+
+    rank: int | None = None
+    stop_id: str
+    name: str
+    needs_review: bool
+    review_reason: str
+    shelter: float | None
+    seating: float | None
+    signage: float | None
+    lighting: float | None
+    waiting_area: float | None
+    accessibility: float | None
+    requires_maintenance: float | None
+    stop_visible: float | None
+    status: str | None
+    explore_reason: str | None
+    evidence: str | None
+    plate_text: str | None
+    lat: float | None
+    lon: float | None
+    found_from_gtfs_m: float | None = None
+    position_basis: str | None
+    scan_date: str | None
+    start_source: str | None
+    start_lat: float | None
+    start_lon: float | None
+    gtfs_lat: float
+    gtfs_lon: float
+    explorer_model: str | None
+    scorer_model: str | None
+    photos: list[str]

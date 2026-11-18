@@ -1,6 +1,6 @@
 """Command line of the review tool, from the repository root:
 
-    .venv/bin/python -m cotral_review serve [--port 8765]
+    .venv/bin/python -m cotral_review serve --run runs/<RUN> [--port 8765]
     .venv/bin/python -m cotral_review import-jsonl data/comparisons.jsonl
     .venv/bin/python -m cotral_review export --format csv [--out PATH]
 
@@ -15,7 +15,9 @@ import sys
 from dataclasses import asdict, replace
 from pathlib import Path
 
-from .config import DEFAULT_SCORES, Settings
+from cotral_maintenance.runstore import RunStoreError
+
+from .config import Settings
 from .judgments import COLUMNS, Judgment, JudgmentRepository
 
 logger = logging.getLogger(__name__)
@@ -48,13 +50,6 @@ def export(repo: JudgmentRepository, fmt: str, out) -> int:
     return len(rows)
 
 
-def _score_source(value: str) -> tuple[str, Path]:
-    model, sep, path = value.partition("=")
-    if not sep or not model or not path:
-        raise argparse.ArgumentTypeError("expected MODEL=CSV_PATH")
-    return model, Path(path)
-
-
 def build_parser() -> argparse.ArgumentParser:
     base = Settings.from_env()
     parser = argparse.ArgumentParser(prog="cotral_review", description=__doc__.split("\n\n")[0])
@@ -65,16 +60,11 @@ def build_parser() -> argparse.ArgumentParser:
     serve = sub.add_parser("serve", parents=[common], help="run the review server")
     serve.add_argument("--host", default=base.host)
     serve.add_argument("--port", type=int, default=base.port)
-    serve.add_argument("--images-dir", type=Path, default=base.images_dir)
-    serve.add_argument("--scores", type=_score_source, action="append", metavar="MODEL=CSV",
-                       help="scores CSV of a model; repeatable; replaces the defaults "
-                            + ", ".join(f"{m}={p}" for m, p in DEFAULT_SCORES.items()))
-    serve.add_argument("--gemma-raw-dir", type=Path, default=base.gemma_raw_dir)
-    serve.add_argument("--agent-runs-dir", type=Path, default=base.agent_runs_dir,
-                       help="one directory per exploration run (record.json, photos/, transcript.jsonl)")
+    serve.add_argument("--run", type=Path, default=base.run,
+                       help="the run directory to show, runs/<RUN> (default: $COTRAL_REVIEW_RUN); "
+                            "relative paths are relative to the repository root")
     serve.add_argument("--truth-csv", type=Path, default=base.truth_csv)
     serve.add_argument("--osm-store", type=Path, default=base.osm_store, help="SQLite OSM store")
-    serve.add_argument("--places-csv", type=Path, default=base.places_csv)
     serve.add_argument("--shape-check-json", type=Path, default=base.shape_check_json)
     serve.add_argument("--shape-verdicts-db", type=Path, default=base.shape_verdicts_db,
                        help="SQLite file of the shape check verdicts")
@@ -91,7 +81,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
     if args.command == "serve":
@@ -100,14 +91,15 @@ def main(argv: list[str] | None = None) -> int:
         from .api import create_app
 
         settings = replace(
-            Settings.from_env(), images_dir=args.images_dir, gemma_raw_dir=args.gemma_raw_dir,
-            agent_runs_dir=args.agent_runs_dir,
-            truth_csv=args.truth_csv, osm_store=args.osm_store, places_csv=args.places_csv,
-            shape_check_json=args.shape_check_json, shape_verdicts_db=args.shape_verdicts_db, database=args.database, frontend_dist=args.frontend_dist,
-            host=args.host, port=args.port,
-            seed=args.seed, score_sources=dict(args.scores) if args.scores else dict(DEFAULT_SCORES),
+            Settings.from_env(), run=args.run, truth_csv=args.truth_csv, osm_store=args.osm_store,
+            shape_check_json=args.shape_check_json, shape_verdicts_db=args.shape_verdicts_db,
+            database=args.database, frontend_dist=args.frontend_dist, host=args.host, port=args.port, seed=args.seed,
         )
-        uvicorn.run(create_app(settings), host=settings.host, port=settings.port, log_level="info")
+        try:
+            app = create_app(settings)
+        except RunStoreError as error:
+            parser.exit(2, f"cotral_review: {error}\n")
+        uvicorn.run(app, host=settings.host, port=settings.port, log_level="info")
         return 0
 
     repo = JudgmentRepository(args.database)

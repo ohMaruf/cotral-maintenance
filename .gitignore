@@ -12,3 +12,4 @@ GROUND_TRUTH/
 turbo-fieldfare/
 .DS_Store
 *.log
+runs/

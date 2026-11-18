@@ -95,7 +95,8 @@ uv run cotral unbundle RUN.tar.zst       # on the laptop, into runs/
 rsync -a server:cotral-maintenance/runs/RUN/ runs/RUN/
 ```
 
-Then the review app reads it: `./start.sh --run runs/RUN`.
+Then the review app reads it: `./start.sh --run runs/RUN` (http://localhost:4200; `--port N` for another
+port, `--bff-port N` if 8765 is taken).
 
 ## The run store (`cotral_maintenance/runstore.py`, schema version 1)
 

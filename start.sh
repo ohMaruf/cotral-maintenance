@@ -4,6 +4,8 @@
 #   ./start.sh --run runs/<RUN>          development: BFF on :8765, Angular dev server on :4200
 #                                        (live reload; /api is proxied to the BFF)
 #   ./start.sh --prod --run runs/<RUN>   build the web app once and let the BFF serve it on :8765
+#   --port N       the port to open in the browser (dev: the web app, default 4200; prod: the BFF, 8765)
+#   --bff-port N   the BFF's port in development (default 8765)
 #
 # --run is the run directory to show (relative to the repository root); it falls back to
 # $COTRAL_REVIEW_RUN. Dependencies are installed when missing or out of date. Ctrl-C stops everything.
@@ -13,12 +15,12 @@ setopt err_exit no_unset pipe_fail
 
 ROOT=${0:A:h}
 UI=$ROOT/review-ui
-BFF_PORT=8765   # must match review-ui/proxy.conf.json
+BFF_PORT=${COTRAL_REVIEW_PORT:-8765}
 UI_PORT=4200
 
 mode=dev
 if [[ ${1:-} == --prod ]]; then mode=prod; shift; fi
-if [[ ${1:-} == (-h|--help) ]]; then sed -n '2,10p' $0; exit 0; fi
+if [[ ${1:-} == (-h|--help) ]]; then sed -n '2,12p' $0; exit 0; fi
 
 log() { print -P "%B[start]%b $*" }
 die() { print -P "%F{red}[start]%f $*" >&2; exit 1 }
@@ -29,6 +31,14 @@ while (( $# )); do
     --run) (( $# > 1 )) || die "--run needs a run directory, e.g. --run runs/<RUN>"
            export COTRAL_REVIEW_RUN=$2; shift 2 ;;
     --run=*) export COTRAL_REVIEW_RUN=${1#--run=}; shift ;;
+    --port|--bff-port)
+           (( $# > 1 )) && [[ $2 == <1-65535> ]] || die "$1 needs a port number"
+           if [[ $1 == --bff-port || $mode == prod ]]; then BFF_PORT=$2; else UI_PORT=$2; fi
+           shift 2 ;;
+    --port=*|--bff-port=*)
+           value=${1#*=}; [[ $value == <1-65535> ]] || die "${1%%=*} needs a port number"
+           if [[ $1 == --bff-port=* || $mode == prod ]]; then BFF_PORT=$value; else UI_PORT=$value; fi
+           shift ;;
     *) bff_args+=($1); shift ;;
   esac
 done
@@ -90,8 +100,11 @@ else
   serve_bff "$@"
   log "BFF at http://127.0.0.1:$BFF_PORT  (API docs: /docs)"
   log "Web app at http://127.0.0.1:$UI_PORT"
+  # /api goes to the BFF on whatever port it got (proxy.conf.json holds only the default).
+  proxy=$(mktemp -t cotral-proxy).json
+  print -r -- "{\"/api\": {\"target\": \"http://127.0.0.1:$BFF_PORT\", \"secure\": false, \"changeOrigin\": false}}" > $proxy
   # stdin from /dev/null: a background job must never wait on a terminal prompt.
-  npm start -- --host 127.0.0.1 --port $UI_PORT </dev/null &
+  npm start -- --host 127.0.0.1 --port $UI_PORT --proxy-config $proxy </dev/null &
   pids+=($!)
   # Stop as soon as either process exits, so a crash is not hidden.
   while kill -0 $pids[1] 2>/dev/null && kill -0 $pids[2] 2>/dev/null; do sleep 1; done

@@ -36,12 +36,10 @@
         }
       </dd>
     </div>
-    @if (billed(); as billed) {
-      <div>
-        <dt>Billed</dt>
-        <dd>{{ billed }}</dd>
-      </div>
-    }
+    <div>
+      <dt>Billed</dt>
+      <dd>{{ billed() }}</dd>
+    </div>
     @if (start(); as start) {
       <div>
         <dt>Start</dt>
@@ -61,8 +59,16 @@
       <dd>{{ started() }}</dd>
     </div>
     <div>
-      <dt>{{ running() ? 'Status' : 'Finished' }}</dt>
-      <dd>{{ running() ? 'still running (reload for progress)' : finished() }}</dd>
+      <dt>Finished</dt>
+      <dd>{{ finished() }}</dd>
+    </div>
+    <div>
+      <dt>Turns</dt>
+      <dd>{{ run().turns }}</dd>
+    </div>
+    <div>
+      <dt>Panorama date</dt>
+      <dd>{{ run().scan_date ?? '–' }}</dd>
     </div>
     <div>
       <dt>Duration</dt>
@@ -75,7 +81,7 @@
   </dl>
   @if (run().report; as report) {
     <details class="report" [open]="!longReport()">
-      <summary>The model's report</summary>
+      <summary>The model's closing words</summary>
       <p>{{ report }}</p>
     </details>
   }

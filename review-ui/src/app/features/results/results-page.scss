@@ -1,0 +1,250 @@
+.page {
+  padding: var(--space-4);
+}
+
+.run {
+  margin-bottom: var(--space-4);
+
+  h1 {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-lg);
+  }
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  dt {
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: 600;
+  }
+
+  dd {
+    margin: 0;
+  }
+}
+
+.statuses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.profile {
+  margin-right: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-5);
+  margin-bottom: var(--space-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: min(100%, 12rem);
+
+  label {
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+
+  input,
+  select {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+  }
+
+  &:first-child {
+    min-width: min(100%, 18rem);
+  }
+}
+
+.count {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.scroller {
+  max-height: calc(100dvh - 14rem);
+  min-height: 12rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  overflow: auto;
+}
+
+table {
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th,
+td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--color-surface-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-border);
+  }
+
+  &[data-state='ascending'],
+  &[data-state='descending'] {
+    border-color: var(--color-accent);
+    background: var(--color-accent-bg);
+  }
+
+  .arrow {
+    display: inline-block;
+    width: 0.7em;
+  }
+
+  &[data-state='ascending'] .arrow::before {
+    content: '▲';
+  }
+
+  &[data-state='descending'] .arrow::before {
+    content: '▼';
+  }
+}
+
+.sticky {
+  position: sticky;
+  left: 0;
+}
+
+thead .sticky {
+  z-index: 3;
+}
+
+tbody .sticky {
+  z-index: 1;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+}
+
+.stop-col {
+  min-width: 11rem;
+  max-width: 14rem;
+}
+
+.name {
+  display: block;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.id,
+.evidence,
+.reason {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+
+.rank {
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
+.nowrap,
+.score {
+  white-space: nowrap;
+}
+
+.thumbs {
+  display: flex;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.thumb {
+  display: block;
+  width: 4rem;
+  height: 4rem;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  overflow: hidden;
+  cursor: zoom-in;
+
+  &:hover {
+    border-color: var(--color-accent);
+  }
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.none {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.status {
+  max-width: 14rem;
+}
+
+tr.review > td,
+tr.review > th {
+  background: var(--color-warn-bg);
+}
+
+tbody tr:not(.review):hover > td,
+tbody tr:not(.review):hover > th {
+  background: var(--color-surface-2);
+}

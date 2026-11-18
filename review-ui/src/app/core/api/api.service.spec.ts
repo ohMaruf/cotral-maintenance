@@ -37,6 +37,13 @@ describe('ApiService', () => {
     http.expectOne('/api/pairs/next').flush(nextPair());
   });
 
+  it('GETs the run and its results', () => {
+    api.run().subscribe();
+    http.expectOne('/api/run').flush({});
+    api.results().subscribe();
+    http.expectOne('/api/results').flush([]);
+  });
+
   it('POSTs a judgment body as given', () => {
     const body = { left: 'a', right: 'b', winner: null, rater: 'ana', decision_ms: 900 };
     let result: unknown;

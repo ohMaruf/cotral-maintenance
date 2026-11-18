@@ -31,8 +31,7 @@ describe('explore-format', () => {
     expect(outcomeInfo('found')).toEqual({ label: 'Found', tone: 'ok' });
     expect(outcomeInfo('not_found')).toEqual({ label: 'Not found', tone: 'warn' });
     expect(outcomeInfo('no_imagery').tone).toBe('bad');
-    expect(outcomeInfo('failed').tone).toBe('bad');
-    expect(outcomeInfo('running')).toEqual({ label: 'Running', tone: 'neutral' });
+    expect(outcomeInfo('error')).toEqual({ label: 'Error', tone: 'bad' });
     expect(outcomeInfo('lost_in_space')).toEqual({ label: 'lost in space', tone: 'neutral' });
   });
 
@@ -81,12 +80,6 @@ describe('explore-format', () => {
     expect(budgetDetail(sweepExploration())).toBe('1/12 sweeps, 1 zooms, 1 confirmations');
     expect(budgetDetail(exploration())).toBe('3/14 photos');
     expect(budgetDetail(imagesExploration())).toBe('3/12 images, 1 zooms, 1 confirmations');
-  });
-
-  it('says what Google billed, only when the run records it', () => {
-    expect(billedLabel(imagesExploration())).toBe('4 images (2 stop photos taken)');
-    expect(billedLabel(imagesExploration('i', { stop_photos_used: 0 }))).toBe('4 images');
-    expect(billedLabel(sweepExploration())).toBeNull();
   });
 
   it('words where a photo looks', () => {

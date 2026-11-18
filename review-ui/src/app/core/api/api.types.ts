@@ -56,6 +56,66 @@ export interface Progress {
   remaining: number;
 }
 
+/** A profile of the run (meta `profile:<key>`). */
+export interface RunProfile {
+  key: string;
+  name: string;
+  description: string;
+}
+
+/** What the run holds and spent; see docs/review-api.md. */
+export interface RunInfo {
+  name: string;
+  stops: number;
+  /** Stops by start source: osm, places, gtfs. */
+  ingested: Record<string, number>;
+  /** Stops by exploration status: found, not_found, no_imagery, error. */
+  explored: Record<string, number>;
+  scored: number;
+  /** Billed Google requests by API: static, tiles, places. */
+  billed: Record<string, number>;
+  profiles: RunProfile[];
+}
+
+/** One row of the run's results table; the scores are null until the stop is scored. */
+export interface ResultRow {
+  /** Among the stops that need no review; null for the others. */
+  rank: number | null;
+  stop_id: string;
+  name: string;
+  needs_review: boolean;
+  /** Empty when none. */
+  review_reason: string;
+  shelter: number | null;
+  seating: number | null;
+  signage: number | null;
+  lighting: number | null;
+  waiting_area: number | null;
+  accessibility: number | null;
+  requires_maintenance: number | null;
+  stop_visible: number | null;
+  /** The exploration's status; null: not explored yet. */
+  status: string | null;
+  explore_reason: string | null;
+  /** What identified the stop: cotral_sign, shelter_only, ... */
+  evidence: string | null;
+  plate_text: string | null;
+  lat: number | null;
+  lon: number | null;
+  found_from_gtfs_m: number | null;
+  position_basis: string | null;
+  scan_date: string | null;
+  start_source: string | null;
+  start_lat: number | null;
+  start_lon: number | null;
+  gtfs_lat: number;
+  gtfs_lon: number;
+  explorer_model: string | null;
+  scorer_model: string | null;
+  /** URLs of the stop photos (one or two). */
+  photos: string[];
+}
+
 export interface Judgment {
   id: string;
   created_at: string;
@@ -108,7 +168,8 @@ export interface Position {
   error_m: number | null;
 }
 
-export type Outcome = 'found' | 'not_found' | 'no_imagery' | 'failed' | 'running';
+/** The exploration's status in the run store. */
+export type Outcome = 'found' | 'not_found' | 'no_imagery' | 'error';
 
 export type BudgetUnit = 'images' | 'sweeps' | 'photos';
 
@@ -132,15 +193,21 @@ export interface HarnessVersion {
 }
 
 export interface ExplorationSummary {
-  /** Run directory name, e.g. "f9388_20261107T161806". */
+  /** The stop id: one exploration per stop of the run. */
   run_id: string;
   stop_id: string;
   name: string;
-  /** Unknown outcomes are passed through; "running" means no outcome yet. */
+  /** Unknown outcomes are passed through. */
   outcome: Outcome | (string & {});
-  /** E.g. "photo budget used". */
+  /** E.g. "the explorer ended: outcome". */
   outcome_reason: string | null;
   model: string | null;
+  /** Model turns of the exploration. */
+  turns: number;
+  /** Wall time of the exploration. */
+  seconds: number;
+  /** The found stop's panorama date, "2025-06". */
+  scan_date: string | null;
   photos: number;
   /** Oldest runs: the photo budget (14); sweep runs: the sweep cap (12); images runs: 14. Prefer the budget_* fields. */
   max_photos: number;
@@ -156,9 +223,9 @@ export interface ExplorationSummary {
   stop_photos_used: number;
   /** The harness that produced the run; version "unversioned" when the record has none. */
   harness: Harness;
-  /** Requests actually sent to Google (cache hits excluded); null when not recorded. */
-  billed_static: number | null;
-  billed_tiles: number | null;
+  /** Requests actually sent to Google (cache hits excluded). */
+  billed_static: number;
+  billed_tiles: number;
   /** Map Tiles paid for, of the per-stop tile budget; null for runs without one. */
   tiles_used: number | null;
   tiles_max: number | null;
@@ -169,9 +236,8 @@ export interface ExplorationSummary {
   err_gtfs_m: number | null;
   /** The submitted position -> verified; null if not found or no truth. */
   err_found_m: number | null;
-  started_at: string | null;
-  /** Null while running. */
-  finished_at: string | null;
+  started_at: string;
+  finished_at: string;
 }
 
 export interface ExplorationPhoto {
@@ -284,10 +350,12 @@ export interface Exploration extends ExplorationSummary {
   /** The bus's path (snapped to roads), in travel order. */
   path: LatLon[];
   candidates: ExplorationCandidate[];
-  /** The model's final report, once the run has ended. */
+  /** The model's closing words, when its last turn made no tool call. */
   report: string | null;
   photo_list: ExplorationPhoto[];
   event_list: ExplorationEvent[];
+  /** The explorer's conversation as stored in the run, raw. */
+  transcript: unknown[];
   /** Indexes of the harness's photos of the found stop (images runs); [] otherwise. They feed the next stage. */
   stop_photos: number[];
   /** Index of the confirming zoom of a found images run. */

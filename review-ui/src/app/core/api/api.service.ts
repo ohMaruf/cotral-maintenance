@@ -12,6 +12,8 @@ import {
   JudgmentResponse,
   NextPairResponse,
   Progress,
+  ResultRow,
+  RunInfo,
   ShapeCheck,
   ShapeVerdict,
   ShapeVerdictRequest,
@@ -27,6 +29,16 @@ export class ApiService {
 
   catalog(): Observable<Catalog> {
     return this.get<Catalog>('/catalog');
+  }
+
+  /** The run being reviewed: its size, outcomes, billing and profiles. */
+  run(): Observable<RunInfo> {
+    return this.get<RunInfo>('/run');
+  }
+
+  /** The run's final table: ranked stops first, then those that need review. */
+  results(): Observable<ResultRow[]> {
+    return this.get<ResultRow[]>('/results');
   }
 
   stops(): Observable<StopDetail[]> {

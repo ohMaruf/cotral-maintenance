@@ -18,7 +18,7 @@ import { Badge } from '../../shared/badge/badge';
 /** Reports longer than this start collapsed. */
 export const LONG_REPORT_CHARS = 400;
 
-/** Run summary: stop, outcome and reason, model, errors, timing, limits and the model's report. */
+/** Exploration summary: stop, outcome and reason, model, errors, timing, limits and the model's closing words. */
 @Component({
   selector: 'app-run-header',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -30,7 +30,6 @@ export class RunHeader {
   readonly run = input.required<Exploration>();
 
   protected readonly outcome = computed(() => outcomeInfo(this.run().outcome));
-  protected readonly running = computed(() => this.run().outcome === 'running');
   protected readonly budget = computed(() => budgetDetail(this.run()));
   protected readonly billed = computed(() => billedLabel(this.run()));
   protected readonly version = computed(() => versionLabel(this.run().harness.version));

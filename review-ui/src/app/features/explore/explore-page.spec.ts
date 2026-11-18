@@ -31,13 +31,7 @@ describe('ExplorePage', () => {
   const runs = [
     summary('f1'),
     summary('f2', { outcome: 'weird_outcome' }),
-    summary('f3', {
-      outcome: 'running',
-      finished_at: null,
-      err_found_m: null,
-      photos: 5,
-      budget_used: 5,
-    }),
+    summary('f3', { outcome: 'no_imagery', err_found_m: null, photos: 0, budget_used: 0 }),
   ];
 
   async function settle(): Promise<void> {
@@ -99,8 +93,8 @@ describe('ExplorePage', () => {
     expect(items[0].textContent).toContain('40.0 m → 6.5 m');
     expect(items[0].textContent).toContain('claude-haiku-5-5');
     expect(items[1].textContent).toContain('weird outcome');
-    expect(items[2].textContent).toContain('Running');
-    expect(items[2].textContent).toContain('5/14 photos');
+    expect(items[2].textContent).toContain('No imagery');
+    expect(items[2].textContent).toContain('0/14 photos');
     expect(items[2].textContent).toContain('40.0 m → –');
     expect(items[1].getAttribute('aria-current')).toBe('true');
     expect(items[0].getAttribute('aria-current')).toBeNull();
@@ -139,21 +133,26 @@ describe('ExplorePage', () => {
     expect(report()).toBeNull();
   });
 
-  it('shows a running run without a finish time or report', async () => {
+  it('shows a stop that was never searched with its reason, turns and no report', async () => {
     await open({
       runId: 'f3',
       run: exploration('f3', {
-        outcome: 'running',
-        finished_at: null,
+        outcome: 'no_imagery',
+        outcome_reason: 'no Street View from 2024 on along the path',
+        turns: 0,
         report: null,
         err_found_m: null,
+        photo_list: [],
+        event_list: [],
+        path: [],
+        candidates: [],
       }),
     });
-    const head = q('app-run-header')!.textContent!;
-    expect(head).toContain('Running');
-    expect(head).toContain('still running');
+    const head = q('app-run-header')!.textContent!.replace(/\s+/g, ' ');
+    expect(head).toContain('No imagery');
+    expect(head).toContain('no Street View from 2024 on along the path');
+    expect(head).toContain('Turns0');
     expect(q('app-run-header details.report')).toBeNull();
-    expect(q('app-run-header .title app-badge')!.textContent).toContain('Running');
   });
 
   it('lists every event in exact seq order with its kind, summary and budget', async () => {
@@ -454,7 +453,7 @@ describe('ExplorePage', () => {
       summary('u1'),
       summary('a1', { harness: harness('0.6.0') }),
       summary('b1', { harness: harness('0.7.0'), outcome: 'not_found' }),
-      summary('a2', { harness: harness('0.6.0'), outcome: 'failed' }),
+      summary('a2', { harness: harness('0.6.0'), outcome: 'error' }),
     ];
 
     it('groups runs newest version first with counts and found/total, groups collapse', async () => {
@@ -571,7 +570,7 @@ describe('ExplorePage', () => {
       expect(q('app-run-list')!.textContent).toContain('3/12 images');
       const header = q('app-run-header')!.textContent!.replace(/\s+/g, ' ');
       expect(header).toContain('3/12 images, 1 zooms, 1 confirmations');
-      expect(header).toContain('Billed4 images (2 stop photos taken)');
+      expect(header).toContain('Billed0 Static, 0 tiles');
       expect(q('app-event-detail')!.textContent).toContain('/12 images used');
     });
 
@@ -620,7 +619,6 @@ describe('ExplorePage', () => {
     it('has no stop photos section for runs without any', async () => {
       await open({ runId: 'n1', run: sweepExploration() });
       expect(q('.stop-photos')).toBeNull();
-      expect(q('app-run-header')!.textContent).not.toContain('Billed');
     });
   });
 

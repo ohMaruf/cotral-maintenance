@@ -102,6 +102,9 @@ export function summary(
     outcome: 'found',
     outcome_reason: null,
     model: 'claude-haiku-5-5',
+    turns: 7,
+    seconds: 150,
+    scan_date: '2025-06',
     photos: 3,
     max_photos: 14,
     budget_unit: 'photos',
@@ -112,8 +115,8 @@ export function summary(
     billed_used: null,
     stop_photos_used: 0,
     harness: { ...UNVERSIONED_HARNESS },
-    billed_static: null,
-    billed_tiles: null,
+    billed_static: 0,
+    billed_tiles: 0,
     tiles_used: null,
     tiles_max: null,
     start_kind: null,
@@ -156,6 +159,7 @@ export function exploration(runId = 'f1', overrides: Partial<Exploration> = {}):
     photo_list: [photo(1), photo(2), photo(3, { opening: false, toward: 'across' })],
     stop_photos: [],
     close_up: null,
+    transcript: [],
     event_list: [
       event(1, {
         kind: 'begin',

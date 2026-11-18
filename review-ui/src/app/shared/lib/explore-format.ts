@@ -12,8 +12,7 @@ const OUTCOMES: Record<string, { label: string; tone: OutcomeTone }> = {
   found: { label: 'Found', tone: 'ok' },
   not_found: { label: 'Not found', tone: 'warn' },
   no_imagery: { label: 'No imagery', tone: 'bad' },
-  failed: { label: 'Failed', tone: 'bad' },
-  running: { label: 'Running', tone: 'neutral' },
+  error: { label: 'Error', tone: 'bad' },
 };
 
 /** Unknown outcomes are shown as they come ("some_outcome" -> "some outcome"). */
@@ -74,17 +73,9 @@ export function budgetDetail(run: ExplorationSummary): string {
     : `${main}, ${run.zooms_used} zooms, ${run.confirms_used} confirmations`;
 }
 
-/**
- * What Google billed for a run: "3 Static, 10 tiles" when the record has the requests actually sent
- * (harness 0.6+), else "4 images (2 stop photos taken)" for the images format; null when the run does not say.
- */
-export function billedLabel(run: ExplorationSummary): string | null {
-  if (run.billed_static !== null || run.billed_tiles !== null) {
-    return `${run.billed_static ?? 0} Static, ${run.billed_tiles ?? 0} tiles`;
-  }
-  if (run.billed_used === null) return null;
-  const stop = run.stop_photos_used > 0 ? ` (${run.stop_photos_used} stop photos taken)` : '';
-  return `${run.billed_used} images${stop}`;
+/** What Google billed for the exploration: "3 Static, 10 tiles" (cache hits are free and not counted). */
+export function billedLabel(run: ExplorationSummary): string {
+  return `${run.billed_static} Static, ${run.billed_tiles} tiles`;
 }
 
 /** "10/42 tiles"; null for runs without a tile budget. */

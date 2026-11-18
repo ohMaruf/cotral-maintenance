@@ -84,7 +84,7 @@ describe('harness grouping', () => {
     run('a', null),
     run('b', '0.6.0'),
     run('c', '0.10.0', 'not_found'),
-    run('d', '0.6.0', 'failed'),
+    run('d', '0.6.0', 'error'),
     run('e', '0.7'),
   ];
 

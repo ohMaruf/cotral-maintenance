@@ -16,7 +16,12 @@ export function optionalParam(prefix: string, param: string): UrlMatcher {
 }
 
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: 'scores' },
+  { path: '', pathMatch: 'full', redirectTo: 'results' },
+  {
+    path: 'results',
+    title: 'Results · Stop review',
+    loadComponent: () => import('./features/results/results-page').then((m) => m.ResultsPage),
+  },
   {
     path: 'scores',
     title: 'Scores · Stop review',
@@ -37,5 +42,5 @@ export const routes: Routes = [
     title: 'Shapes · Stop review',
     loadComponent: () => import('./features/shapes/shapes-page').then((m) => m.ShapesPage),
   },
-  { path: '**', redirectTo: 'scores' },
+  { path: '**', redirectTo: 'results' },
 ];

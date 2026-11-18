@@ -79,7 +79,28 @@ def test_stop_questions_fit_imajev_limits():
     assert len(qs) <= 8 and {q.name for q in qs} == set(Q.CONDITIONS) | {"has_shelter", "has_seating", Q.LAMP,
                                                                            Q.VISIBLE}
     assert all(2 <= len(q.criteria) <= 10 for q in qs if q.type == "score")
-    assert len(json.dumps(Q.state("Roma", "cotral_sign", 2))) < 32_000
+    assert len(json.dumps(Q.state("Roma", "cotral_sign", ["Photo 1: x", "Photo 2: y"]))) < 32_000
+    assert {q.name for q in Q.questions(others=False)} == {Q.LAMP} and Q.LAMP not in {q.name for q in Q.questions(lamp=False)}
+
+
+def test_photos_are_described_from_their_geometry():
+    stop = (42.0002, 12.0)  # about 22 m north of the camera
+    close = {"heading": 0.0, "fov": 60.0, "lat": 42.0, "lon": 12.0}
+    text = Q.describe_photo(1, close, *stop)
+    assert text.startswith("Photo 1: close view, 60 degree field of view, camera about 22 m") and "in the centre" in text
+    assert "left of centre" in Q.describe_photo(2, {**close, "heading": 15.0}, *stop)
+    assert "not in the frame" in Q.describe_photo(2, {**close, "heading": 180.0}, *stop)
+    assert "same_stop" in Q.state("A", None, ["a", "b"]) and "same_stop" not in Q.state("A", None, ["a"])
+
+
+def test_the_lamp_reads_a_wide_photo_facing_like_the_stop_photo():
+    stop = (42.0002, 12.0)
+    first = {"media": "s1", "heading": 0.0, "fov": 60.0, "lat": 42.0, "lon": 12.0}
+    behind = {"media": "w1", "heading": 180.0, "fov": 110.0, "lat": 42.0004, "lon": 12.0}  # looking back at it
+    ahead = {"media": "w2", "heading": 5.0, "fov": 110.0, "lat": 42.0, "lon": 12.0}
+    too_close = {"media": "w3", "heading": 0.0, "fov": 110.0, "lat": 42.00018, "lon": 12.0}
+    assert [p["media"] for p in Q.lamp_photos([first], [behind, ahead, too_close], *stop)] == ["s1", "w2"]
+    assert [p["media"] for p in Q.lamp_photos([first], [too_close], *stop)] == ["s1"]
 
 
 def write_readout(path, matrix):

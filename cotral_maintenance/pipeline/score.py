@@ -44,19 +44,30 @@ def scorable(run: RunStore, stop_ids: list[str]) -> list[str]:
     return [r["stop_id"] for r in rows if r["stop_id"] in wanted]
 
 
+PHOTO_COLUMNS = "media, toward, heading, fov, lat, lon"
+
+
 def score_stop(run: RunStore, scorer: Scorer, stop_id: str) -> None:
     stop = run.stop(stop_id)
     exploration = run.exploration(stop_id)
-    photos = exploration["stop_photos"][:2]
-    data = [run.media(sha).read_bytes() for sha in photos]
-    qs = Q.questions()
+    lat, lon = exploration["lat"], exploration["lon"]
+    taken = {r["media"]: dict(r) for r in run.query(f"SELECT {PHOTO_COLUMNS} FROM photos WHERE stop_id = ? ORDER BY idx",
+                                                    (stop_id,))}
+    stop_photos = [taken[sha] for sha in exploration["stop_photos"][:2]]
+    wide = [p for p in taken.values() if p["toward"] != "stop_photo"]
     t0 = time.monotonic()
-    answers = scorer.answer(qs, Q.state(stop["name"], exploration["evidence"], len(data)), data)
+    answers = {}
+    for qs, photos in ((Q.questions(lamp=False), stop_photos),
+                       (Q.questions(others=False), Q.lamp_photos(stop_photos, wide, lat, lon))):
+        texts = [Q.describe_photo(i, ph, lat, lon) for i, ph in enumerate(photos, 1)]
+        data = [run.media(ph["media"]).read_bytes() for ph in photos]
+        for name, a in scorer.answer(qs, Q.state(stop["name"], exploration["evidence"], texts), data).items():
+            answers[name] = {**a, "photos": [ph["media"] for ph in photos], "photo_texts": texts}
     seconds = time.monotonic() - t0
     values = Q.values(answers)
     values = {c: values.get(c) for c in SCORE_COLUMNS}
-    run.put_score({"stop_id": stop_id, "photos": photos, "scorer": scorer.describe(), **values, "answers": answers,
-                   "seconds": round(seconds, 2)})
+    run.put_score({"stop_id": stop_id, "photos": exploration["stop_photos"][:2], "scorer": scorer.describe(), **values,
+                   "answers": answers, "seconds": round(seconds, 2)})
 
 
 def score(run: RunStore, scorer: Scorer, stop_ids: list[str],

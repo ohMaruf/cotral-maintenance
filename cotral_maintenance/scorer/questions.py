@@ -13,8 +13,17 @@ The scorer judges what is around it. Every value is 0 (bad) .. 1 (good):
     answers describe something else and the stop goes to a person.
 `condition` (computed, not asked) is the mean of the conditions that apply; stops are ranked by it,
 worst first. A lamp's condition cannot be judged from daytime photos, so lighting is presence only.
+
+Photos: every question but the lamp reads the explorer's 1-2 stop photos (close views). A lamp pole
+next to a stop looks like any other pole in a close view; its lamp head shows in a wide view, so the
+lamp question reads the first stop photo and a wide photo the explorer already took (free) of the
+same stop. Each photo is described to the model from its own geometry: camera distance and
+direction, field of view, where the stop is in the frame.
 """
 
+import math
+
+from ..geo import bearing_deg, distance_m
 from .imajev import Question
 
 PRESENT_MIN = 0.5
@@ -104,31 +113,77 @@ EVIDENCE_TEXT = {
     "shelter_only": "a bus shelter, without a sign",
     "road_marking": "bus stop markings on the road",
 }
-PHOTO_ROLES = (
-    "taken from the Street View panorama the stop was confirmed from, facing the stop",
-    "taken from a panorama about 12 m before the stop, facing it, as a passenger arriving would see it",
-)
+WIDE_FOV = 90  # a photo this wide or wider is a wide view
+WIDE_DISTANCE_M = (10.0, 60.0)  # a wide view for the lamp: the stop well inside it, close enough to see poles
 
 
-def questions() -> list[Question]:
+def frame_x(photo: dict, stop_lat: float, stop_lon: float) -> float | None:
+    """Where the stop is across the photo, 0 left .. 1 right (None: behind the camera)."""
+    off = (bearing_deg(photo["lat"], photo["lon"], stop_lat, stop_lon) - photo["heading"] + 180) % 360 - 180
+    if abs(off) >= 90:
+        return None
+    return 0.5 + math.tan(math.radians(off)) / (2 * math.tan(math.radians(photo["fov"] / 2)))
+
+
+def describe_photo(i: int, photo: dict, stop_lat: float, stop_lon: float) -> str:
+    d = distance_m(photo["lat"], photo["lon"], stop_lat, stop_lon)
+    x = frame_x(photo, stop_lat, stop_lon)
+    view = "wide view" if photo["fov"] >= WIDE_FOV else "close view"
+    where = ("not in the frame" if x is None or not 0 <= x <= 1 else
+             "near the left edge" if x < 0.2 else "left of centre" if x < 0.4 else
+             "in the centre" if x <= 0.6 else "right of centre" if x <= 0.8 else "near the right edge")
+    return (f"Photo {i}: {view}, {photo['fov']:.0f} degree field of view, camera about {d:.0f} m from the stop, "
+            f"facing it; the stop is {where} of the frame")
+
+
+def lamp_photos(stop_photos: list[dict], wide: list[dict], stop_lat: float, stop_lon: float) -> list[dict]:
+    """The first stop photo and the wide photo that best shows the same stop: camera 10-60 m away, the stop well
+    inside the frame, facing the way the stop photo faces. Just the stop photos when there is none."""
+    first = stop_photos[0]
+
+    def usable(p: dict) -> bool:
+        x = frame_x(p, stop_lat, stop_lon)
+        lo, hi = WIDE_DISTANCE_M
+        return x is not None and 0.15 <= x <= 0.85 and lo <= distance_m(p["lat"], p["lon"], stop_lat, stop_lon) <= hi
+
+    def turn(p: dict) -> float:
+        return abs((p["heading"] - first["heading"] + 180) % 360 - 180)
+
+    candidates = sorted((p for p in wide if p["fov"] >= WIDE_FOV and usable(p)), key=turn)
+    return [first, candidates[0]] if candidates else stop_photos
+
+
+def questions(lamp: bool = True, others: bool = True) -> list[Question]:
     qs = []
-    for name, (ask, what) in ELEMENTS.items():
+    for name, (ask, what) in ELEMENTS.items() if others else ():
         qs.append(Question(present(name), "noul", ask))
         qs.append(Question(name, "score", f"Condition of {what}? If there is none, answer unknown.", ELEMENT_LEVELS))
-    qs += [Question(name, "score", f"State of {what}?", levels) for name, (what, levels) in AREAS.items()]
-    qs.append(Question(LAMP, "noul", LAMP_INSTRUCTIONS, LAMP_CRITERIA))
-    qs.append(Question(VISIBLE, "noul", "Is the bus stop (its sign, shelter or stop markings) visible in the photos?"))
+    if others:
+        qs += [Question(name, "score", f"State of {what}?", levels) for name, (what, levels) in AREAS.items()]
+    if lamp:
+        qs.append(Question(LAMP, "noul", LAMP_INSTRUCTIONS, LAMP_CRITERIA))
+    if others:
+        qs.append(Question(VISIBLE, "noul",
+                           "Is the bus stop (its sign, shelter or stop markings) visible in the photos?"))
     return qs
 
 
-def state(stop_name: str, evidence: str | None, n_photos: int) -> dict:
+def state(stop_name: str, evidence: str | None, photos: list[str]) -> dict:
+    """`photos`: the description of each photo (describe_photo), in the order the photos are given."""
+    several = len(photos) > 1
     return {
-        "task": f"{'These photos show' if n_photos > 1 else 'This photo shows'} a Cotral bus stop in Lazio, Italy, "
-                "from Google Street View. Judge the stop's state for maintenance, using every photo. A stop on the "
-                "far side of the road is a different stop: ignore it.",
+        "task": f"{'These photos show' if several else 'This photo shows'} a Cotral bus stop in Lazio, Italy, "
+                "from Google Street View. Judge the stop's state for maintenance"
+                + (", using every photo. " if several else ". ") + "A stop on the far side of the road is a "
+                "different stop: ignore it.",
         "stop_name": stop_name,
         "how_the_stop_was_identified": EVIDENCE_TEXT.get(evidence or "", "a bus stop seen in Street View"),
-        "photos": [f"Photo {i}: {role}" for i, role in enumerate(PHOTO_ROLES[:n_photos], 1)],
+        "photos": photos,
+        **({"same_stop": "All the photos show the same bus stop, from different camera positions and with different "
+                         "fields of view. The same sign, pole, lamp or shelter appears large in a close view and small "
+                         "in a wide view, at another place in the frame: match them across the photos, and use the "
+                         "wide view to see what a close view cuts off (the top of a pole, what stands beside the "
+                         "stop)."} if several else {}),
         "photo_artifacts": "The photos are cut from panoramas taken from a moving car. Blur, stitching seams, objects "
                            "that look sliced or doubled, blurred faces and number plates, and parts of the camera car "
                            "are artifacts of the camera, not damage at the stop: ignore them.",

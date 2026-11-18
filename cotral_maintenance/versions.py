@@ -22,7 +22,8 @@ from importlib.metadata import PackageNotFoundError, version as package_version
 from .provenance import _git, git_state
 
 INGEST_VERSION = 1  # bump when the ingest logic changes its output (start choice, OSM matching, Places use)
-SCORER_VERSION = 3  # bump when scoring changes beyond the prompts: answer -> value mapping, gating, condition
+SCORER_VERSION = 4  # bump when scoring changes beyond the prompts: answer -> value mapping, gating, condition,
+# which photos each question reads
 _NOT_OUTPUT = {"port", "concurrency"}  # settings that change speed, not results
 
 
@@ -66,11 +67,14 @@ def explore_detail(harness: dict, explorer: dict) -> dict:
 
 
 def scorer_prompts_sha256() -> str:
-    """The sha256 of every prompt text the scorer sends, for a placeholder stop with two photos."""
+    """The sha256 of every prompt text the scorer sends, for a placeholder stop with a close and a wide photo."""
     from .scorer import questions as Q
     from .scorer.imajev import Engine
 
-    prompts = Engine(None, rotations=1).prompts(Q.questions(), Q.state("<stop>", "<evidence>", 2))
+    close = {"heading": 0.0, "fov": 60.0, "lat": 42.0, "lon": 12.0}
+    wide = {"heading": 0.0, "fov": 110.0, "lat": 41.9998, "lon": 12.0}
+    texts = [Q.describe_photo(1, close, 42.0002, 12.0), Q.describe_photo(2, wide, 42.0002, 12.0)]
+    prompts = Engine(None, rotations=1).prompts(Q.questions(), Q.state("<stop>", "<evidence>", texts))
     return hashlib.sha256("\n\0\n".join(p.text for p in prompts).encode()).hexdigest()
 
 

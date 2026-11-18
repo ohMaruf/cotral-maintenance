@@ -49,8 +49,10 @@ def _review(d: dict) -> tuple[bool, str]:
     if d["status"] is None:
         return True, "not explored yet"
     if d["status"] != "found":
-        return True, {"not_found": "the explorer did not find the stop", "no_imagery": "no recent Street View",
-                      "error": "the search failed"}.get(d["status"], d["status"])
+        text = {"not_found": "the explorer did not find the stop", "no_imagery": "no recent Street View",
+                "error": "the search failed"}.get(d["status"], d["status"])
+        reason = (d.get("explore_reason") or "").removeprefix("the explorer ended: ")
+        return True, f"{text} ({reason})" if reason and d["status"] != "no_imagery" else text
     if d["requires_maintenance"] is None:
         return True, "not scored yet"
     if d["stop_visible"] is not None and d["stop_visible"] < VISIBLE_MIN:

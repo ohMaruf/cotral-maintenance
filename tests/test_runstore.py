@@ -91,7 +91,7 @@ def test_results_rank_scored_stops_and_list_the_rest_for_review(run):
     out = rows(run)
     assert [(r["stop_id"], r.get("rank")) for r in out][:2] == [("f2", 1), ("f1", 2)]
     review = {r["stop_id"]: r["review_reason"] for r in out if r["needs_review"]}
-    assert review == {"f3": "the explorer did not find the stop",
+    assert review == {"f3": "the explorer did not find the stop (stalled)",
                       "f4": "the scorer does not see the stop in its photos"}
     path, n = write_results(run)
     assert n == 4 and "requires_maintenance" in open(path).readline()

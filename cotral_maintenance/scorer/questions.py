@@ -125,32 +125,52 @@ def frame_x(photo: dict, stop_lat: float, stop_lon: float) -> float | None:
     return 0.5 + math.tan(math.radians(off)) / (2 * math.tan(math.radians(photo["fov"] / 2)))
 
 
-def describe_photo(i: int, photo: dict, stop_lat: float, stop_lon: float) -> str:
+def describe_photo(i: int, photo: dict, stop_lat: float, stop_lon: float, same_camera_as: int | None = None) -> str:
     d = distance_m(photo["lat"], photo["lon"], stop_lat, stop_lon)
     x = frame_x(photo, stop_lat, stop_lon)
     view = "wide view" if photo["fov"] >= WIDE_FOV else "close view"
     where = ("not in the frame" if x is None or not 0 <= x <= 1 else
              "near the left edge" if x < 0.2 else "left of centre" if x < 0.4 else
              "in the centre" if x <= 0.6 else "right of centre" if x <= 0.8 else "near the right edge")
-    return (f"Photo {i}: {view}, {photo['fov']:.0f} degree field of view, camera about {d:.0f} m from the stop, "
-            f"facing it; the stop is {where} of the frame")
+    camera = (f"the same camera position as Photo {same_camera_as}, about {d:.0f} m from the stop" if same_camera_as
+              else f"camera about {d:.0f} m from the stop")
+    return (f"Photo {i}: {view}, {photo['fov']:.0f} degree field of view, {camera}, facing it; the stop is {where} "
+            f"of the frame")
+
+
+def describe_photos(photos: list[dict], stop_lat: float, stop_lon: float) -> list[str]:
+    out = []
+    for i, p in enumerate(photos, 1):
+        earlier = next((j for j, q in enumerate(photos[:i - 1], 1)
+                        if p.get("pano_id") and q.get("pano_id") == p["pano_id"]), None)
+        out.append(describe_photo(i, p, stop_lat, stop_lon, earlier))
+    return out
 
 
 def lamp_photos(stop_photos: list[dict], wide: list[dict], stop_lat: float, stop_lon: float) -> list[dict]:
-    """The first stop photo and the wide photo that best shows the same stop: camera 10-60 m away, the stop well
-    inside the frame, facing the way the stop photo faces. Just the stop photos when there is none."""
-    first = stop_photos[0]
+    """A stop photo and a wide photo of the same stop, for the lamp: camera 10-60 m away, the stop well inside the
+    wide frame. Best is a zoom pair, the stop photo and the wide photo taken from the same panorama: the same scene at
+    two fields of view, where the pole of the close view is easy to find in the wide one (and its lamp head with it).
+    Else the first stop photo and the wide photo facing most like it. Just the stop photos when there is none."""
 
     def usable(p: dict) -> bool:
         x = frame_x(p, stop_lat, stop_lon)
         lo, hi = WIDE_DISTANCE_M
-        return x is not None and 0.15 <= x <= 0.85 and lo <= distance_m(p["lat"], p["lon"], stop_lat, stop_lon) <= hi
+        return (p["fov"] >= WIDE_FOV and x is not None and 0.15 <= x <= 0.85
+                and lo <= distance_m(p["lat"], p["lon"], stop_lat, stop_lon) <= hi)
 
-    def turn(p: dict) -> float:
-        return abs((p["heading"] - first["heading"] + 180) % 360 - 180)
+    def turn(p: dict, q: dict) -> float:
+        return abs((p["heading"] - q["heading"] + 180) % 360 - 180)
 
-    candidates = sorted((p for p in wide if p["fov"] >= WIDE_FOV and usable(p)), key=turn)
-    return [first, candidates[0]] if candidates else stop_photos
+    candidates = [p for p in wide if usable(p)]
+    for close in stop_photos:
+        same = sorted((w for w in candidates if w.get("pano_id") and w["pano_id"] == close.get("pano_id")),
+                      key=lambda w: turn(w, close))
+        if same:
+            return [close, same[0]]
+    if candidates:
+        return [stop_photos[0], min(candidates, key=lambda w: turn(w, stop_photos[0]))]
+    return stop_photos
 
 
 def questions(lamp: bool = True, others: bool = True) -> list[Question]:

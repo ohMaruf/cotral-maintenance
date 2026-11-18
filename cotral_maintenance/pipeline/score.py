@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from ..runstore import SCORE_COLUMNS, RunStore
 from ..scorer import questions as Q
-from ..scorer.backends import LlamaCppReadout, Scorer, ScorerError, SystemOne
+from ..scorer.backends import LlamaCppReadout, LlamaCppSystemOne, Scorer, ScorerError, SystemOne
 from ..scorer.imajev import Calibration, Engine
 from ..servers import fetch
 from ..settings import ModelSpec, Paths
@@ -32,6 +32,8 @@ def make_scorer(spec: ModelSpec, paths: Paths) -> Scorer:
             if "calibration" in spec.readout else None
         return LlamaCppReadout(spec.server.url, readout, Engine(calibration, spec.rotations), describe,
                                parallel=spec.concurrency)
+    if spec.dialect == "llamacpp-systemone":
+        return LlamaCppSystemOne(spec.server.url, describe)
     return SystemOne(spec.server.url, describe)
 
 
@@ -44,7 +46,7 @@ def scorable(run: RunStore, stop_ids: list[str]) -> list[str]:
     return [r["stop_id"] for r in rows if r["stop_id"] in wanted]
 
 
-PHOTO_COLUMNS = "media, toward, heading, fov, lat, lon"
+PHOTO_COLUMNS = "media, toward, pano_id, heading, fov, lat, lon"
 
 
 def score_stop(run: RunStore, scorer: Scorer, stop_id: str) -> None:
@@ -59,7 +61,7 @@ def score_stop(run: RunStore, scorer: Scorer, stop_id: str) -> None:
     answers = {}
     for qs, photos in ((Q.questions(lamp=False), stop_photos),
                        (Q.questions(others=False), Q.lamp_photos(stop_photos, wide, lat, lon))):
-        texts = [Q.describe_photo(i, ph, lat, lon) for i, ph in enumerate(photos, 1)]
+        texts = Q.describe_photos(photos, lat, lon)
         data = [run.media(ph["media"]).read_bytes() for ph in photos]
         for name, a in scorer.answer(qs, Q.state(stop["name"], exploration["evidence"], texts), data).items():
             answers[name] = {**a, "photos": [ph["media"] for ph in photos], "photo_texts": texts}

@@ -32,12 +32,15 @@ that produced it.
 | `local-smoke` | TurboFieldfare (Gemma 4 26B-A4B) | Imajev-4B MLX, Imajev's reference server | quick checks on the Mac |
 | `local-smoke-gguf` | TurboFieldfare | Imajev-4B Q4_K_M GGUF, llama.cpp Metal | the Mac without the MLX server |
 | `local-gguf` | Qwen3.8 GGUF on Metal | Imajev GGUF on Metal | the remote code path, slowly, on the Mac |
+| `local-h2o` | Qwen3.8 GGUF on Metal | H2O Lightning 4B Q8_0 on Metal (llama.cpp b11773, its own binary) | trying H2O Lightning in place of Imajev |
 
 The explorer speaks one of two dialects: `llamacpp` (llama-server: forced tool calls, a server slot per
 explorer and per confirmer so their prompt caches survive, thinking budget) or `strict` (plain OpenAI
 servers that refuse unknown fields, such as TurboFieldfare). The scorer is `llamacpp-readout` (an Imajev
 GGUF on llama-server with `--embeddings --pooling last`: the trained decision readout, which the GGUF does
-not carry, is applied here to the last hidden state) or `systemone` (Imajev's own server).
+not carry, is applied here to the last hidden state), `llamacpp-systemone` (a decision GGUF that carries its
+own head, such as H2O Lightning 4B: llama-server, build 11773 or later, answers `/v1/systemone` itself) or
+`systemone` (Imajev's own server). A server can name its own llama.cpp `binary`; otherwise `$LLAMA_SERVER`.
 
 ## On the GPU server (Linux, NVIDIA, CUDA)
 

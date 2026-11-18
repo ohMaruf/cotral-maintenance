@@ -22,7 +22,7 @@ from importlib.metadata import PackageNotFoundError, version as package_version
 from .provenance import _git, git_state
 
 INGEST_VERSION = 1  # bump when the ingest logic changes its output (start choice, OSM matching, Places use)
-SCORER_VERSION = 4  # bump when scoring changes beyond the prompts: answer -> value mapping, gating, condition,
+SCORER_VERSION = 5  # bump when scoring changes beyond the prompts: answer -> value mapping, gating, condition,
 # which photos each question reads
 _NOT_OUTPUT = {"port", "concurrency"}  # settings that change speed, not results
 
@@ -71,9 +71,9 @@ def scorer_prompts_sha256() -> str:
     from .scorer import questions as Q
     from .scorer.imajev import Engine
 
-    close = {"heading": 0.0, "fov": 60.0, "lat": 42.0, "lon": 12.0}
-    wide = {"heading": 0.0, "fov": 110.0, "lat": 41.9998, "lon": 12.0}
-    texts = [Q.describe_photo(1, close, 42.0002, 12.0), Q.describe_photo(2, wide, 42.0002, 12.0)]
+    close = {"pano_id": "a", "heading": 0.0, "fov": 60.0, "lat": 42.0, "lon": 12.0}
+    wide = {**close, "fov": 110.0}
+    texts = Q.describe_photos([close, wide], 42.0002, 12.0)
     prompts = Engine(None, rotations=1).prompts(Q.questions(), Q.state("<stop>", "<evidence>", texts))
     return hashlib.sha256("\n\0\n".join(p.text for p in prompts).encode()).hexdigest()
 

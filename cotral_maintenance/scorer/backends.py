@@ -14,6 +14,7 @@ import io
 import json
 import struct
 import time
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Protocol
@@ -148,4 +149,50 @@ class SystemOne:
         return r.json()["answers"]
 
 
-__all__ = ["LlamaCppReadout", "MEDIA", "Scorer", "ScorerError", "SystemOne", "load_readout", "prepare_photo"]
+class LlamaCppSystemOne:
+    """A Jev decision model whose GGUF carries its decision head, answered by llama-server itself on
+    `POST /v1/systemone` (llama.cpp build 11773 or later), e.g. H2O Lightning 4B. JSON request; photos as data URLs in
+    the top-level `images` array; every string NFC-normalized, as the model's tokenizer expects (llama.cpp does not
+    normalize). The probabilities are the model's own, calibrated: no rotations, no client-side readout."""
+
+    MAX_IMAGES = 8  # llama-server's limit
+
+    def __init__(self, base_url: str, describe: dict, timeout_s: float = 600.0) -> None:
+        self.base_url = base_url.rstrip("/")
+        self._describe = describe
+        self.timeout_s = timeout_s
+        self.session = requests.Session()
+
+    def describe(self) -> dict:
+        return {**self._describe, "backend": "llamacpp-systemone"}
+
+    def answer(self, questions: list[Question], state: object, photos: list[bytes]) -> dict:
+        if len(photos) > self.MAX_IMAGES:
+            raise ScorerError(f"llama-server takes at most {self.MAX_IMAGES} images")
+        body = _nfc(to_jev_request(questions, state))
+        body["images"] = ["data:image/jpeg;base64," + base64.b64encode(prepare_photo(p)).decode() for p in photos]
+        try:
+            r = self.session.post(f"{self.base_url}/v1/systemone", json=body, timeout=self.timeout_s)
+        except requests.RequestException as error:
+            raise ScorerError(f"decision server: {error}") from error
+        if r.status_code != 200:
+            raise ScorerError(f"decision server: HTTP {r.status_code}: {r.text[:300]}")
+        answers = r.json()["answers"]
+        missing = {q.name for q in questions} - set(answers)
+        if missing:
+            raise ScorerError(f"decision server did not answer {sorted(missing)}")
+        return answers
+
+
+def _nfc(value):
+    if isinstance(value, str):
+        return unicodedata.normalize("NFC", value)
+    if isinstance(value, dict):
+        return {_nfc(k): _nfc(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_nfc(v) for v in value]
+    return value
+
+
+__all__ = ["LlamaCppReadout", "LlamaCppSystemOne", "MEDIA", "Scorer", "ScorerError", "SystemOne", "load_readout",
+           "prepare_photo"]

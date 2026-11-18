@@ -93,6 +93,17 @@ def test_photos_are_described_from_their_geometry():
     assert "same_stop" in Q.state("A", None, ["a", "b"]) and "same_stop" not in Q.state("A", None, ["a"])
 
 
+def test_the_lamp_prefers_a_zoom_pair_from_one_panorama():
+    stop = (42.0002, 12.0)
+    near = {"media": "s1", "pano_id": "p1", "heading": 0.0, "fov": 50.0, "lat": 42.00012, "lon": 12.0}  # 9 m
+    back = {"media": "s2", "pano_id": "p2", "heading": 0.0, "fov": 60.0, "lat": 42.0, "lon": 12.0}
+    wide = {"media": "w", "pano_id": "p2", "heading": 3.0, "fov": 110.0, "lat": 42.0, "lon": 12.0}
+    pair = Q.lamp_photos([near, back], [wide], *stop)
+    assert [p["media"] for p in pair] == ["s2", "w"]
+    texts = Q.describe_photos(pair, *stop)
+    assert "the same camera position as Photo 1" in texts[1] and "same camera" not in texts[0]
+
+
 def test_the_lamp_reads_a_wide_photo_facing_like_the_stop_photo():
     stop = (42.0002, 12.0)
     first = {"media": "s1", "heading": 0.0, "fov": 60.0, "lat": 42.0, "lon": 12.0}

@@ -131,7 +131,7 @@ class Profile:
 
 
 EXPLORER_DIALECTS = ("llamacpp", "strict")
-SCORER_DIALECTS = ("llamacpp-readout", "systemone")
+SCORER_DIALECTS = ("llamacpp-readout", "systemone", "llamacpp-systemone")
 
 
 def load_profiles(path: Path) -> dict[str, dict]:
@@ -141,9 +141,15 @@ def load_profiles(path: Path) -> dict[str, dict]:
 
 
 def _merge(base: dict, over: dict) -> dict:
+    """`over` on top of `base`, table by table; a table with `inherit = false` replaces the inherited one whole."""
     out = copy.deepcopy(base)
     for k, v in over.items():
-        out[k] = _merge(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else copy.deepcopy(v)
+        if isinstance(v, dict) and v.get("inherit") is False:
+            out[k] = {key: copy.deepcopy(x) for key, x in v.items() if key != "inherit"}
+        elif isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = _merge(out[k], v)
+        else:
+            out[k] = copy.deepcopy(v)
     return out
 
 
@@ -172,8 +178,14 @@ def _server(value: dict) -> ServerSpec:
                       files={k: _file(v) for k, v in value.get("files", {}).items()},
                       args=tuple(value.get("args", ())), command=tuple(value.get("command", ())),
                       cwd=value.get("cwd"), env=dict(value.get("env", {})), health=value.get("health", "/health"),
-                      base_url=value.get("base_url"), binary=os.environ.get("LLAMA_SERVER", value.get("binary",
-                                                                                                       "llama-server")))
+                      base_url=value.get("base_url"), binary=_binary(value.get("binary")))
+
+
+def _binary(configured: str | None) -> str:
+    """A server's own `binary` (a llama.cpp build it needs), else $LLAMA_SERVER, else llama-server on the PATH."""
+    if configured:
+        return os.path.expanduser(configured)
+    return os.environ.get("LLAMA_SERVER", "llama-server")
 
 
 def _model(role: str, value: dict, dialects: tuple[str, ...]) -> ModelSpec:

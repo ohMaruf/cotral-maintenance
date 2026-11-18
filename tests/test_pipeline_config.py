@@ -118,3 +118,29 @@ def test_llamacpp_dialect_pins_slots_and_forces_a_call():
 
 def test_explorer_prompt_ships_with_the_package():
     assert (ROOT / "cotral_maintenance" / "explorer" / "prompt.md").is_file()
+
+
+def test_a_run_refuses_to_mix_versions(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from cotral_maintenance.pipeline import run as R
+    from cotral_maintenance.runstore import RunStore
+
+    store = RunStore(tmp_path / "r", create=True)
+    store.add_stops([{"stop_id": "f1", "position": 0, "name": "A", "gtfs_lat": 0.0, "gtfs_lon": 0.0,
+                      "services": []}, {"stop_id": "f2", "position": 1, "name": "B", "gtfs_lat": 0.0,
+                                        "gtfs_lon": 0.0, "services": []}])
+    store.stamp["ingest"] = ("old", 1)
+    store.put_start({"stop_id": "f1", "source": "gtfs", "lat": 0.0, "lon": 0.0})
+    detail = {"phase": "ingest", "ingest_version": 99}
+    monkeypatch.setattr(R, "phase_versions", lambda *a: {"ingest": detail, "explore": {"phase": "explore"},
+                                                         "score": {"phase": "score"}})
+    monkeypatch.setattr(R, "sha256_file", lambda p: "sha")
+    req = SimpleNamespace(phases=("ingest",), allow_mixed=False)
+    with pytest.raises(R.MixedVersions, match="ingest: this code is version"):
+        R._stamp_versions(store, 2, req, SimpleNamespace(gtfs=tmp_path), None, "0.2.0", ["f1", "f2"])
+    R._stamp_versions(store, 2, SimpleNamespace(phases=("ingest",), allow_mixed=True), SimpleNamespace(gtfs=tmp_path),
+                      None, "0.2.0", ["f1", "f2"])
+    assert store.stamp["ingest"][1] == 2
+    assert R._stamp_versions(store, 3, req, SimpleNamespace(gtfs=tmp_path), None, "0.2.0", ["f1"]) is None  # done
+    store.close()

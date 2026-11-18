@@ -82,6 +82,7 @@ runs/RUN/
   run.sqlite            stops, starts, explorations, photos, transcripts, scores, usage, invocations
   media/ab/<sha256>.jpg every photo, content-addressed
   results.csv           the ranked table
+  versions.json         what each *_version column of results.csv means
   logs/                 the pipeline's and the servers' logs
 ```
 
@@ -98,7 +99,7 @@ rsync -a server:cotral-maintenance/runs/RUN/ runs/RUN/
 Then the review app reads it: `./start.sh --run runs/RUN` (http://localhost:4200; `--port N` for another
 port, `--bff-port N` if 8765 is taken).
 
-## The run store (`cotral_maintenance/runstore.py`, schema version 3)
+## The run store (`cotral_maintenance/runstore.py`, schema version 4)
 
 SQLite, one row per stop and phase. JSON columns are UTF-8 JSON text. Photos are referenced by the
 sha256 of their bytes; the file is `media/<first 2 hex>/<sha256>.jpg`.
@@ -113,7 +114,10 @@ sha256 of their bytes; the file is `media/<first 2 hex>/<sha256>.jpg`.
 | `transcripts` | stop_id | `lines`: JSON lines, the explorer's turns, tool results, confirmer calls |
 | `scores` | stop_id | `photos` JSON `[sha256]`, `scorer` JSON, `condition` (0 bad .. 1 good: the mean of the conditions that apply), `has_shelter`, `has_seating`, `has_lamp` (P(the element is there)), `shelter`, `seating` (0 unusable .. 1 good, NULL when the element is missing), `waiting_area`, `accessibility` (0 .. 1 good), `stop_visible` (0-1), `answers` JSON (per question: probabilities, `unknown_probability`, `confidence`, `abstained`) |
 | `usage` | month, key_id, api | billed requests this run made |
-| `invocations` | seq | each `cotral run`: times, status, host (GPU), args, git, counts |
+| `invocations` | seq | each `cotral run`: times, status, host (GPU), args, git (commit, dirty, sha256 of the diff), `versions` (package and the phase versions it ran with), counts |
+| `versions` | version | what a version is: `phase`, `detail` JSON (see below), `first_invocation` |
+
+`starts`, `explorations` and `scores` each carry `version` and `invocation`: what made the row.
 
 `explorations.record` is the explorer session's record (layout `agent-explorer/1`, see
 `cotral_maintenance/explorer/session.py`, `Session.record`): `stop`, `limits`, `budget`, `path`,
@@ -144,6 +148,30 @@ A lamp's condition cannot be judged from daytime photos, so lighting is presence
 shelter and seating when present, waiting area, accessibility. Runs of older schemas are upgraded
 when the pipeline opens them: their scores are dropped, their explorations kept;
 `cotral run RUN --resume --phases score` scores them again.
+
+## Versions: one run, one batch
+
+Every result says what made it. Each phase has a **version**, a 12-hex hash of what decides its output
+(`cotral_maintenance/versions.py`):
+
+| Phase | Hash of |
+|---|---|
+| ingest | `INGEST_VERSION`, the OSM store's build (time, region, extracts), the GTFS `stops.txt` sha256 |
+| explore | `HARNESS_VERSION`, the explorer prompt's sha256, the reference images' sha256, the explorer models (files, revisions, sampling, server arguments) |
+| score | `SCORER_VERSION`, the sha256 of every prompt text Imajev reads (header, questions, state), the scorer model (files, revisions, readout, calibration, rotations) |
+
+Ports and concurrency are left out (they change speed, not results), and so is the git commit: a
+commit that does not touch a phase must not split its rows. The commit, a sha256 of any uncommitted
+diff and the package version are recorded per invocation. A code change that alters a phase's
+output without touching a prompt must bump that phase's constant.
+
+A run is one batch: `cotral run` refuses to add rows of one version to a phase whose rows another
+version made, and says so. Then either redo the phase for the run (`--resume --force score`; scores
+are free, explorations are billed), start a new run for the new version, or pass `--allow-mixed`.
+`cotral status RUN` lists the rows per version; `results.csv` has `ingest_version`,
+`explore_version`, `score_version`, and `versions.json` (also in a bundle) holds what each means.
+Rows made before versions were recorded show `unknown`; explorations got theirs back from the
+harness and models they had recorded.
 
 ## Measured
 

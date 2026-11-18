@@ -28,7 +28,7 @@ from typing import Any
 
 from .provenance import utc_now
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 DB_NAME = "run.sqlite"
 MEDIA_DIR = "media"
 LOGS_DIR = "logs"
@@ -57,7 +57,9 @@ CREATE TABLE IF NOT EXISTS starts (
     lon          REAL NOT NULL,
     osm          TEXT,                 -- JSON: {osm_id, kind, how, from_gtfs_m, ref, name}, when OSM matched
     places       TEXT,                 -- JSON: {status, reason, lat, lon, offset_m, place_id, ...}, when Places was asked
-    ingested_at  TEXT NOT NULL
+    ingested_at  TEXT NOT NULL,
+    version      TEXT,                 -- what produced the row: versions.version (NULL: before versions)
+    invocation   INTEGER               -- invocations.seq
 );
 
 -- Phase 2, explore: the search for the stop in Street View.
@@ -80,6 +82,8 @@ CREATE TABLE IF NOT EXISTS explorations (
     seconds         REAL NOT NULL,
     started_at      TEXT NOT NULL,
     finished_at     TEXT NOT NULL,
+    version         TEXT,              -- versions.version (NULL: before versions)
+    invocation      INTEGER,           -- invocations.seq
     record          TEXT NOT NULL      -- JSON: the session record (world, photos, candidates, events, outcome);
                                        -- photo `file`s are media sha256s
 );
@@ -124,7 +128,9 @@ CREATE TABLE IF NOT EXISTS scores (
     stop_visible   REAL,            -- probability that the photos show the stop (0-1)
     answers        TEXT NOT NULL,   -- JSON: per question, probabilities, unknown probability, confidence
     seconds        REAL NOT NULL,
-    scored_at      TEXT NOT NULL
+    scored_at      TEXT NOT NULL,
+    version        TEXT,            -- versions.version (NULL: before versions)
+    invocation     INTEGER          -- invocations.seq
 );
 
 -- Billed Google requests made by this run (the cross-run ledger lives in the cache).
@@ -145,7 +151,17 @@ CREATE TABLE IF NOT EXISTS invocations (
     host         TEXT NOT NULL,        -- JSON: hostname, platform, gpu
     args         TEXT NOT NULL,        -- JSON
     git          TEXT NOT NULL,        -- JSON
-    counts       TEXT                  -- JSON: per phase
+    counts       TEXT,                 -- JSON: per phase
+    versions     TEXT                  -- JSON: {package, ingest, explore, score}: the versions it ran with
+);
+
+-- What produced the rows: one per phase and version (cotral_maintenance/versions.py). `detail` is what the
+-- version is the hash of: prompt hashes, phase constants, model files and revisions, inputs.
+CREATE TABLE IF NOT EXISTS versions (
+    version           TEXT PRIMARY KEY,   -- first 12 hex of the sha256 of the canonical JSON of detail
+    phase             TEXT NOT NULL,      -- ingest, explore, score
+    detail            TEXT NOT NULL,      -- JSON
+    first_invocation  INTEGER             -- invocations.seq that first used it
 );
 """
 
@@ -155,7 +171,16 @@ SCORE_COLUMNS = ("condition", "has_shelter", "shelter", "has_seating", "seating"
 # the presence of a lamp, a computed priority); scores are cheap to redo, so they are dropped and every exploration
 # is kept: the next `cotral run RUN --resume` scores the stops again. 2 -> 3: presence and condition asked apart,
 # 0 bad .. 1 good, ranked by condition; dropped the same way.
-MIGRATIONS = {1: "DROP TABLE scores;", 2: "DROP TABLE scores;"}
+# 3 -> 4: every phase row records the version that produced it (rows made before keep NULL: unknown), and
+# explorations get theirs back from the harness and explorer they recorded.
+MIGRATIONS = {
+    1: "DROP TABLE scores;",
+    2: "DROP TABLE IF EXISTS scores;",
+    3: "DROP TABLE IF EXISTS scores;",  # and the new columns, see _add_columns
+}
+NEW_COLUMNS = {"starts": {"version": "TEXT", "invocation": "INTEGER"},
+               "explorations": {"version": "TEXT", "invocation": "INTEGER"}, "invocations": {"versions": "TEXT"}}
+PHASE_TABLES = {"ingest": "starts", "explore": "explorations", "score": "scores"}
 
 
 class RunStoreError(Exception):
@@ -189,8 +214,66 @@ class RunStore:
         elif version != SCHEMA_VERSION:
             if version not in MIGRATIONS:
                 raise RunStoreError(f"{db} has schema {version}; this code reads {SCHEMA_VERSION}")
-            self._conn.executescript(MIGRATIONS[version] + SCHEMA)
+            for step in range(version, SCHEMA_VERSION):
+                self._conn.executescript(MIGRATIONS[step])
+            self._add_columns()
+            self._conn.executescript(SCHEMA)
+            self._backfill_explore_versions()
             self._conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+        # phase -> (version, invocation) stamped on the rows this process writes (set by the pipeline)
+        self.stamp: dict[str, tuple[str, int]] = {}
+
+    def _add_columns(self) -> None:
+        for table, columns in NEW_COLUMNS.items():
+            have = {r[1] for r in self._conn.execute(f"PRAGMA table_info({table})")}
+            for name, kind in columns.items():
+                if name not in have:
+                    self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {kind}")
+
+    def _backfill_explore_versions(self) -> None:
+        from .versions import explore_detail, fingerprint
+
+        rows = self._conn.execute("SELECT stop_id, harness, explorer FROM explorations WHERE version IS NULL").fetchall()
+        for r in rows:
+            detail = explore_detail(json.loads(r["harness"]), json.loads(r["explorer"]))
+            v = fingerprint(detail)
+            self._conn.execute("INSERT OR IGNORE INTO versions (version, phase, detail) VALUES (?, 'explore', ?)",
+                               (v, _json(detail)))
+            self._conn.execute("UPDATE explorations SET version = ? WHERE stop_id = ?", (v, r["stop_id"]))
+
+    # ------------------------------------------------------------------ versions
+
+    def add_version(self, version: str, detail: dict, invocation: int | None) -> None:
+        with self.transaction() as c:
+            c.execute("INSERT OR IGNORE INTO versions (version, phase, detail, first_invocation) VALUES (?, ?, ?, ?)",
+                      (version, detail["phase"], _json(detail), invocation))
+
+    def versions_in(self, phase: str, stop_ids: Iterable[str] | None = None) -> dict[str | None, int]:
+        """How many of the phase's rows each version produced (None: rows made before versions were recorded)."""
+        rows = self.query(f"SELECT stop_id, version FROM {PHASE_TABLES[phase]}")
+        wanted = None if stop_ids is None else set(stop_ids)
+        out: dict[str | None, int] = {}
+        for r in rows:
+            if wanted is None or r["stop_id"] in wanted:
+                out[r["version"]] = out.get(r["version"], 0) + 1
+        return out
+
+    def version_details(self) -> dict[str, dict]:
+        return {r["version"]: {"phase": r["phase"], "first_invocation": r["first_invocation"],
+                               "detail": json.loads(r["detail"])}
+                for r in self.query("SELECT * FROM versions ORDER BY phase, first_invocation")}
+
+    def versions_summary(self) -> dict:
+        """Per phase: rows per version ("unknown": made before versions were recorded), and whether it is mixed."""
+        out = {}
+        for phase in PHASE_TABLES:
+            counts = {v or "unknown": n for v, n in self.versions_in(phase).items()}
+            out[phase] = {"rows": counts, "mixed": len(counts) > 1}
+        return out
+
+    def _stamp(self, phase: str, row: dict) -> tuple:
+        version, invocation = self.stamp.get(phase, (None, None))
+        return row.get("version", version), row.get("invocation", invocation)
 
     @property
     def logs_dir(self) -> Path:
@@ -296,10 +379,11 @@ class RunStore:
 
     def put_start(self, row: dict) -> None:
         with self.transaction() as c:
-            c.execute("INSERT OR REPLACE INTO starts (stop_id, source, lat, lon, osm, places, ingested_at) "
-                      "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            c.execute("INSERT OR REPLACE INTO starts (stop_id, source, lat, lon, osm, places, ingested_at, version, "
+                      "invocation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                       (row["stop_id"], row["source"], row["lat"], row["lon"], _json_or_none(row.get("osm")),
-                       _json_or_none(row.get("places")), row.get("ingested_at") or utc_now()))
+                       _json_or_none(row.get("places")), row.get("ingested_at") or utc_now(),
+                       *self._stamp("ingest", row)))
 
     def start(self, stop_id: str) -> dict | None:
         rows = self.query("SELECT * FROM starts WHERE stop_id = ?", (stop_id,))
@@ -320,11 +404,12 @@ class RunStore:
             c.execute(
                 "INSERT INTO explorations (stop_id, status, reason, lat, lon, position_basis, evidence, plate_text, "
                 "scan_date, stop_photos, explorer, harness, billed_static, billed_tiles, turns, seconds, started_at, "
-                "finished_at, record) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "finished_at, record, version, invocation) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (stop_id, row["status"], row.get("reason"), row.get("lat"), row.get("lon"), row.get("position_basis"),
                  row.get("evidence"), row.get("plate_text"), row.get("scan_date"), _json(row.get("stop_photos", [])),
                  _json(row["explorer"]), _json(row["harness"]), row["billed_static"], row["billed_tiles"],
-                 row["turns"], row["seconds"], row["started_at"], row["finished_at"], _json(row["record"])))
+                 row["turns"], row["seconds"], row["started_at"], row["finished_at"], _json(row["record"]),
+                 *self._stamp("explore", row)))
             c.executemany(
                 "INSERT INTO photos (stop_id, idx, media, toward, pano_id, date, heading, fov, pitch, width, height, "
                 "lat, lon) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -341,9 +426,9 @@ class RunStore:
         with self.transaction() as c:
             c.execute(
                 f"INSERT OR REPLACE INTO scores (stop_id, photos, scorer, {', '.join(SCORE_COLUMNS)}, answers, "
-                f"seconds, scored_at) VALUES (?, ?, ?, {', '.join('?' * len(SCORE_COLUMNS))}, ?, ?, ?)",
+                f"seconds, scored_at, version, invocation) VALUES (?, ?, ?, {', '.join('?' * len(SCORE_COLUMNS))}, ?, ?, ?, ?, ?)",
                 (row["stop_id"], _json(row["photos"]), _json(row["scorer"]), *(row.get(k) for k in SCORE_COLUMNS),
-                 _json(row["answers"]), row["seconds"], row.get("scored_at") or utc_now()))
+                 _json(row["answers"]), row["seconds"], row.get("scored_at") or utc_now(), *self._stamp("score", row)))
 
     # ------------------------------------------------------------------ usage and invocations
 
@@ -355,11 +440,15 @@ class RunStore:
                       "ON CONFLICT (month, key_id, api) DO UPDATE SET count = count + excluded.count",
                       (month, key_id, api, count))
 
-    def begin_invocation(self, host: dict, args: dict, git: dict) -> int:
+    def begin_invocation(self, host: dict, args: dict, git: dict, versions: dict | None = None) -> int:
         with self.transaction() as c:
-            cur = c.execute("INSERT INTO invocations (started_at, host, args, git) VALUES (?, ?, ?, ?)",
-                            (utc_now(), _json(host), _json(args), _json(git)))
+            cur = c.execute("INSERT INTO invocations (started_at, host, args, git, versions) VALUES (?, ?, ?, ?, ?)",
+                            (utc_now(), _json(host), _json(args), _json(git), _json_or_none(versions)))
             return int(cur.lastrowid)
+
+    def set_invocation_versions(self, seq: int, versions: dict) -> None:
+        with self.transaction() as c:
+            c.execute("UPDATE invocations SET versions = ? WHERE seq = ?", (_json(versions), seq))
 
     def end_invocation(self, seq: int, status: str, counts: dict) -> None:
         with self.transaction() as c:

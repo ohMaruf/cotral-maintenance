@@ -59,8 +59,22 @@ class ExploreContext:
 
     @property
     def harness(self) -> dict:
-        prompt = PROMPT.read_bytes()
-        return {"version": HARNESS_VERSION, "prompt_sha256": hashlib.sha256(prompt).hexdigest(), "git": git_state()}
+        return harness(self.paths)
+
+
+def harness(paths: Paths) -> dict:
+    """The harness that explores: its version, the prompt's sha256, the reference images' sha256, git."""
+    prompt = PROMPT.read_bytes()
+    refs = hashlib.sha256()
+    for path in [paths.reference_sign, *paths.lookalikes]:
+        if path.is_file():
+            refs.update(path.name.encode() + b"\0" + path.read_bytes())
+    return {"version": HARNESS_VERSION, "prompt_sha256": hashlib.sha256(prompt).hexdigest(),
+            "references_sha256": refs.hexdigest(), "git": git_state()}
+
+
+def explorer_description(spec: ModelSpec) -> dict:
+    return {**spec.describe(), "confirmer": "same model, fresh call"}
 
 
 def explore(ctx: ExploreContext, stop_ids: list[str], on_done: Callable[[str, str], None] | None = None) -> dict:
@@ -150,7 +164,7 @@ def explore_stop(ctx: ExploreContext, row: dict, shapes: dict, slots: tuple[int 
     spec = ctx.spec
     client = ChatClient(spec.server.url, spec.model, spec.dialect, spec.sampling, spec.template, spec.max_tokens)
     confirmer = LlmConfirmer(client, ctx.paths.reference_sign, ctx.paths.lookalikes, log, confirmer_slot)
-    base = {"stop_id": stop_id, "explorer": {**spec.describe(), "confirmer": "same model, fresh call"},
+    base = {"stop_id": stop_id, "explorer": explorer_description(spec),
             "harness": ctx.harness, "started_at": started_at}
     session = None
     try:

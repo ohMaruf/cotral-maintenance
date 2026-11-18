@@ -140,3 +140,48 @@ def test_older_runs_keep_their_explorations_and_lose_their_scores(tmp_path, old)
         assert upgraded.exploration("f1")["status"] == "found"
         assert upgraded.query("SELECT COUNT(*) FROM scores")[0][0] == 0
         upgraded.put_score(score_row("f1", 0.4))
+
+
+def test_rows_carry_the_version_and_invocation_that_made_them(run):
+    from cotral_maintenance.pipeline.export import versions
+
+    seq = run.begin_invocation({}, {}, {})
+    run.add_version("aaa", {"phase": "explore", "harness": {"version": "1"}}, seq)
+    run.stamp["explore"] = ("aaa", seq)
+    run.put_exploration(exploration("f1"), [], [])
+    run.stamp["explore"] = ("bbb", seq)
+    run.put_exploration(exploration("f2"), [], [])
+    row = run.query("SELECT version, invocation FROM explorations WHERE stop_id = 'f1'")[0]
+    assert (row["version"], row["invocation"]) == ("aaa", seq)
+    assert run.versions_in("explore") == {"aaa": 1, "bbb": 1}
+    assert run.versions_summary()["explore"] == {"rows": {"aaa": 1, "bbb": 1}, "mixed": True}
+    assert versions(run)["versions"]["aaa"]["detail"]["harness"] == {"version": "1"}
+
+
+def test_schema_3_explorations_get_their_version_back(tmp_path):
+    import sqlite3
+
+    from cotral_maintenance.versions import explore_detail, fingerprint
+
+    root = tmp_path / "old"
+    with RunStore(root, create=True) as store:
+        store.add_stops(STOPS[:1])
+        store.put_exploration(exploration("f1"), [], [])
+        e = store.exploration("f1")
+    with sqlite3.connect(root / "run.sqlite") as conn:
+        conn.executescript("UPDATE explorations SET version = NULL; PRAGMA user_version=3;")
+    with RunStore(root) as upgraded:
+        expected = fingerprint(explore_detail(e["harness"], e["explorer"]))
+        assert upgraded.versions_in("explore") == {expected: 1}
+        assert upgraded.version_details()[expected]["phase"] == "explore"
+
+
+def test_versions_ignore_speed_settings_and_git():
+    from cotral_maintenance.versions import explore_detail, fingerprint
+
+    a = explore_detail({"version": "1", "git": {"commit": "x"}}, {"model": "m", "concurrency": 1,
+                                                                   "server": {"port": 8080, "args": ["-c", "1"]}})
+    b = explore_detail({"version": "1", "git": {"commit": "y"}}, {"model": "m", "concurrency": 2,
+                                                                   "server": {"port": 9000, "args": ["-c", "1"]}})
+    c = explore_detail({"version": "2"}, {"model": "m", "server": {"args": ["-c", "1"]}})
+    assert fingerprint(a) == fingerprint(b) != fingerprint(c)

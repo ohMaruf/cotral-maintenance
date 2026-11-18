@@ -25,12 +25,13 @@ from ..fileutils import RawStore
 from ..models import Stop
 from ..osm_store import OsmStore
 from ..places import PlacesClient
-from ..provenance import git_state, sha256_file
+from ..provenance import sha256_file
 from ..runstore import RunStore
+from .. import versions as V
 from ..servers import ManagedServer
 from ..settings import GoogleKey, Paths, Profile
 from ..streetview import StreetViewClient
-from .explore import ExploreContext, explore
+from .explore import ExploreContext, explore, explorer_description, harness
 from .export import write_results
 from .ingest import ingest, select_into_run
 from .score import make_scorer, score, scorable
@@ -50,6 +51,11 @@ class RunRequest:
     force: tuple[str, ...] = ()
     caps: dict[str, int] = field(default_factory=dict)
     allow_new_gtfs: bool = False
+    allow_mixed: bool = False
+
+
+class MixedVersions(ValueError):
+    pass
 
 
 class Servers:
@@ -94,9 +100,12 @@ def run_pipeline(req: RunRequest, paths: Paths) -> dict:
     run = RunStore(paths.runs / req.run_id, create=True)
     counts: dict = {}
     status = "error"
+    code = V.pipeline()
     seq = run.begin_invocation(host_info(), {"run_id": req.run_id, "profile": req.profile.name,
                                              "phases": list(req.phases), "chunk": req.chunk, "force": list(req.force),
-                                             "stops": None if req.stops is None else len(req.stops)}, git_state())
+                                             "allow_mixed": req.allow_mixed,
+                                             "stops": None if req.stops is None else len(req.stops)}, code["git"],
+                               {"package": code["package"]})
     servers = Servers(req.profile, paths, run.logs_dir)
     try:
         _check_inputs(run, stops_file, req.allow_new_gtfs)
@@ -116,6 +125,7 @@ def run_pipeline(req: RunRequest, paths: Paths) -> dict:
         if not paths.osm_store.is_file():
             raise FileNotFoundError(f"no OSM store at {paths.osm_store}: run `cotral osm download` and "
                                     f"`cotral osm build` first")
+        _stamp_versions(run, seq, req, paths, osm, code["package"], targets)
 
         if "ingest" in req.phases:
             todo = run.pending("ingest", targets)
@@ -166,6 +176,42 @@ def run_pipeline(req: RunRequest, paths: Paths) -> dict:
         servers.stop()
         run.end_invocation(seq, status, counts)
         run.close()
+
+
+def phase_versions(req: RunRequest, paths: Paths, osm: OsmStore, gtfs_sha256: str) -> dict[str, dict]:
+    """The detail of the version each phase runs with in this invocation."""
+    return {"ingest": V.ingest_detail(osm.meta(), gtfs_sha256),
+            "explore": V.explore_detail(harness(paths), explorer_description(req.profile.explorer)),
+            "score": V.score_detail(req.profile.scorer.describe())}
+
+
+def _stamp_versions(run: RunStore, seq: int, req: RunRequest, paths: Paths, osm: OsmStore, package: str | None,
+                    targets: list[str]) -> None:
+    """Record the versions this invocation runs with, stamp them on the rows it writes, and refuse to add rows of
+    one version to a phase whose rows were made by another (unless allowed): a run is one batch, one version."""
+    details = phase_versions(req, paths, osm, sha256_file(paths.gtfs / "stops.txt"))
+    versions = {phase: V.fingerprint(d) for phase, d in details.items()}
+    mixed = []
+    for phase in req.phases:
+        will_write = (scorable(run, targets) or run.pending("explore", targets)) if phase == "score" \
+            else run.pending(phase, targets)
+        if not will_write:
+            continue
+        others = {v: n for v, n in run.versions_in(phase).items() if v != versions[phase]}
+        unknown = others.pop(None, 0)
+        if unknown:
+            logger.warning("%s: %d rows were made before versions were recorded (version unknown)", phase, unknown)
+        if others:
+            mixed.append(f"{phase}: this code is version {versions[phase]}, the run has "
+                         + ", ".join(f"{n} rows of {v}" for v, n in others.items()))
+    if mixed and not req.allow_mixed:
+        raise MixedVersions("the run would mix versions (see `cotral status RUN`):\n  " + "\n  ".join(mixed)
+                            + "\nRedo the phase for the run's stops (--force PHASE --resume), use a new run, or "
+                              "pass --allow-mixed")
+    for phase, detail in details.items():
+        run.add_version(versions[phase], detail, seq)
+        run.stamp[phase] = (versions[phase], seq)
+    run.set_invocation_versions(seq, {"package": package, **versions})
 
 
 def _add(counts: dict, phase: str, c: dict) -> None:

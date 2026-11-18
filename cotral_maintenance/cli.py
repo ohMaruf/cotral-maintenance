@@ -61,6 +61,8 @@ def build_parser() -> argparse.ArgumentParser:
                      help="monthly cap of billed requests per API key: static, tiles, places "
                           "(default: Google's free tiers 10000, 100000, 5000)")
     run.add_argument("--allow-new-gtfs", action="store_true", help="accept a GTFS feed that changed since the run began")
+    run.add_argument("--allow-mixed", action="store_true",
+                     help="add rows of this code's versions to phases whose rows another version made")
 
     for name, text in (("status", "what a run has done"), ("export", "rewrite results.csv")):
         p = sub.add_parser(name, help=text)
@@ -156,7 +158,7 @@ def cmd_run(args, paths: Paths) -> int:
         raise ValueError(f"unknown phases: {', '.join(sorted(unknown))}")
     req = RunRequest(run_id=args.run_id, profile=load_profile(paths, args.profile), stops=select(args, paths),
                      phases=phases, chunk=args.chunk, force=tuple(args.force), caps=parse_caps(args.cap),
-                     allow_new_gtfs=args.allow_new_gtfs)
+                     allow_new_gtfs=args.allow_new_gtfs, allow_mixed=args.allow_mixed)
     counts = run_pipeline(req, paths)
     print(json.dumps(counts, indent=1))
     return EXIT_OK
@@ -166,9 +168,10 @@ def cmd_status(args, paths: Paths) -> int:
     from .runstore import RunStore
 
     with RunStore(paths.runs / args.run_id) as run:
-        print(json.dumps({"run": str(run.root), **run.summary(),
+        print(json.dumps({"run": str(run.root), **run.summary(), "versions": run.versions_summary(),
                           "invocations": [dict(r) for r in run.query(
-                              "SELECT seq, started_at, finished_at, status, counts FROM invocations ORDER BY seq")]},
+                              "SELECT seq, started_at, finished_at, status, versions, counts FROM invocations "
+                              "ORDER BY seq")]},
                          indent=1))
     return EXIT_OK
 

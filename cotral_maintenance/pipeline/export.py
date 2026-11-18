@@ -1,6 +1,6 @@
 """The run's final table: one row per stop, from its GTFS record to its maintenance scores.
 
-Written to <run>/results.csv. Stops are ranked by `condition`, worst first (0 bad .. 1 good: the mean
+Written to <run>/results.csv, with <run>/versions.json: what each `*_version` column means. Stops are ranked by `condition`, worst first (0 bad .. 1 good: the mean
 of the conditions that apply; a missing shelter or bench has none and is listed in `missing`) among
 those scored with the stop visible; every other stop is listed after them with `needs_review` set and the reason, so a
 person can check what the pipeline could not.
@@ -20,7 +20,7 @@ VISIBLE_MIN = 0.5
 COLUMNS = ("rank", "stop_id", "name", "needs_review", "review_reason", *SCORE_COLUMNS, "missing", "status", "evidence",
            "plate_text", "lat", "lon", "found_from_gtfs_m", "position_basis", "scan_date", "start_source",
            "start_lat", "start_lon", "gtfs_lat", "gtfs_lon", "stop_photos", "explore_reason", "explorer_model",
-           "scorer_model")
+           "scorer_model", "ingest_version", "explore_version", "score_version")
 
 
 def rows(run: RunStore) -> list[dict]:
@@ -28,7 +28,8 @@ def rows(run: RunStore) -> list[dict]:
     for r in run.query("""
         SELECT s.stop_id, s.name, s.gtfs_lat, s.gtfs_lon, st.source AS start_source, st.lat AS start_lat,
                st.lon AS start_lon, e.status, e.reason AS explore_reason, e.lat, e.lon, e.evidence, e.plate_text,
-               e.position_basis, e.scan_date, e.stop_photos, e.explorer, sc.scorer,
+               e.position_basis, e.scan_date, e.stop_photos, e.explorer, sc.scorer, st.version AS ingest_version,
+               e.version AS explore_version, sc.version AS score_version,
                """ + ", ".join(f"sc.{c}" for c in SCORE_COLUMNS) + """
         FROM stops s LEFT JOIN starts st USING (stop_id) LEFT JOIN explorations e USING (stop_id)
         LEFT JOIN scores sc USING (stop_id) ORDER BY s.position"""):
@@ -73,4 +74,13 @@ def write_results(run: RunStore) -> tuple[str, int]:
                          for k, v in d.items()})
     path = run.root / "results.csv"
     write_atomic(path, buffer.getvalue().encode("utf-8"))
+    write_atomic(run.root / "versions.json", json.dumps(versions(run), indent=1, ensure_ascii=False).encode("utf-8"))
     return str(path), len(data)
+
+
+def versions(run: RunStore) -> dict:
+    """What the version columns of results.csv mean: each version's detail, the rows per phase, the invocations."""
+    return {"phases": run.versions_summary(), "versions": run.version_details(),
+            "invocations": [{**dict(r), **{k: json.loads(r[k]) if r[k] else None
+                                           for k in ("host", "args", "git", "versions", "counts")}}
+                            for r in run.query("SELECT * FROM invocations ORDER BY seq")]}

@@ -1,28 +1,37 @@
 [project]
 name = "cotral-maintenance"
-version = "0.1.0"
+version = "0.2.0"
 requires-python = ">=3.14"
 dependencies = [
     "huggingface-hub>=2.4.0",
-    "mlx>=0.32.3,<0.33",
-    "mlx-lm>=0.32,<0.33",
-    "mlx-vlm>=0.7.4,<0.8",
     "numpy>=2.5.4",
     "pillow>=13.0.0",
     "python-dotenv>=1.2.4",
     "requests>=2.34.2",
 ]
 
+[project.scripts]
+cotral = "cotral_maintenance.cli:main"
+
 [project.optional-dependencies]
+# Building the OSM store from Geofabrik extracts (cotral osm build).
+osm = [
+    "osmium>=4.3.2",
+]
+# The review app (BFF) that reads runs on the laptop.
 review = [
     "fastapi>=0.162.0",
     "uvicorn>=0.54.0",
 ]
-osm = [
-    "osmium>=4.3.2",
-]
+# Experiments only (Claude Code explorer over MCP).
 agent = [
     "mcp>=1.20",
+]
+# Experiments only (MLX models on Apple silicon: the old Clef / Gemma scorers).
+mac = [
+    "mlx>=0.32.3,<0.33; sys_platform == 'darwin'",
+    "mlx-lm>=0.32,<0.33; sys_platform == 'darwin'",
+    "mlx-vlm>=0.7.4,<0.8; sys_platform == 'darwin'",
 ]
 
 [dependency-groups]
@@ -30,6 +39,13 @@ dev = [
     "httpx>=0.28.1",
     "pytest>=9.2.0",
 ]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["cotral_maintenance", "cotral_review"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

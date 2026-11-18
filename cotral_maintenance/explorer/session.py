@@ -29,7 +29,8 @@ from ..provenance import utc_now
 from . import HARNESS_VERSION
 from .confirmer import LOOKALIKE_FEATURES, Confirmer, ConfirmerError, verdict
 from .geometry import Camera, angle_diff, compass, ray_point, ray_to_sidewalk, triangulate, unit
-from .world import CELL_M, MetadataCache, Panorama, World, find_panoramas, shared_stretches
+from ..caches import MetadataCache
+from .world import CELL_M, Panorama, World, find_panoramas, shared_stretches
 
 MAX_IMAGES = 22  # billed Static API images per stop, the stop photos included (10,000 free a month: see quota.py)
 STOP_PHOTOS = 2  # kept back for photographing a found stop

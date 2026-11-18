@@ -1,0 +1,385 @@
+"""The run store: everything one pipeline run produced, in one portable directory.
+
+    <runs>/<run_id>/
+        run.sqlite        stops, starting positions, explorations, scores, usage, provenance
+        media/ab/<sha256>.jpg   every photo, content-addressed (a photo shared by two stops is stored once)
+        logs/             the pipeline's and the model servers' logs
+
+The directory is self-contained: no path in the database points outside it, and nothing in
+it depends on the machine it was made on. `bundle.py` packs it into one file to carry it
+from the GPU server to a laptop; the review app reads it as it is.
+
+Every phase writes one row per stop, in its own transaction, as soon as the stop is done:
+an interrupted run loses at most the stops in flight, and re-running resumes.
+
+The database is opened by one writer at a time (the pipeline), in WAL mode while it runs;
+`close()` checkpoints it back to a single file, so a copied run is always complete.
+Threads share one connection behind a lock: writes are a few per stop, never the bottleneck.
+"""
+
+import hashlib
+import json
+import sqlite3
+import threading
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any
+
+from .provenance import utc_now
+
+SCHEMA_VERSION = 1
+DB_NAME = "run.sqlite"
+MEDIA_DIR = "media"
+LOGS_DIR = "logs"
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL                -- JSON
+);
+
+-- The stops of the run, in the order they are processed.
+CREATE TABLE IF NOT EXISTS stops (
+    stop_id   TEXT PRIMARY KEY,
+    position  INTEGER NOT NULL,        -- order in the run's selection
+    name      TEXT NOT NULL,
+    gtfs_lat  REAL NOT NULL,
+    gtfs_lon  REAL NOT NULL,
+    services  TEXT NOT NULL            -- JSON: [{shape_id, trips, previous, next}], most trips first
+);
+
+-- Phase 1, ingest: where the search starts, from OSM, else Places, else GTFS.
+CREATE TABLE IF NOT EXISTS starts (
+    stop_id      TEXT PRIMARY KEY REFERENCES stops(stop_id),
+    source       TEXT NOT NULL CHECK (source IN ('osm', 'places', 'gtfs')),
+    lat          REAL NOT NULL,
+    lon          REAL NOT NULL,
+    osm          TEXT,                 -- JSON: {osm_id, kind, how, from_gtfs_m, ref, name}, when OSM matched
+    places       TEXT,                 -- JSON: {status, reason, lat, lon, offset_m, place_id, ...}, when Places was asked
+    ingested_at  TEXT NOT NULL
+);
+
+-- Phase 2, explore: the search for the stop in Street View.
+CREATE TABLE IF NOT EXISTS explorations (
+    stop_id         TEXT PRIMARY KEY REFERENCES stops(stop_id),
+    status          TEXT NOT NULL CHECK (status IN ('found', 'not_found', 'no_imagery', 'error')),
+    reason          TEXT,              -- why it ended (not_found, error)
+    lat             REAL,              -- the stop's position, when found
+    lon             REAL,
+    position_basis  TEXT,
+    evidence        TEXT,
+    plate_text      TEXT,
+    scan_date       TEXT,
+    stop_photos     TEXT NOT NULL,     -- JSON: [sha256, ...] the 1-2 photos of the found stop, for scoring
+    explorer        TEXT NOT NULL,     -- JSON: the explorer and confirmer models (profile entry, files, revisions)
+    harness         TEXT NOT NULL,     -- JSON: harness version, prompt sha256, git
+    billed_static   INTEGER NOT NULL,
+    billed_tiles    INTEGER NOT NULL,
+    turns           INTEGER NOT NULL,
+    seconds         REAL NOT NULL,
+    started_at      TEXT NOT NULL,
+    finished_at     TEXT NOT NULL,
+    record          TEXT NOT NULL      -- JSON: the session record (world, photos, candidates, events, outcome);
+                                       -- photo `file`s are media sha256s
+);
+
+-- Every photo an exploration took, in order.
+CREATE TABLE IF NOT EXISTS photos (
+    stop_id  TEXT NOT NULL REFERENCES stops(stop_id),
+    idx      INTEGER NOT NULL,         -- the photo number the explorer saw
+    media    TEXT NOT NULL,            -- sha256 -> media/<2>/<sha256>.jpg
+    toward   TEXT NOT NULL,            -- opening_before/after, sweep_ahead/behind, zoom, look_from, stop_photo
+    pano_id  TEXT NOT NULL,
+    date     TEXT,
+    heading  REAL NOT NULL,
+    fov      REAL NOT NULL,
+    pitch    REAL NOT NULL,
+    width    INTEGER NOT NULL,
+    height   INTEGER NOT NULL,
+    lat      REAL NOT NULL,            -- of the camera
+    lon      REAL NOT NULL,
+    PRIMARY KEY (stop_id, idx)
+);
+
+-- The explorer's conversation, one JSON object per line (turns, tool results, timings).
+CREATE TABLE IF NOT EXISTS transcripts (
+    stop_id  TEXT PRIMARY KEY REFERENCES stops(stop_id),
+    lines    TEXT NOT NULL
+);
+
+-- Phase 3, score: the maintenance scores, from the stop photos.
+CREATE TABLE IF NOT EXISTS scores (
+    stop_id              TEXT PRIMARY KEY REFERENCES stops(stop_id),
+    photos               TEXT NOT NULL,   -- JSON: [sha256, ...] the photos scored
+    scorer               TEXT NOT NULL,   -- JSON: model, files, revisions, rotations, calibration
+    shelter              REAL,            -- 0 good .. 4 missing / unusable (expected level)
+    seating              REAL,
+    signage              REAL,
+    lighting             REAL,
+    waiting_area         REAL,            -- 0 good .. 4 severe
+    accessibility        REAL,
+    requires_maintenance REAL,
+    stop_visible         REAL,            -- probability the stop is visible in the photos (0-1)
+    answers              TEXT NOT NULL,   -- JSON: per question, probabilities, unknown probability, confidence
+    seconds              REAL NOT NULL,
+    scored_at            TEXT NOT NULL
+);
+
+-- Billed Google requests made by this run (the cross-run ledger lives in the cache).
+CREATE TABLE IF NOT EXISTS usage (
+    month   TEXT NOT NULL,
+    key_id  TEXT NOT NULL,             -- a fingerprint of the API key, never the key
+    api     TEXT NOT NULL,             -- static, tiles, places
+    count   INTEGER NOT NULL,
+    PRIMARY KEY (month, key_id, api)
+);
+
+-- One row per invocation of the pipeline on this run.
+CREATE TABLE IF NOT EXISTS invocations (
+    seq          INTEGER PRIMARY KEY AUTOINCREMENT,
+    started_at   TEXT NOT NULL,
+    finished_at  TEXT,
+    status       TEXT,                 -- ok, interrupted, error
+    host         TEXT NOT NULL,        -- JSON: hostname, platform, gpu
+    args         TEXT NOT NULL,        -- JSON
+    git          TEXT NOT NULL,        -- JSON
+    counts       TEXT                  -- JSON: per phase
+);
+"""
+
+SCORE_COLUMNS = ("shelter", "seating", "signage", "lighting", "waiting_area", "accessibility",
+                 "requires_maintenance", "stop_visible")
+
+
+class RunStoreError(Exception):
+    pass
+
+
+def media_path(root: Path, sha: str) -> Path:
+    return root / MEDIA_DIR / sha[:2] / f"{sha}.jpg"
+
+
+class RunStore:
+    def __init__(self, root: Path, create: bool = False) -> None:
+        self.root = root
+        db = root / DB_NAME
+        if not create and not db.is_file():
+            raise RunStoreError(f"no run at {root} (missing {DB_NAME})")
+        root.mkdir(parents=True, exist_ok=True)
+        (root / MEDIA_DIR).mkdir(exist_ok=True)
+        (root / LOGS_DIR).mkdir(exist_ok=True)
+        self._lock = threading.RLock()
+        self._closed = False
+        self._conn = sqlite3.connect(db, check_same_thread=False, isolation_level=None)
+        self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA synchronous=NORMAL")
+        self._conn.execute("PRAGMA foreign_keys=ON")
+        version = self._conn.execute("PRAGMA user_version").fetchone()[0]
+        if version == 0:
+            self._conn.executescript(SCHEMA)
+            self._conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+        elif version != SCHEMA_VERSION:
+            raise RunStoreError(f"{db} has schema {version}; this code reads {SCHEMA_VERSION}")
+
+    @property
+    def logs_dir(self) -> Path:
+        return self.root / LOGS_DIR
+
+    def close(self) -> None:
+        """Fold the WAL back into the database file, so the run directory can be copied as it is."""
+        with self._lock:
+            if self._closed:
+                return
+            self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            self._conn.execute("PRAGMA journal_mode=DELETE")
+            self._conn.close()
+            self._closed = True
+
+    def __enter__(self) -> "RunStore":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
+
+    @contextmanager
+    def transaction(self) -> Iterator[sqlite3.Connection]:
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                yield self._conn
+            except BaseException:
+                self._conn.execute("ROLLBACK")
+                raise
+            self._conn.execute("COMMIT")
+
+    def query(self, sql: str, params: Iterable[Any] = ()) -> list[sqlite3.Row]:
+        with self._lock:
+            return self._conn.execute(sql, tuple(params)).fetchall()
+
+    # ------------------------------------------------------------------ meta
+
+    def set_meta(self, key: str, value: object) -> None:
+        with self.transaction() as c:
+            c.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (key, _json(value)))
+
+    def get_meta(self, key: str, default: object = None) -> Any:
+        rows = self.query("SELECT value FROM meta WHERE key = ?", (key,))
+        return json.loads(rows[0]["value"]) if rows else default
+
+    # ------------------------------------------------------------------ media
+
+    def put_media(self, data: bytes) -> str:
+        """Store a photo, return its sha256. Writing the same bytes twice is a no-op."""
+        sha = hashlib.sha256(data).hexdigest()
+        path = media_path(self.root, sha)
+        if not path.is_file():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_name(f"{path.name}.{threading.get_ident()}.tmp")
+            tmp.write_bytes(data)
+            tmp.replace(path)
+        return sha
+
+    def media(self, sha: str) -> Path:
+        return media_path(self.root, sha)
+
+    # ------------------------------------------------------------------ stops
+
+    def add_stops(self, stops: list[dict]) -> int:
+        """Add stops to the selection, after the ones already there; a stop already in the run is kept as it is."""
+        with self.transaction() as c:
+            start = c.execute("SELECT COALESCE(MAX(position), -1) + 1 FROM stops").fetchone()[0]
+            added = 0
+            for s in stops:
+                cur = c.execute(
+                    "INSERT OR IGNORE INTO stops (stop_id, position, name, gtfs_lat, gtfs_lon, services) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (s["stop_id"], start + added, s["name"], s["gtfs_lat"], s["gtfs_lon"], _json(s["services"])))
+                added += cur.rowcount
+            return added
+
+    def stop_ids(self) -> list[str]:
+        return [r["stop_id"] for r in self.query("SELECT stop_id FROM stops ORDER BY position")]
+
+    def pending(self, phase: str, stop_ids: Iterable[str] | None = None) -> list[str]:
+        """Stops of the run (or of `stop_ids`) the phase has not done yet, in run order."""
+        table = {"ingest": "starts", "explore": "explorations", "score": "scores"}[phase]
+        rows = self.query(f"SELECT s.stop_id FROM stops s LEFT JOIN {table} t USING (stop_id) "
+                          f"WHERE t.stop_id IS NULL ORDER BY s.position")
+        ids = [r["stop_id"] for r in rows]
+        if stop_ids is not None:
+            wanted = set(stop_ids)
+            ids = [i for i in ids if i in wanted]
+        return ids
+
+    def forget(self, phase: str, stop_ids: Iterable[str]) -> None:
+        """Drop a phase's results (and the later phases'), so the stops are done again."""
+        tables = {"ingest": ["scores", "transcripts", "photos", "explorations", "starts"],
+                  "explore": ["scores", "transcripts", "photos", "explorations"],
+                  "score": ["scores"]}[phase]
+        with self.transaction() as c:
+            for stop_id in stop_ids:
+                for table in tables:
+                    c.execute(f"DELETE FROM {table} WHERE stop_id = ?", (stop_id,))
+
+    # ------------------------------------------------------------------ phase rows
+
+    def put_start(self, row: dict) -> None:
+        with self.transaction() as c:
+            c.execute("INSERT OR REPLACE INTO starts (stop_id, source, lat, lon, osm, places, ingested_at) "
+                      "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                      (row["stop_id"], row["source"], row["lat"], row["lon"], _json_or_none(row.get("osm")),
+                       _json_or_none(row.get("places")), row.get("ingested_at") or utc_now()))
+
+    def start(self, stop_id: str) -> dict | None:
+        rows = self.query("SELECT * FROM starts WHERE stop_id = ?", (stop_id,))
+        return _decode(rows[0], ("osm", "places")) if rows else None
+
+    def stop(self, stop_id: str) -> dict:
+        rows = self.query("SELECT * FROM stops WHERE stop_id = ?", (stop_id,))
+        if not rows:
+            raise RunStoreError(f"stop {stop_id} is not in the run")
+        return _decode(rows[0], ("services",))
+
+    def put_exploration(self, row: dict, photos: list[dict], transcript: list[dict]) -> None:
+        """One finished exploration, its photos and its transcript, all at once."""
+        with self.transaction() as c:
+            stop_id = row["stop_id"]
+            for table in ("scores", "transcripts", "photos", "explorations"):
+                c.execute(f"DELETE FROM {table} WHERE stop_id = ?", (stop_id,))
+            c.execute(
+                "INSERT INTO explorations (stop_id, status, reason, lat, lon, position_basis, evidence, plate_text, "
+                "scan_date, stop_photos, explorer, harness, billed_static, billed_tiles, turns, seconds, started_at, "
+                "finished_at, record) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (stop_id, row["status"], row.get("reason"), row.get("lat"), row.get("lon"), row.get("position_basis"),
+                 row.get("evidence"), row.get("plate_text"), row.get("scan_date"), _json(row.get("stop_photos", [])),
+                 _json(row["explorer"]), _json(row["harness"]), row["billed_static"], row["billed_tiles"],
+                 row["turns"], row["seconds"], row["started_at"], row["finished_at"], _json(row["record"])))
+            c.executemany(
+                "INSERT INTO photos (stop_id, idx, media, toward, pano_id, date, heading, fov, pitch, width, height, "
+                "lat, lon) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [(stop_id, p["idx"], p["media"], p["toward"], p["pano_id"], p.get("date"), p["heading"], p["fov"],
+                  p["pitch"], p["width"], p["height"], p["lat"], p["lon"]) for p in photos])
+            c.execute("INSERT INTO transcripts (stop_id, lines) VALUES (?, ?)",
+                      (stop_id, "\n".join(json.dumps(t, ensure_ascii=False) for t in transcript)))
+
+    def exploration(self, stop_id: str) -> dict | None:
+        rows = self.query("SELECT * FROM explorations WHERE stop_id = ?", (stop_id,))
+        return _decode(rows[0], ("stop_photos", "explorer", "harness", "record")) if rows else None
+
+    def put_score(self, row: dict) -> None:
+        with self.transaction() as c:
+            c.execute(
+                f"INSERT OR REPLACE INTO scores (stop_id, photos, scorer, {', '.join(SCORE_COLUMNS)}, answers, "
+                f"seconds, scored_at) VALUES (?, ?, ?, {', '.join('?' * len(SCORE_COLUMNS))}, ?, ?, ?)",
+                (row["stop_id"], _json(row["photos"]), _json(row["scorer"]), *(row.get(k) for k in SCORE_COLUMNS),
+                 _json(row["answers"]), row["seconds"], row.get("scored_at") or utc_now()))
+
+    # ------------------------------------------------------------------ usage and invocations
+
+    def add_usage(self, month: str, key_id: str, api: str, count: int) -> None:
+        if count <= 0:
+            return
+        with self.transaction() as c:
+            c.execute("INSERT INTO usage (month, key_id, api, count) VALUES (?, ?, ?, ?) "
+                      "ON CONFLICT (month, key_id, api) DO UPDATE SET count = count + excluded.count",
+                      (month, key_id, api, count))
+
+    def begin_invocation(self, host: dict, args: dict, git: dict) -> int:
+        with self.transaction() as c:
+            cur = c.execute("INSERT INTO invocations (started_at, host, args, git) VALUES (?, ?, ?, ?)",
+                            (utc_now(), _json(host), _json(args), _json(git)))
+            return int(cur.lastrowid)
+
+    def end_invocation(self, seq: int, status: str, counts: dict) -> None:
+        with self.transaction() as c:
+            c.execute("UPDATE invocations SET finished_at = ?, status = ?, counts = ? WHERE seq = ?",
+                      (utc_now(), status, _json(counts), seq))
+
+    def summary(self) -> dict:
+        """Counts per phase and outcome."""
+        one = lambda sql: self.query(sql)[0][0]  # noqa: E731
+        return {
+            "stops": one("SELECT COUNT(*) FROM stops"),
+            "ingested": dict(self.query("SELECT source, COUNT(*) FROM starts GROUP BY source")),
+            "explored": dict(self.query("SELECT status, COUNT(*) FROM explorations GROUP BY status")),
+            "scored": one("SELECT COUNT(*) FROM scores"),
+            "billed": {f"{r['api']}": r["n"] for r in self.query("SELECT api, SUM(count) AS n FROM usage GROUP BY api")},
+        }
+
+
+def _json(value: object) -> str:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def _json_or_none(value: object) -> str | None:
+    return None if value is None else _json(value)
+
+
+def _decode(row: sqlite3.Row, json_columns: tuple[str, ...]) -> dict:
+    out = dict(row)
+    for k in json_columns:
+        if out.get(k) is not None:
+            out[k] = json.loads(out[k])
+    return out

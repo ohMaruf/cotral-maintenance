@@ -1,189 +1,216 @@
-"""Command-line entry point: `uv run python -m cotral_maintenance --help`.
+"""Command line: `uv run cotral --help` (or `python -m cotral_maintenance`).
 
-Runs the pipeline phases in order on the same selection of stops:
-  Phase 1: check stops against Google Maps (Places API), build the corrected-stops dataset.
-  Phase 2: download Street View images of the stops that dataset confirms, at its positions.
-  Phase 3: score the downloaded stops with Clef, build the scores dataset.
-
-Every phase processes stops sequentially, can be interrupted at any time, and
-resumes where it stopped when re-run.
+    cotral osm download | build          the local OSM store, from Geofabrik
+    cotral models fetch [--profile P]    download a profile's model files (pinned revisions)
+    cotral run RUN (--limit N | --stop-id ID ... | --all | --resume) [--profile P]
+                                         GTFS -> OSM / Places -> explore -> score -> results.csv
+    cotral status RUN                    what a run has done so far
+    cotral export RUN                    rewrite RUN/results.csv
+    cotral bundle RUN [--media all|stop] one .tar.zst to carry the run to another machine
+    cotral unbundle FILE [--replace]     unpack a bundle into the runs directory
+    cotral usage                         billed Google requests this month, per API key
 """
 
 import argparse
+import json
 import logging
-from collections import Counter
-from collections.abc import Callable
-from dataclasses import dataclass
+import sys
+from pathlib import Path
 
-from .config import Settings
-from .downloader import download_stops
+from .caches import UsageLedger, key_id, this_month
 from .errors import ApiError, CotralMaintenanceError
-from .fileutils import RawStore, write_dataset
 from .logging_setup import setup_logging
-from .models import Stop
-from .panoramas import VIEWS
-from .places import PlacesClient
-from .provenance import append_run, git_state, sha256_file, utc_now
-from .scoring import ClefScorer, StopScores, score_stops
-from .scoring import build_dataset as build_scores_dataset
-from .stops import find_pairs, is_cotral_stop, load_stops, sample_order, select_stops
-from .storage import ImageStore
-from .streetview import StreetViewClient
-from .verification import (
-    CONFIRMED,
-    GONE,
-    CorrectedStop,
-    build_dataset,
-    fetch_stops,
-    load_corrected_stops,
-)
+from .settings import DEFAULT_PROFILE, GoogleKey, Paths, load_profile, load_profiles
+from .stops import is_cotral_stop, load_stops, sample_order, select_stops
 
 logger = logging.getLogger(__name__)
 
-EXIT_OK = 0
-EXIT_ERROR = 1
-EXIT_INTERRUPTED = 130
-
-
-def run_phase1_verify_stops(args: argparse.Namespace, settings: Settings, stops: list[Stop]) -> dict:
-    store = RawStore(settings.places_raw_dir)
-    with PlacesClient(settings.api_key, settings.request_timeout_s, settings.referrer) as client:
-        try:
-            fetched = fetch_stops(stops, client, store, 1 in args.force)
-        finally:
-            # Rebuilt even after an interruption, so the dataset always matches the raw data.
-            rows = build_dataset(load_stops(settings.stops_file), store)
-            write_dataset(rows, CorrectedStop, settings.corrected_stops_file)
-            logger.info("Wrote %d rows to %s", len(rows), settings.corrected_stops_file)
-    return {"fetched": fetched, **Counter(row.status.value for row in rows)}
-
-
-def run_phase2_download_images(args: argparse.Namespace, settings: Settings, stops: list[Stop]) -> dict:
-    corrected = load_corrected_stops(settings.corrected_stops_file)
-    targets = [corrected[s.stop_id][0] for s in stops if corrected[s.stop_id][1] in CONFIRMED]
-    logger.info("%d of %d selected stops are confirmed, the others are skipped", len(targets), len(stops))
-    pairs = find_pairs(targets, [stop for stop, status in corrected.values() if status not in GONE])
-    with StreetViewClient(settings.api_key, settings.request_timeout_s, settings.referrer) as client:
-        results = download_stops(targets, VIEWS, client, ImageStore(settings.images_dir), 2 in args.force, pairs)
-    return dict(Counter(result.outcome.value for result in results))
-
-
-def run_phase3_score_stops(args: argparse.Namespace, settings: Settings, stops: list[Stop]) -> dict:
-    images = ImageStore(settings.images_dir)
-    store = RawStore(settings.scores_raw_dir)
-    corrected = load_corrected_stops(settings.corrected_stops_file)
-    downloaded = [
-        corrected[s.stop_id][0] for s in stops
-        if corrected[s.stop_id][1] in CONFIRMED and images.manifest_path(s.stop_id).is_file()
-    ]
-    pending = [s for s in downloaded if 3 in args.force or not store.has(s.stop_id)]
-    logger.info("%d of %d selected stops have images, %d to score", len(downloaded), len(stops), len(pending))
-    scored = 0
-    try:
-        if pending:
-            scored = score_stops(pending, ClefScorer(), images, store)
-    finally:
-        # Rebuilt even after an interruption, so the dataset always matches the raw data.
-        rows = build_scores_dataset(store)
-        write_dataset(rows, StopScores, settings.stop_scores_file)
-        logger.info("Wrote %d rows to %s", len(rows), settings.stop_scores_file)
-    return {"scored": scored, "failed": len(pending) - scored, "dataset_rows": len(rows)}
-
-
-@dataclass(frozen=True)
-class Phase:
-    number: int
-    name: str
-    run: Callable[[argparse.Namespace, Settings, list[Stop]], dict]
-
-
-PHASES = (
-    Phase(1, "check and correct stops (Places API)", run_phase1_verify_stops),
-    Phase(2, "download images (Street View)", run_phase2_download_images),
-    Phase(3, "score stops (Clef)", run_phase3_score_stops),
-)
-LAST_PHASE = PHASES[-1].number
+EXIT_OK, EXIT_ERROR, EXIT_INTERRUPTED = 0, 1, 130
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Cotral bus stop maintenance pipeline. "
-        + " ".join(f"Phase {p.number}: {p.name}." for p in PHASES)
-    )
-    selection = parser.add_mutually_exclusive_group(required=True)
-    selection.add_argument(
-        "--limit", type=int, metavar="N",
-        help="Process the first N stops of the sample. Raising N later extends the same sample.",
-    )
-    selection.add_argument(
-        "--stop-id", action="append", dest="stop_ids", metavar="ID",
-        help="Process only this stop (repeatable).",
-    )
-    selection.add_argument("--all", action="store_true", help="Process every stop in scope.")
-    parser.add_argument("--seed", type=int, default=0, help="Seed of the sample order (default: 0).")
-    parser.add_argument(
-        "--include-shared", action="store_true",
-        help="Also include stops without an 'f<digits>' id (shared, depots, legacy).",
-    )
-    parser.add_argument(
-        "--start-phase", type=int, choices=[p.number for p in PHASES], default=PHASES[0].number,
-        metavar="N", help="Start at phase N, using the output of the earlier phases as it is.",
-    )
-    parser.add_argument(
-        "--stop-after-phase", type=int, choices=[p.number for p in PHASES], default=LAST_PHASE,
-        metavar="N", help=f"Stop after phase N (default: {LAST_PHASE}, the last phase).",
-    )
-    parser.add_argument(
-        "--force", type=int, action="append", choices=[p.number for p in PHASES], default=[], metavar="N",
-        help="Redo the stops phase N has already done (repeatable). Phases 1 and 2 are billed.",
-    )
+    parser = argparse.ArgumentParser(prog="cotral", description="Cotral bus stop maintenance pipeline.")
     parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    osm = sub.add_parser("osm", help="the local OSM store, from Geofabrik")
+    osm.add_argument("action", choices=["download", "build"])
+
+    models = sub.add_parser("models", help="model files of a profile")
+    models.add_argument("action", choices=["fetch", "show"])
+    models.add_argument("--profile", default=None, help=f"default: $COTRAL_PROFILE or {DEFAULT_PROFILE}")
+
+    run = sub.add_parser("run", help="run the pipeline on a run directory (created if new)")
+    run.add_argument("run_id", help="the run's name: its directory under the runs directory")
+    selection = run.add_mutually_exclusive_group(required=True)
+    selection.add_argument("--limit", type=int, metavar="N",
+                           help="the first N stops of the seeded sample (raising N later extends the same sample)")
+    selection.add_argument("--stop-id", action="append", dest="stop_ids", metavar="ID", help="this stop (repeatable)")
+    selection.add_argument("--all", action="store_true", help="every stop in scope")
+    selection.add_argument("--resume", action="store_true", help="the stops already in the run")
+    run.add_argument("--seed", type=int, default=0, help="seed of the sample order (default 0)")
+    run.add_argument("--include-shared", action="store_true",
+                     help="also stops without an 'f<digits>' id (shared with other operators, depots, legacy)")
+    run.add_argument("--profile", default=None, help=f"model profile (default: $COTRAL_PROFILE or {DEFAULT_PROFILE})")
+    run.add_argument("--phases", default="ingest,explore,score",
+                     help="comma-separated subset of ingest,explore,score (default: all)")
+    run.add_argument("--chunk", type=int, default=50, help="stops explored before swapping to the scorer (default 50)")
+    run.add_argument("--force", action="append", default=[], choices=["ingest", "explore", "score"],
+                     help="redo this phase (and the later ones) for the selected stops; explore is billed")
+    run.add_argument("--cap", action="append", default=[], metavar="API=N",
+                     help="monthly cap of billed requests per API key: static, tiles, places "
+                          "(default: Google's free tiers 10000, 100000, 5000)")
+    run.add_argument("--allow-new-gtfs", action="store_true", help="accept a GTFS feed that changed since the run began")
+
+    for name, text in (("status", "what a run has done"), ("export", "rewrite results.csv")):
+        p = sub.add_parser(name, help=text)
+        p.add_argument("run_id")
+
+    bundle = sub.add_parser("bundle", help="pack a run into one .tar.zst")
+    bundle.add_argument("run_id")
+    bundle.add_argument("--out", type=Path, help="default: <runs>/<run>.tar.zst")
+    bundle.add_argument("--media", choices=["all", "stop", "none"], default="all",
+                        help="photos to include: all, only the stop photos, or none (default all)")
+    bundle.add_argument("--no-logs", action="store_true")
+
+    unbundle = sub.add_parser("unbundle", help="unpack a bundle into the runs directory")
+    unbundle.add_argument("archive", type=Path)
+    unbundle.add_argument("--replace", action="store_true", help="update an existing run from the bundle")
+
+    usage = sub.add_parser("usage", help="billed Google requests this month")
+    usage.add_argument("--month", default=None)
     return parser
 
 
-def select_run_stops(args: argparse.Namespace, stops: list[Stop]) -> list[Stop]:
+def select(args: argparse.Namespace, paths: Paths):
+    if args.resume:
+        return None
+    stops = load_stops(paths.gtfs / "stops.txt")
     if args.stop_ids:
         return select_stops(stops, args.stop_ids)
     in_scope = stops if args.include_shared else [s for s in stops if is_cotral_stop(s)]
-    logger.info("%d of %d stops in scope", len(in_scope), len(stops))
     ordered = sample_order(in_scope, args.seed)
     return ordered if args.all else ordered[: args.limit]
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
-    args = parser.parse_args(argv)
-    if args.start_phase > args.stop_after_phase:
-        parser.error("--start-phase is after --stop-after-phase")
-    try:
-        settings = Settings.from_env()
-    except CotralMaintenanceError as exc:
-        logging.basicConfig(format="%(levelname)s: %(message)s")
-        logger.error("%s", exc)
-        return EXIT_ERROR
-    setup_logging(settings.log_file, getattr(logging, args.log_level))
+def parse_caps(values: list[str]) -> dict[str, int]:
+    caps = {}
+    for v in values:
+        api, _, n = v.partition("=")
+        if api not in ("static", "tiles", "places") or not n.isdigit():
+            raise ValueError(f"--cap {v}: expected static=N, tiles=N or places=N")
+        caps[api] = int(n)
+    return caps
 
-    run = {"args": vars(args), "started_at": utc_now(), "git": git_state()}
-    exit_code, status, phase_counts = EXIT_ERROR, "error", {}
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    paths = Paths.from_env()
+    level = getattr(logging, args.log_level)
+    if args.command == "run":
+        setup_logging(paths.runs / args.run_id / "logs" / "pipeline.log", level)
+    else:
+        setup_logging(paths.cache / "logs" / "cotral.log", level)
     try:
-        run["gtfs_stops_sha256"] = sha256_file(settings.stops_file)
-        stops = select_run_stops(args, load_stops(settings.stops_file))
-        logger.info("%d stops selected", len(stops))
-        for phase in PHASES[args.start_phase - 1 : args.stop_after_phase]:
-            logger.info("Phase %d: %s", phase.number, phase.name)
-            phase_counts[phase.number] = phase.run(args, settings, stops)
-            logger.info("Phase %d done: %s", phase.number, phase_counts[phase.number])
-        exit_code, status = EXIT_OK, "ok"
+        return COMMANDS[args.command](args, paths)
     except KeyboardInterrupt:
-        exit_code, status = EXIT_INTERRUPTED, "interrupted"
-        logger.warning("Interrupted. Re-run the same command to resume; finished stops are kept.")
-    except ApiError as exc:
-        logger.error("API rejected the request: %s", exc)
-    except (CotralMaintenanceError, OSError) as exc:
-        logger.error("%s", exc)
-    finally:
-        append_run(
-            settings.runs_log,
-            {**run, "finished_at": utc_now(), "status": status, "phases": phase_counts},
-        )
-    return exit_code
+        return EXIT_INTERRUPTED
+    except ApiError as error:
+        logger.error("Google rejected the request: %s", error)
+    except (CotralMaintenanceError, OSError, ValueError, RuntimeError) as error:
+        logger.error("%s", error)
+    return EXIT_ERROR
+
+
+def cmd_osm(args, paths: Paths) -> int:
+    from .osm_build import build, download
+
+    if args.action == "download":
+        for p in download(paths.osm_dir):
+            logger.info("Saved %s", p)
+    else:
+        logger.info("Built %s: %s", paths.osm_store, build(paths.osm_dir, paths.osm_store, paths.gtfs / "stops.txt"))
+    return EXIT_OK
+
+
+def cmd_models(args, paths: Paths) -> int:
+    from .servers import fetch
+
+    profile = load_profile(paths, args.profile)
+    files = [*profile.explorer.server.files.values(), *profile.scorer.server.files.values(),
+             *profile.scorer.readout.values()]
+    for f in files:
+        path = fetch(f, paths.models) if args.action == "fetch" else f.path(paths.models)
+        print(f"{f.repo}@{f.revision[:12]}/{f.file}\t{path}\t{'ok' if path.is_file() else 'missing'}")
+    if args.action == "show":
+        print(f"profiles in {paths.profiles}: {', '.join(load_profiles(paths.profiles))}")
+    return EXIT_OK
+
+
+def cmd_run(args, paths: Paths) -> int:
+    from .pipeline.run import RunRequest, run_pipeline
+
+    phases = tuple(p.strip() for p in args.phases.split(",") if p.strip())
+    unknown = set(phases) - {"ingest", "explore", "score"}
+    if unknown:
+        raise ValueError(f"unknown phases: {', '.join(sorted(unknown))}")
+    req = RunRequest(run_id=args.run_id, profile=load_profile(paths, args.profile), stops=select(args, paths),
+                     phases=phases, chunk=args.chunk, force=tuple(args.force), caps=parse_caps(args.cap),
+                     allow_new_gtfs=args.allow_new_gtfs)
+    counts = run_pipeline(req, paths)
+    print(json.dumps(counts, indent=1))
+    return EXIT_OK
+
+
+def cmd_status(args, paths: Paths) -> int:
+    from .runstore import RunStore
+
+    with RunStore(paths.runs / args.run_id) as run:
+        print(json.dumps({"run": str(run.root), **run.summary(),
+                          "invocations": [dict(r) for r in run.query(
+                              "SELECT seq, started_at, finished_at, status, counts FROM invocations ORDER BY seq")]},
+                         indent=1))
+    return EXIT_OK
+
+
+def cmd_export(args, paths: Paths) -> int:
+    from .pipeline.export import write_results
+    from .runstore import RunStore
+
+    with RunStore(paths.runs / args.run_id) as run:
+        path, n = write_results(run)
+    print(f"{path}: {n} stops")
+    return EXIT_OK
+
+
+def cmd_bundle(args, paths: Paths) -> int:
+    from .pipeline.bundle import bundle
+
+    out = args.out or paths.runs / f"{args.run_id}.tar.zst"
+    path, n = bundle(paths.runs / args.run_id, out, args.media, logs=not args.no_logs)
+    print(f"{path}: {n} photos, {path.stat().st_size / 1e6:.1f} MB")
+    return EXIT_OK
+
+
+def cmd_unbundle(args, paths: Paths) -> int:
+    from .pipeline.bundle import unbundle
+
+    print(unbundle(args.archive, paths.runs, args.replace))
+    return EXIT_OK
+
+
+def cmd_usage(args, paths: Paths) -> int:
+    ledger = UsageLedger(paths.cache / "usage.sqlite")
+    key = key_id(GoogleKey.from_env().api_key)
+    month = args.month or this_month()
+    used = ledger.used(key, month)
+    print(json.dumps({"month": month, "key": key, "used": used,
+                      "cap": ledger.caps, "left": {k: ledger.caps[k] - used.get(k, 0) for k in ledger.caps}}, indent=1))
+    return EXIT_OK
+
+
+COMMANDS = {"osm": cmd_osm, "models": cmd_models, "run": cmd_run, "status": cmd_status, "export": cmd_export,
+            "bundle": cmd_bundle, "unbundle": cmd_unbundle, "usage": cmd_usage}
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,42 +1,35 @@
-"""Build the local OSM store (cotral_maintenance/osm_store.py) from Geofabrik extracts.
+"""Build the local OSM store (osm_store.py) from Geofabrik extracts: `cotral osm download`, `cotral osm build`.
 
-Input: data/osm/extracts/{centro,sud}-latest.osm.pbf (Geofabrik's Central and
-Southern Italy: Lazio, Umbria, Tuscany, Abruzzo, Campania, ...), downloaded once.
+Input: Geofabrik's Central and Southern Italy extracts (Lazio, Umbria, Tuscany, Abruzzo, Campania, ...).
 Only what lies within REGION_MARGIN_DEG of the Cotral network's extent is kept:
   - roads a bus may drive on, with the one-way rule for a bus
   - every stop-like object (bus stops, platforms, stop positions, public-transport
     shelters, bus stations), whatever its tagging
-Output: data/osm/osm.sqlite3 (replaced).
-
-Usage, from the repository root (pyosmium is in the "osm" extra):
-    uv run --extra osm python experiments/explore/build_osm_store.py
+Output: the OSM store (replaced). pyosmium is in the "osm" extra.
 """
 
 import logging
 import re
-import sys
 import time
 from pathlib import Path
 
-import osmium
+import requests
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from cotral_maintenance.osm_store import OsmStore, Road, StopFeature, bus_road, stop_kind
-from cotral_maintenance.provenance import utc_now
-from cotral_maintenance.stops import load_stops
+from .osm_store import OsmStore, Road, StopFeature, bus_road, stop_kind
+from .provenance import utc_now
+from .stops import load_stops
 
-EXTRACTS = (Path("data/osm/extracts/centro-latest.osm.pbf"), Path("data/osm/extracts/sud-latest.osm.pbf"))
-STORE = Path("data/osm/osm.sqlite3")
-STOPS = Path("GTFS_COTRAL/stops.txt")
+GEOFABRIK = "https://download.geofabrik.de/europe/italy/{name}-latest.osm.pbf"
+EXTRACTS = ("centro", "sud")
 REGION_MARGIN_DEG = 0.05  # about 5 km around the network's extent
 BATCH = 20_000
 TAG_KEYS = ("highway", "public_transport", "amenity")
 
-logger = logging.getLogger("build_osm_store")
+logger = logging.getLogger(__name__)
 
 
-def network_region() -> tuple[float, float, float, float]:
-    stops = [s for s in load_stops(STOPS) if re.fullmatch(r"f\d+", s.stop_id)]
+def network_region(stops_file: Path) -> tuple[float, float, float, float]:
+    stops = [s for s in load_stops(stops_file) if re.fullmatch(r"f\d+", s.stop_id)]
     lats, lons = [s.lat for s in stops], [s.lon for s in stops]
     m = REGION_MARGIN_DEG
     return min(lats) - m, min(lons) - m, max(lats) + m, max(lons) + m
@@ -56,6 +49,8 @@ def read_extract(path: Path, store: OsmStore, region) -> tuple[int, int]:
     roads: list[Road] = []
     stops: list[StopFeature] = []
     n_roads = n_stops = 0
+    import osmium
+
     processor = (osmium.FileProcessor(path).with_locations()
                  .with_areas(osmium.filter.KeyFilter(*TAG_KEYS))
                  .with_filter(osmium.filter.KeyFilter(*TAG_KEYS)))
@@ -97,27 +92,45 @@ def read_extract(path: Path, store: OsmStore, region) -> tuple[int, int]:
     return n_roads, n_stops
 
 
-def main() -> int:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
-    missing = [p for p in EXTRACTS if not p.is_file()]
+def download(directory: Path) -> list[Path]:
+    """Fetch the extracts (about 1 GB in all), replacing older copies."""
+    directory.mkdir(parents=True, exist_ok=True)
+    out = []
+    for name in EXTRACTS:
+        url, path = GEOFABRIK.format(name=name), directory / f"{name}-latest.osm.pbf"
+        tmp = path.with_name(path.name + ".part")
+        logger.info("Downloading %s", url)
+        with requests.get(url, stream=True, timeout=60) as r:
+            r.raise_for_status()
+            with tmp.open("wb") as f:
+                for chunk in r.iter_content(1 << 20):
+                    f.write(chunk)
+        tmp.replace(path)
+        out.append(path)
+    return out
+
+
+def build(directory: Path, store_path: Path, stops_file: Path) -> dict:
+    import osmium  # noqa: F401  (the "osm" extra; checked before the store is emptied)
+
+    extracts = [directory / f"{name}-latest.osm.pbf" for name in EXTRACTS]
+    missing = [p for p in extracts if not p.is_file()]
     if missing:
-        raise SystemExit(f"missing extracts: {', '.join(map(str, missing))} (download from download.geofabrik.de)")
-    region = network_region()
-    store = OsmStore(STORE)
+        raise FileNotFoundError(f"missing extracts: {', '.join(map(str, missing))} (run `cotral osm download`)")
+    region = network_region(stops_file)
+    store = OsmStore(store_path)
     store.create()
-    for path in EXTRACTS:
+    totals = {"roads": 0, "stops": 0}
+    for path in extracts:
         start = time.monotonic()
         n_roads, n_stops = read_extract(path, store, region)
+        totals["roads"] += n_roads
+        totals["stops"] += n_stops
         logger.info("%s: %d roads, %d stop-like objects in %.0f s", path.name, n_roads, n_stops,
                     time.monotonic() - start)
     store.set_meta({
         "built_at": utc_now(), "region": ",".join(f"{v:.4f}" for v in region),
         "extracts": ",".join(f"{p.name}@{time.strftime('%Y-%m-%dT%H:%M:%S', time.gmtime(p.stat().st_mtime))}"
-                             for p in EXTRACTS),
+                             for p in extracts),
     })
-    logger.info("wrote %s", STORE)
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+    return totals

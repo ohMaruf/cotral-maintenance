@@ -9,16 +9,11 @@ Built once per stop, before the explorer's first turn (design doc §11, steps A-
 Nothing here knows the verified position.
 """
 
-import json
 import logging
 import math
-import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from pathlib import Path
 
-from ..errors import NoImageryError, ServerError
-from ..models import PanoMetadata
+from ..caches import MetadataCache
 from ..osm_match import OsmMatch, match_osm
 from ..osm_store import OsmStore, bbox_around
 from ..roadpath import LocalFrame, RoadGraph, match
@@ -90,39 +85,6 @@ class World:
 
     def latlon(self, p) -> tuple[float, float]:
         return self.frame.to_latlon(*p)
-
-
-class MetadataCache:
-    """Street View metadata lookups (free), cached on disk by rounded position and radius."""
-
-    def __init__(self, path: Path, lookup: Callable[[float, float, float], PanoMetadata]) -> None:
-        self.path = path
-        self.lookup = lookup
-        self.data: dict[str, dict | None] = json.loads(path.read_text()) if path.is_file() else {}
-
-    def get(self, lat: float, lon: float, radius: float) -> PanoMetadata | None:
-        key = f"{lat:.6f},{lon:.6f},{radius:.0f}"
-        if key not in self.data:
-            for attempt in (1, 2):
-                try:
-                    m = self.lookup(lat, lon, radius)
-                    self.data[key] = {"pano_id": m.pano_id, "lat": m.lat, "lon": m.lon, "date": m.date,
-                                      "copyright": m.copyright}
-                    break
-                except NoImageryError:
-                    self.data[key] = None
-                    break
-                except ServerError as error:  # transient on Google's side: retry once, then skip uncached
-                    if attempt == 2:
-                        logger.warning("metadata lookup failed twice at %s: %s", key, error)
-                        return None
-                    time.sleep(1.0)
-        value = self.data[key]
-        return PanoMetadata(**value) if value else None
-
-    def save(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(self.data))
 
 
 def build_world(stop: Stop, services: list[Service], shapes: dict[str, list[tuple[float, float]]],

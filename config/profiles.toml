@@ -1,0 +1,117 @@
+# Model profiles: which explorer and which scorer a run uses, and how their servers start.
+#
+#   uv run cotral run --profile remote ...        (the default: the Linux server with the NVIDIA GPU)
+#   uv run cotral run --profile local-smoke ...   (a quick end-to-end check on the Mac)
+#
+# Swapping a model = another profile (or editing one) and a restart; every result records the
+# profile entry that produced it (model files, revisions, server arguments).
+#
+# [profiles.<name>.explorer] / [profiles.<name>.scorer]
+#   dialect      explorer: "llamacpp" (llama-server: required tool calls, server slots, thinking controls)
+#                          or "strict" (a plain OpenAI server such as TurboFieldfare: no extra fields,
+#                          images only in user messages, tool_choice auto)
+#                scorer:   "llamacpp-readout" (Imajev GGUF on llama-server + the trained readout, here)
+#                          or "systemone" (Imajev's own reference server)
+#   model        the name sent as "model"
+#   concurrency  explorer: stops explored at once (each needs 2 server slots with llamacpp: explorer + confirmer)
+#                scorer:   forward passes in flight
+#   [..server]   how to start the server; kind = "llama-server" | "command" | "external" (already running)
+#     files      model files fetched from Hugging Face at a pinned revision into the models directory;
+#                {file:<key>} in args / command is replaced by the local path
+#     args       llama-server arguments ({port} is replaced)
+#
+# Paths can be overridden with COTRAL_* environment variables (see cotral_maintenance/settings.py).
+
+[profiles.remote]
+description = "Linux + NVIDIA 16 GB (CUDA): Qwen3.8-27B UD-Q2_K_XL explorer, Imajev-4B GGUF scorer, both on llama.cpp"
+
+[profiles.remote.explorer]
+dialect = "llamacpp"
+model = "qwen3.8-27b"
+concurrency = 2
+sampling = { temperature = 1.0, top_p = 0.95, top_k = 20, min_p = 0.0, presence_penalty = 0.0 }
+template = { reasoning_effort = "low", preserve_thinking = true }
+max_tokens = 3000
+
+[profiles.remote.explorer.server]
+kind = "llama-server"
+port = 8080
+files.model = { repo = "unsloth/Qwen3.8-27B-GGUF", revision = "4af51b3542f775b0a8e4b310bfb3f17e01c306c9", file = "Qwen3.8-27B-UD-Q2_K_XL.gguf" }
+files.mmproj = { repo = "unsloth/Qwen3.8-27B-GGUF", revision = "4af51b3542f775b0a8e4b310bfb3f17e01c306c9", file = "mmproj-F16.gguf" }
+# 16 GB card: ~10.7 GB of weights + projector. 4 slots (2 explorers + 2 confirmers) share one KV cache
+# (--kv-unified) of 96k tokens in q8_0 (only 16 of the 64 layers have attention). Thinking is capped
+# at 300 tokens (see experiments/explore/qwen_server.sh for the measurements behind these settings).
+args = ["-m", "{file:model}", "--mmproj", "{file:mmproj}", "--alias", "qwen3.8-27b",
+        "--host", "127.0.0.1", "--port", "{port}",
+        "-c", "98304", "-np", "4", "--kv-unified", "-ngl", "99", "-fa", "on",
+        "--cache-type-k", "q8_0", "--cache-type-v", "q8_0",
+        "--jinja", "--reasoning-format", "deepseek",
+        "--reasoning-budget", "300", "--reasoning-budget-message", " Enough thinking: act now with one tool call."]
+
+[profiles.remote.scorer]
+dialect = "llamacpp-readout"
+model = "imajev-4b"
+concurrency = 4
+rotations = 4
+
+[profiles.remote.scorer.readout]
+# The trained decision readout and calibration live in the adapter repository, not in the GGUF.
+readout = { repo = "mohit67890/imajev-4b", revision = "27d4e54fc11efeea2ea4d10e910643440d2333b5", file = "decision_readout.safetensors" }
+calibration = { repo = "mohit67890/imajev-4b", revision = "27d4e54fc11efeea2ea4d10e910643440d2333b5", file = "calibration-rot4.json" }
+
+[profiles.remote.scorer.server]
+kind = "llama-server"
+port = 8090
+files.model = { repo = "mindchain/imajev-4b-GGUF", revision = "4b9045adf0c9913f02b802e9c555a8d772b8cf08", file = "imajev-4b-Q8_0.gguf" }
+files.mmproj = { repo = "mindchain/imajev-4b-GGUF", revision = "4b9045adf0c9913f02b802e9c555a8d772b8cf08", file = "imajev-4b-mmproj-f16.gguf" }
+# Q8_0: the closest to the weights the calibration was fitted on; the scorer runs alone on the GPU.
+args = ["-m", "{file:model}", "--mmproj", "{file:mmproj}", "--alias", "imajev-4b",
+        "--host", "127.0.0.1", "--port", "{port}",
+        "-c", "16384", "-np", "4", "-ngl", "99", "-fa", "on", "-ub", "2048", "-b", "2048",
+        "--embeddings", "--pooling", "last"]
+
+
+[profiles.local-smoke]
+description = "MacBook: TurboFieldfare (Gemma 4 26B-A4B) explorer, Imajev-4B MLX reference server scorer"
+
+[profiles.local-smoke.explorer]
+dialect = "strict"
+model = "gemma-4-26b-a4b-it"
+concurrency = 1  # TurboFieldfare runs one generation at a time
+sampling = { temperature = 1.0, top_p = 0.95, top_k = 64 }
+max_tokens = 2000
+
+[profiles.local-smoke.explorer.server]
+kind = "command"
+port = 8081
+cwd = "turbo-fieldfare"
+command = [".build/release/TurboFieldfareServer", "--model", "scratch/gemma4.gturbo",
+           "--vision-pack", "scratch/gemma4.vision.gturbo", "--port", "{port}", "--max-context", "65536"]
+health = "/health"
+
+[profiles.local-smoke.scorer]
+dialect = "systemone"
+model = "imajev-4b"
+
+[profiles.local-smoke.scorer.server]
+kind = "command"
+port = 8765
+# Imajev's reference server (github.com/mohit67890/imajev, MLX backend) in its own environment:
+# see scripts/setup_imajev_mlx.sh. IMAJEV_HOME is where that script installed it.
+cwd = "{env:IMAJEV_HOME}"
+command = ["{env:IMAJEV_HOME}/.venv/bin/python", "scripts/playground/server.py", "--model-bundle", "artifacts/model-local.json",
+           "--adapter", "adapters/imajev-4b/mlx", "--rotations", "4",
+           "--calibration", "adapters/imajev-4b/calibration-rot4.json", "--model-name", "imajev-4b", "--port", "{port}"]
+env = { PYTHONPATH = "src:scripts" }
+health = "/v1/models"
+
+
+[profiles.local-gguf]
+description = "MacBook: the remote profile's models on llama.cpp Metal (slow; checks the exact remote code path)"
+inherit = "remote"
+
+[profiles.local-gguf.explorer]
+concurrency = 1
+
+[profiles.local-gguf.scorer.server]
+files.model = { repo = "mindchain/imajev-4b-GGUF", revision = "4b9045adf0c9913f02b802e9c555a8d772b8cf08", file = "imajev-4b-Q4_K_M.gguf" }

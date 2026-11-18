@@ -7,7 +7,7 @@ from cotral_maintenance.errors import ConfigError, NoImageryError
 from cotral_maintenance.explorer.llm import ChatClient
 from cotral_maintenance.models import PanoMetadata
 from cotral_maintenance.servers import _expand
-from cotral_maintenance.settings import ROOT, Paths, ServerSpec, load_profile
+from cotral_maintenance.settings import ROOT, SCORER_DIALECTS, Paths, ServerSpec, load_profile
 
 
 def paths_with(tmp_path, text):
@@ -21,7 +21,7 @@ def test_shipped_profiles_load():
     for name in ("remote", "local-smoke", "local-gguf"):
         profile = load_profile(paths, name)
         assert profile.explorer.dialect in ("llamacpp", "strict")
-        assert profile.scorer.dialect in ("llamacpp-readout", "systemone")
+        assert profile.scorer.dialect in SCORER_DIALECTS
     local = load_profile(paths, "local-gguf")
     assert local.explorer.concurrency == 1 and local.explorer.dialect == "llamacpp"  # inherited, then overridden
     assert local.scorer.server.files["model"].file.endswith("Q4_K_M.gguf")

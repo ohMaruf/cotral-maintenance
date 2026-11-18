@@ -10,8 +10,9 @@
 #   dialect      explorer: "llamacpp" (llama-server: required tool calls, server slots, thinking controls)
 #                          or "strict" (a plain OpenAI server such as TurboFieldfare: no extra fields,
 #                          images only in user messages, tool_choice auto)
-#                scorer:   "llamacpp-readout" (Imajev GGUF on llama-server + the trained readout, here)
-#                          or "systemone" (Imajev's own reference server)
+#                scorer:   "llamacpp-systemone" (a decision GGUF with its own head, e.g. H2O Lightning:
+#                          llama-server answers /v1/systemone), "llamacpp-readout" (Imajev GGUF on
+#                          llama-server + the trained readout, here) or "systemone" (Imajev's own server)
 #   model        the name sent as "model"
 #   concurrency  explorer: stops explored at once (each needs 2 server slots with llamacpp: explorer + confirmer)
 #                scorer:   forward passes in flight
@@ -19,11 +20,12 @@
 #     files      model files fetched from Hugging Face at a pinned revision into the models directory;
 #                {file:<key>} in args / command is replaced by the local path
 #     args       llama-server arguments ({port} is replaced)
+#     binary     the llama-server to run (default: $LLAMA_SERVER, else llama-server on the PATH)
 #
 # Paths can be overridden with COTRAL_* environment variables (see cotral_maintenance/settings.py).
 
 [profiles.remote]
-description = "Linux + NVIDIA 16 GB (CUDA): Qwen3.8-27B UD-Q2_K_XL explorer, Imajev-4B GGUF scorer, both on llama.cpp"
+description = "Linux + NVIDIA 16 GB (CUDA): Qwen3.8-27B UD-Q2_K_XL explorer, H2O Lightning 4B scorer, both on llama.cpp"
 
 [profiles.remote.explorer]
 dialect = "llamacpp"
@@ -49,17 +51,42 @@ args = ["-m", "{file:model}", "--mmproj", "{file:mmproj}", "--alias", "qwen3.8-2
         "--reasoning-budget", "300", "--reasoning-budget-message", " Enough thinking: act now with one tool call."]
 
 [profiles.remote.scorer]
+# H2O Lightning 4B: a Jev decision model whose GGUF carries its decision head; llama-server answers
+# /v1/systemone itself (llama.cpp build 11773 or later, built by setup_remote.sh as the scorer's own binary;
+# the explorer keeps b11429). Settings from the model card, the ones its numbers were measured with: one
+# 40,960-token slot, 1,024 image tokens. Q8_0: the card's recommended file (99.6 % of answers as BF16).
+dialect = "llamacpp-systemone"
+model = "h2o-lightning-4b"
+
+[profiles.remote.scorer.server]
+kind = "llama-server"
+port = 8090
+binary = "~/.local/opt/llama.cpp-b11773/build/bin/llama-server"
+files.model = { repo = "h2oai/h2o-lightning-4b-gguf", revision = "61f8d8b7a8c2d84426d0d143ca187f65d235934b", file = "h2o-lightning-4b-Q8_0.gguf" }
+files.mmproj = { repo = "h2oai/h2o-lightning-4b-gguf", revision = "61f8d8b7a8c2d84426d0d143ca187f65d235934b", file = "mmproj-lightning-f16.gguf" }
+args = ["-m", "{file:model}", "--mmproj", "{file:mmproj}", "--alias", "h2oai/h2o-lightning-4b",
+        "--host", "127.0.0.1", "--port", "{port}",
+        "-c", "40960", "-np", "1", "--no-kv-unified", "--image-max-tokens", "1024", "-ngl", "99"]
+
+
+# The remote with Imajev-4B as the scorer (the default before H2O Lightning).
+[profiles.remote-imajev]
+description = "Linux server: Qwen3.8 explorer, Imajev-4B scorer (GGUF + trained readout)"
+inherit = "remote"
+
+[profiles.remote-imajev.scorer]
+inherit = false
 dialect = "llamacpp-readout"
 model = "imajev-4b"
 concurrency = 4
 rotations = 4
 
-[profiles.remote.scorer.readout]
+[profiles.remote-imajev.scorer.readout]
 # The trained decision readout and calibration live in the adapter repository, not in the GGUF.
 readout = { repo = "mohit67890/imajev-4b", revision = "27d4e54fc11efeea2ea4d10e910643440d2333b5", file = "decision_readout.safetensors" }
 calibration = { repo = "mohit67890/imajev-4b", revision = "27d4e54fc11efeea2ea4d10e910643440d2333b5", file = "calibration-rot4.json" }
 
-[profiles.remote.scorer.server]
+[profiles.remote-imajev.scorer.server]
 kind = "llama-server"
 port = 8090
 files.model = { repo = "mindchain/imajev-4b-GGUF", revision = "4b9045adf0c9913f02b802e9c555a8d772b8cf08", file = "imajev-4b-Q8_0.gguf" }
@@ -113,7 +140,16 @@ inherit = "remote"
 [profiles.local-gguf.explorer]
 concurrency = 1
 
-[profiles.local-gguf.scorer.server]
+
+
+[profiles.local-imajev]
+description = "MacBook: Qwen3.8 explorer, Imajev-4B Q4_K_M scorer, on llama.cpp Metal"
+inherit = "remote-imajev"
+
+[profiles.local-imajev.explorer]
+concurrency = 1
+
+[profiles.local-imajev.scorer.server]
 files.model = { repo = "mindchain/imajev-4b-GGUF", revision = "4b9045adf0c9913f02b802e9c555a8d772b8cf08", file = "imajev-4b-Q4_K_M.gguf" }
 
 
@@ -140,26 +176,3 @@ args = ["-m", "{file:model}", "--mmproj", "{file:mmproj}", "--alias", "imajev-4b
         "--host", "127.0.0.1", "--port", "{port}",
         "-c", "8192", "-np", "2", "-ngl", "99", "-fa", "on", "-ub", "2048", "-b", "2048",
         "--embeddings", "--pooling", "last"]
-
-
-# H2O Lightning 4B in place of Imajev: a Jev decision model whose GGUF carries its decision head, answered by
-# llama-server itself on /v1/systemone (llama.cpp build 11773 or later: its own binary, the explorer keeps b11429).
-# Settings from the model card (the ones its numbers were measured with): one 40,960-token slot, 1,024 image tokens.
-[profiles.local-h2o]
-description = "MacBook: Qwen3.8 explorer, H2O Lightning 4B Q8_0 scorer, both on llama.cpp Metal"
-inherit = "local-gguf"
-
-[profiles.local-h2o.scorer]
-inherit = false
-dialect = "llamacpp-systemone"
-model = "h2o-lightning-4b"
-
-[profiles.local-h2o.scorer.server]
-kind = "llama-server"
-port = 8090
-binary = "~/.local/opt/llama.cpp-b11773/build/bin/llama-server"
-files.model = { repo = "h2oai/h2o-lightning-4b-gguf", revision = "61f8d8b7a8c2d84426d0d143ca187f65d235934b", file = "h2o-lightning-4b-Q8_0.gguf" }
-files.mmproj = { repo = "h2oai/h2o-lightning-4b-gguf", revision = "61f8d8b7a8c2d84426d0d143ca187f65d235934b", file = "mmproj-lightning-f16.gguf" }
-args = ["-m", "{file:model}", "--mmproj", "{file:mmproj}", "--alias", "h2oai/h2o-lightning-4b",
-        "--host", "127.0.0.1", "--port", "{port}",
-        "-c", "40960", "-np", "1", "--no-kv-unified", "--image-max-tokens", "1024", "-ngl", "99"]

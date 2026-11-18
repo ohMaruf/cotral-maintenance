@@ -2,7 +2,7 @@
 
 ```
 GTFS stop ──► ingest ──────────────────► explore ───────────────────────► score ───────────► results.csv
-              OSM (Geofabrik) object,     LLM explorer in Street View:     Imajev on the 1-2
+              OSM (Geofabrik) object,     LLM explorer in Street View:     the scorer on the 1-2
               else Places, else GTFS:     finds the stop, confirms it,     stop photos: what is around
               where the search starts     keeps 1-2 photos of it           the stop -> a condition
 ```
@@ -28,11 +28,12 @@ that produced it.
 
 | Profile | Explorer | Scorer | For |
 |---|---|---|---|
-| `remote` | Qwen3.8-27B UD-Q2_K_XL (Unsloth GGUF), llama.cpp CUDA, 2 stops at once | Imajev-4B Q8_0 GGUF, llama.cpp CUDA | the Linux server, 16 GB NVIDIA |
+| `remote` | Qwen3.8-27B UD-Q2_K_XL (Unsloth GGUF), llama.cpp CUDA, 2 stops at once | H2O Lightning 4B Q8_0 GGUF, llama.cpp b11773 CUDA (its own build) | the Linux server, 16 GB NVIDIA |
+| `remote-imajev` | as `remote` | Imajev-4B Q8_0 GGUF + its trained readout | the Linux server, with the previous scorer |
 | `local-smoke` | TurboFieldfare (Gemma 4 26B-A4B) | Imajev-4B MLX, Imajev's reference server | quick checks on the Mac |
 | `local-smoke-gguf` | TurboFieldfare | Imajev-4B Q4_K_M GGUF, llama.cpp Metal | the Mac without the MLX server |
-| `local-gguf` | Qwen3.8 GGUF on Metal | Imajev GGUF on Metal | the remote code path, slowly, on the Mac |
-| `local-h2o` | Qwen3.8 GGUF on Metal | H2O Lightning 4B Q8_0 on Metal (llama.cpp b11773, its own binary) | trying H2O Lightning in place of Imajev |
+| `local-gguf` | Qwen3.8 GGUF on Metal | H2O Lightning 4B Q8_0 on Metal (llama.cpp b11773 in `~/.local/opt/llama.cpp-b11773`) | the remote code path, slowly, on the Mac |
+| `local-imajev` | Qwen3.8 GGUF on Metal | Imajev Q4_K_M GGUF on Metal | the previous scorer on the Mac |
 
 The explorer speaks one of two dialects: `llamacpp` (llama-server: forced tool calls, a server slot per
 explorer and per confirmer so their prompt caches survive, thinking budget) or `strict` (plain OpenAI
@@ -46,7 +47,7 @@ own head, such as H2O Lightning 4B: llama-server, build 11773 or later, answers 
 
 ```bash
 git clone <this repo> cotral-maintenance && cd cotral-maintenance
-scripts/setup_remote.sh            # uv, Python 3.14, llama.cpp built with CUDA, the models
+scripts/setup_remote.sh            # uv, Python 3.14, llama.cpp b11429 + b11773 built with CUDA, the models
 # inputs that are not in git: copy them from the laptop
 rsync -a GTFS_COTRAL GROUND_TRUTH .env server:cotral-maintenance/
 uv run cotral osm download && uv run --extra osm cotral osm build    # once, ~10 min
@@ -132,7 +133,7 @@ sha256 of their bytes; the file is `media/<first 2 hex>/<sha256>.jpg`.
 
 The explorer reports a stop only once it has confirmed it (a stop sign, or a shelter or stop markings
 when there is no sign: the exploration's `evidence` says which), so the stop itself is not scored.
-Imajev judges what is around it, on the 1-2 stop photos. Every value is 0 (bad) .. 1 (good):
+The scorer (H2O Lightning 4B by default) judges what is around it, on the 1-2 stop photos. Every value is 0 (bad) .. 1 (good):
 
 | Score | Question |
 |---|---|
@@ -161,7 +162,7 @@ Every result says what made it. Each phase has a **version**, a 12-hex hash of w
 |---|---|
 | ingest | `INGEST_VERSION`, the OSM store's build (time, region, extracts), the GTFS `stops.txt` sha256 |
 | explore | `HARNESS_VERSION`, the explorer prompt's sha256, the reference images' sha256, the explorer models (files, revisions, sampling, server arguments) |
-| score | `SCORER_VERSION`, the sha256 of every prompt text Imajev reads (header, questions, state), the scorer model (files, revisions, readout, calibration, rotations) |
+| score | `SCORER_VERSION`, the sha256 of every prompt text the scorer reads (header, questions, state), the scorer model (files, revisions, readout, calibration, rotations) |
 
 Ports and concurrency are left out (they change speed, not results), and so is the git commit: a
 commit that does not touch a phase must not split its rows. The commit, a sha256 of any uncommitted

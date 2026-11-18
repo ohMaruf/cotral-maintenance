@@ -29,7 +29,8 @@ def test_shipped_profiles_load():
     imajev = load_profile(paths, "local-imajev")
     assert imajev.scorer.server.files["model"].file.endswith("Q4_K_M.gguf") and imajev.scorer.readout
     assert imajev.explorer.concurrency == 1
-    assert local.scorer.server.files["mmproj"].file == "imajev-4b-mmproj-f16.gguf"
+    assert local.scorer.server.files["mmproj"].file == "mmproj-lightning-f16.gguf"
+    assert imajev.scorer.server.files["mmproj"].file == "imajev-4b-mmproj-f16.gguf"  # inherited
 
 
 def test_profile_errors_are_explained(tmp_path):

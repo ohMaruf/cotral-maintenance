@@ -115,3 +115,28 @@ concurrency = 1
 
 [profiles.local-gguf.scorer.server]
 files.model = { repo = "mindchain/imajev-4b-GGUF", revision = "4b9045adf0c9913f02b802e9c555a8d772b8cf08", file = "imajev-4b-Q4_K_M.gguf" }
+
+
+[profiles.local-smoke-gguf]
+description = "MacBook: TurboFieldfare explorer, Imajev-4B GGUF scorer on llama.cpp Metal (no MLX server needed)"
+inherit = "local-smoke"
+
+[profiles.local-smoke-gguf.scorer]
+dialect = "llamacpp-readout"
+model = "imajev-4b"
+concurrency = 2
+rotations = 4
+
+[profiles.local-smoke-gguf.scorer.readout]
+readout = { repo = "mohit67890/imajev-4b", revision = "27d4e54fc11efeea2ea4d10e910643440d2333b5", file = "decision_readout.safetensors" }
+calibration = { repo = "mohit67890/imajev-4b", revision = "27d4e54fc11efeea2ea4d10e910643440d2333b5", file = "calibration-rot4.json" }
+
+[profiles.local-smoke-gguf.scorer.server]
+kind = "llama-server"
+port = 8090
+files.model = { repo = "mindchain/imajev-4b-GGUF", revision = "4b9045adf0c9913f02b802e9c555a8d772b8cf08", file = "imajev-4b-Q4_K_M.gguf" }
+files.mmproj = { repo = "mindchain/imajev-4b-GGUF", revision = "4b9045adf0c9913f02b802e9c555a8d772b8cf08", file = "imajev-4b-mmproj-f16.gguf" }
+args = ["-m", "{file:model}", "--mmproj", "{file:mmproj}", "--alias", "imajev-4b",
+        "--host", "127.0.0.1", "--port", "{port}",
+        "-c", "8192", "-np", "2", "-ngl", "99", "-fa", "on", "-ub", "2048", "-b", "2048",
+        "--embeddings", "--pooling", "last"]

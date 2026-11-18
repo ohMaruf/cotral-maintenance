@@ -13,7 +13,7 @@ MAX_LOG_BYTES = 5_000_000
 LOG_BACKUP_COUNT = 3
 
 # Third-party loggers that would otherwise log request URLs, which contain the API key.
-NOISY_LOGGERS = ("urllib3", "requests")
+NOISY_LOGGERS = ("urllib3", "requests", "PIL", "filelock", "huggingface_hub")
 
 
 def setup_logging(log_file: Path, console_level: int = logging.INFO) -> None:

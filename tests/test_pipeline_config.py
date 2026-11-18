@@ -18,13 +18,17 @@ def paths_with(tmp_path, text):
 
 def test_shipped_profiles_load():
     paths = Paths.from_env()
-    for name in ("remote", "local-smoke", "local-gguf"):
+    for name in ("remote", "remote-imajev", "local-smoke", "local-smoke-gguf", "local-gguf", "local-imajev"):
         profile = load_profile(paths, name)
         assert profile.explorer.dialect in ("llamacpp", "strict")
         assert profile.scorer.dialect in SCORER_DIALECTS
     local = load_profile(paths, "local-gguf")
     assert local.explorer.concurrency == 1 and local.explorer.dialect == "llamacpp"  # inherited, then overridden
-    assert local.scorer.server.files["model"].file.endswith("Q4_K_M.gguf")
+    assert local.scorer.dialect == "llamacpp-systemone" and local.scorer.server.binary.endswith(
+        "llama.cpp-b11773/build/bin/llama-server")
+    imajev = load_profile(paths, "local-imajev")
+    assert imajev.scorer.server.files["model"].file.endswith("Q4_K_M.gguf") and imajev.scorer.readout
+    assert imajev.explorer.concurrency == 1
     assert local.scorer.server.files["mmproj"].file == "imajev-4b-mmproj-f16.gguf"
 
 

@@ -633,7 +633,7 @@ class Session:
         where = ("AHEAD-RIGHT, from BEFORE the start" if p.toward == "opening_before" else
                  "BEHIND-RIGHT, from AFTER the start")
         return (f"PHOTO {p.index}: opening sweep {where}, from the panorama at {_m(p.along)}, scan {p.date}. "
-                f"Sidewalk: " + (", ".join(self._ticks(p)) or "none within 80 m") + ".")
+                f"In view: {self._coverage(p)}.")
 
     def _shoot(self, pano: Panorama, heading: float, fov: float, pitch: float, toward: str, along: float,
                shot: int = 0, parent: int | None = None, source: str = "static", tiles: int = 0) -> Photo:
@@ -945,29 +945,36 @@ class Session:
         return "; ".join(parts) + (". Unscanned (no Street View, can't be searched): " + ", ".join(unscanned)
                                    if unscanned else ". No unscanned stretch.")
 
-    def _ticks(self, p: Photo) -> list[str]:
+    def _coverage(self, p: Photo) -> str:
+        """Which stretch of the right-hand sidewalk a wide photo shows, and how big a sign would look along it. No
+        points on the photo: given ready-made points, the explorer zoomed on them instead of looking (16 of 16 zooms
+        on caption points, f4156, 0.13.0: cars, motorcycles and faces, while the sign stood in plain view)."""
         camera = self._camera(p)
-        ticks = []
         lo, hi = self.world.limits
-        a = math.floor(lo / 10) * 10
-        while a <= hi:
+        seen = []  # (along, size) of the sidewalk in view, nearest first
+        for a in _frange(math.ceil(lo), hi, 2.0):
             s = self.world.path.sidewalk(a)
-            x = camera.column_of(s)
             d = math.dist(s, camera.position)
-            # only the pass near this photo: a far-away pass of the same road would be listed twice
-            if x is not None and d <= 80 and abs(a - p.along) <= 120:
-                y = camera.row_of(s, SIGN_HEIGHT_M)  # where a sign there would be: zoom on it to look
-                if 0 <= y < p.height:
-                    ticks.append(f"{_m(a)} at ({x * GRID / p.width:.0f}, {y * GRID / p.height:.0f}) {d:.0f} m "
-                                 f"{_sign_size(camera.pixels_across(SIGN_M, d))}")
-            a += 10
-        return ticks
+            # only the pass near this photo: a far-away pass of the same road would be described twice
+            if camera.column_of(s) is not None and d <= 80 and abs(a - p.along) <= 120 \
+                    and 0 <= camera.row_of(s, SIGN_HEIGHT_M) < p.height:
+                seen.append((d, a, _sign_size(camera.pixels_across(SIGN_M, d))))
+        if not seen:
+            return "no right-hand sidewalk within 80 m"
+        seen.sort()
+        near, far = seen[0][1], seen[-1][1]
+        text = f"right-hand sidewalk from {_m(near)} ({seen[0][0]:.0f} m away) to {_m(far)} ({seen[-1][0]:.0f} m away)"
+        parts = []
+        for size in ("clear", "small", "a speck"):
+            stretch = [a for _, a, z in seen if z == size]
+            if stretch:
+                parts.append(f"{size} from {_m(stretch[0])} to {_m(stretch[-1])}")
+        return text + "; a sign there would look " + ", ".join(parts)
 
     def _sweep_caption(self, p: Photo) -> str:
         where = "AHEAD-RIGHT" if p.toward == "sweep_ahead" else "BEHIND-RIGHT"
         return (f"PHOTO {p.index}: sweep {p.shot} {where} from the panorama at {_m(p.along)} ({abs(p.offset):.0f} m "
-                f"{_side(p.offset)} of the centre line), scan {p.date}. Sidewalk: "
-                + (", ".join(self._ticks(p)) or "none within 80 m") + ".")
+                f"{_side(p.offset)} of the centre line), scan {p.date}. In view: {self._coverage(p)}.")
 
     def _state(self) -> str:
         lik = self._likelihood()
@@ -1104,7 +1111,7 @@ def _m(v: float) -> str:
 
 def _sign_size(px: float) -> str:
     """How a 0.6 m sign looks at that distance in a sweep: readable, noticeable, or a speck you can't rely on."""
-    return "(sign clear)" if px >= READABLE_PX else "(sign small)" if px >= SPOT_PX else "(sign a speck)"
+    return "clear" if px >= READABLE_PX else "small" if px >= SPOT_PX else "a speck"
 
 
 def _side(offset: float) -> str:

@@ -650,12 +650,12 @@ def test_row_of_places_heights_consistently_with_the_ground_range():
     assert camera.row_of((12.0, 0.0), 2.2) < y  # a sign panel above it is higher in the image
 
 
-def test_sidewalk_positions_give_the_point_a_sign_there_would_be_at(session):
+def test_captions_say_what_stretch_is_in_view_but_give_no_points(session):
+    # f4156, 0.13.0: given ready-made points, the explorer zoomed on all 16 of them (cars, motorcycles, faces) and
+    # never on the sign standing in plain view
     result = session.begin()
-    photo = session.photos[0]
-    camera = session._camera(photo)
-    caption = result.text.split("PHOTO 2")[0]
-    gx, gy = (float(v) for v in re.search(r"\+0 m at \((\d+), (\d+)\)", caption).groups())
-    s = session.world.path.sidewalk(0.0)
-    assert gx * photo.width / GRID == pytest.approx(camera.column_of(s), abs=1)
-    assert gy * photo.height / GRID == pytest.approx(camera.row_of(s, 2.2), abs=1)
+    caption = result.text.split("PHOTO 1")[1].split("PHOTO 2")[0]
+    assert not re.search(r"\(\d+, \d+\)", caption)
+    near, far = (float(v) for v in re.search(r"from ([+-]\d+) m \(\d+ m away\) to ([+-]\d+) m", caption).groups())
+    assert near == pytest.approx(session.photos[0].along, abs=3) and far > 30  # from beside the camera, far ahead
+    assert "clear from" in caption and "small from" in caption and "a speck from" in caption

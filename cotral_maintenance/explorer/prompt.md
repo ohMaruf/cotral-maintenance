@@ -42,13 +42,14 @@ and 60 tiles for close views (a zoom or look_from costs about 2-4). Marking, the
   the camera on the right. facing='behind' (BEHIND-RIGHT) looks from just ahead of straight right (left edge)
   round to straight back (right edge): the sidewalk runs from beside the camera on the left to far behind on the
   right. You choose where to stand and which way to face; the angles are handled for you.
-- Every wide photo lists the right-hand sidewalk positions in it, e.g. "+20 m at (400, 492) 11 m (sign clear)":
-  a stop sign at +20 m would be at point (400, 492) of this photo, 11 m from the camera, and clear. "(sign
-  small)": noticeable, zoom to judge it. "(sign a speck)": too far to rely on this photo. To look closely at a
-  position, zoom on its point; nothing to work out about sides or angles: the points already say where it is.
+- Every wide photo says which stretch of the right-hand sidewalk is in view and how big a stop sign would look
+  along it: "clear" (readable), "small" (noticeable, zoom to judge it) or "a speck" (too far to rely on this
+  photo: sweep from closer). It gives no points: finding things in the photo is your job.
 - zoom(photo, x, y, fov) is how you narrow in: a sharp, full-resolution close-up of one spot of a photo, from the
-  same panorama. Use it on anything small or far that could be a stop: a panel on a pole, a shelter-like shape, a
-  bench, people waiting, road markings. From far away a stop sign is only a few pixels: the zoom decides. Every
+  same panorama. Point it at something you can actually SEE in the photo that could be a stop: a panel on a pole,
+  a shelter-like shape, a bench at the kerb, people waiting, road markings. Never zoom on an empty stretch, a
+  car, a shop front or a person just to check: if nothing stop-like is visible, sweep elsewhere. From far away a
+  stop sign is only a few pixels: the zoom decides. Every
   zoom is judged at once by an independent confirmer; if what you zoomed on could be a stop seen badly, the
   harness also looks at it from another panorama. A stop it finds becomes a CONFIRMED candidate: submit it.
 - look_from(candidate) changes the viewpoint: the same kind of close-up of a candidate, from another panorama.

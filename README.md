@@ -152,14 +152,22 @@ Things to know:
 
 ### Bring the results to the laptop
 
+On the laptop, `scripts/fetch_run.sh` copies a run from the server into `runs/`, incrementally (only new
+photos are sent), and safely while the pipeline is still writing to it: the database comes over as a
+consistent snapshot taken on the server.
+
 ```bash
-# on the server: one file (--media stop: only the stop photos, much smaller)
-uv run cotral bundle first20               # runs/first20.tar.zst
-# on the laptop
-scp server:cotral-maintenance/runs/first20.tar.zst . && uv run cotral unbundle first20.tar.zst
-# or incrementally, while no pipeline writes to the run
-rsync -a server:cotral-maintenance/runs/first20/ runs/first20/
+scripts/fetch_run.sh --list               # the runs on the server
+scripts/fetch_run.sh first20              # runs/first20 here
+scripts/fetch_run.sh first20 --every 300  # ... again every 5 minutes, to follow a run in progress
+./start.sh --run runs/first20
 ```
+
+The server defaults to `iseng@matrix.diag.uniroma1.it`, with the repository in `~/maruf/cotral-maintenance`;
+set `COTRAL_REMOTE` and `COTRAL_REMOTE_DIR` (in the environment or `.env`) for others.
+
+One file instead (to send elsewhere): `uv run cotral bundle first20` on the server (`--media stop` for
+only the stop photos), then `uv run cotral unbundle first20.tar.zst` on the laptop.
 
 ---
 

@@ -176,7 +176,8 @@ def explore_stop(ctx: ExploreContext, row: dict, shapes: dict, slots: tuple[int 
     tiles = TileViews(tiles_client)
     explorer_slot, confirmer_slot = slots
     spec = ctx.spec
-    client = ChatClient(spec.server.url, spec.model, spec.dialect, spec.sampling, spec.template, spec.max_tokens)
+    client = ChatClient(spec.server.url, spec.model, spec.dialect, spec.sampling, spec.template, spec.max_tokens,
+                        request=spec.request)
     confirmer = LlmConfirmer(client, ctx.paths.reference_sign, ctx.paths.lookalikes, log, confirmer_slot)
     base = {"stop_id": stop_id, "explorer": explorer_description(spec),
             "harness": ctx.harness, "started_at": started_at}

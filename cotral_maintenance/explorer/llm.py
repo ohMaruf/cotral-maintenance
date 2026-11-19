@@ -48,11 +48,13 @@ class ChatClient:
     template: dict = field(default_factory=dict)
     max_tokens: int = 3000
     session: requests.Session = field(default_factory=requests.Session)
+    request: dict = field(default_factory=dict)  # optional backend-specific OpenAI fields
 
     def complete(self, messages: list[dict], tools: list[dict], slot: int | None, seed: int,
                  template: dict | None = None) -> tuple[int, dict | str, float]:
         """(HTTP status, JSON body or error text, seconds)."""
-        body: dict = {"model": self.model, "messages": messages, "max_tokens": self.max_tokens, "seed": seed}
+        body: dict = {**self.request, "model": self.model, "messages": messages, "max_tokens": self.max_tokens,
+                      "seed": seed}
         if tools:
             body["tools"] = tools
         if self.dialect == "llamacpp":

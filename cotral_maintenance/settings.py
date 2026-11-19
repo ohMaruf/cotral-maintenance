@@ -119,6 +119,7 @@ class ModelSpec:
     concurrency: int = 1
     sampling: dict = field(default_factory=dict)
     template: dict = field(default_factory=dict)
+    request: dict = field(default_factory=dict)  # backend-specific OpenAI request fields
     max_tokens: int = 3000
     rotations: int = 4
     readout: dict[str, ModelFile] = field(default_factory=dict)
@@ -200,7 +201,8 @@ def _model(role: str, value: dict, dialects: tuple[str, ...]) -> ModelSpec:
         raise ConfigError(f"{role}: dialect must be one of {', '.join(dialects)}, got {dialect!r}")
     return ModelSpec(role=role, dialect=dialect, model=value["model"], server=_server(value.get("server", {})),
                      concurrency=int(value.get("concurrency", 1)), sampling=dict(value.get("sampling", {})),
-                     template=dict(value.get("template", {})), max_tokens=int(value.get("max_tokens", 3000)),
+                     template=dict(value.get("template", {})), request=dict(value.get("request", {})),
+                     max_tokens=int(value.get("max_tokens", 3000)),
                      rotations=int(value.get("rotations", 4)),
                      readout={k: _file(v) for k, v in value.get("readout", {}).items()}, raw=value)
 

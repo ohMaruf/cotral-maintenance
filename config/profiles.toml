@@ -115,6 +115,12 @@ inherit = "remote"
 dialect = "strict"
 model = "unsloth/Qwen3.8-27B-NVFP4"
 concurrency = 1
+# vLLM renders Qwen's non-thinking chat template with this request field.  The
+# ceiling is a safeguard: tool calls should be short even if the server ignores
+# the request field after an upgrade.
+sampling = { temperature = 0.7, top_p = 0.8, top_k = 20, min_p = 0.0, presence_penalty = 0.0 }
+max_tokens = 512
+request = { chat_template_kwargs = { enable_thinking = false } }
 
 [profiles.remote-nvfp4.explorer.server]
 inherit = false

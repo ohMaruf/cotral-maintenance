@@ -113,6 +113,14 @@ def test_strict_dialect_sends_only_standard_fields():
     assert body["top_k"] == 64
 
 
+def test_strict_dialect_can_send_an_explicit_backend_extension():
+    http = FakeHttp()
+    client = ChatClient("http://x", "qwen", "strict", {}, {}, 100, http,
+                        request={"chat_template_kwargs": {"enable_thinking": False}})
+    client.complete([{"role": "user", "content": "hi"}], [], slot=None, seed=1)
+    assert http.bodies[0]["chat_template_kwargs"] == {"enable_thinking": False}
+
+
 def test_llamacpp_dialect_pins_slots_and_forces_a_call():
     http = FakeHttp()
     client = ChatClient("http://x", "qwen", "llamacpp", {"temperature": 1.0}, {"reasoning_effort": "low"}, 100, http)

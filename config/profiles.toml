@@ -113,7 +113,7 @@ inherit = "remote"
 # The deployed service is OpenAI-compatible rather than llama.cpp.  One worker
 # is intentionally conservative until its tool-calling throughput is measured.
 dialect = "strict"
-model = "qwen3.8-27b"
+model = "unsloth/Qwen3.8-27B-NVFP4"
 concurrency = 1
 
 [profiles.remote-nvfp4.explorer.server]

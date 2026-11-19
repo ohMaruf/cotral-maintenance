@@ -111,3 +111,16 @@ def test_the_ingest_version_depends_on_what_the_store_was_built_from_not_when():
     other = {**meta, "extracts_sha256": "a,c"}
     assert fingerprint(ingest_detail(meta, "g")) == fingerprint(ingest_detail(same, "g"))
     assert fingerprint(ingest_detail(meta, "g")) != fingerprint(ingest_detail(other, "g"))
+
+
+def test_google_errors_keep_their_reason_on_one_line():
+    import json
+
+    from cotral_maintenance.transport import google_error
+
+    body = json.dumps({"error": {"code": 403, "message": "Permission denied on the service.", "status": "PERMISSION_DENIED",
+                                 "details": [{"reason": "ACCESS_DENIED", "metadata": {"service": "places.googleapis.com"}}]}},
+                      indent=2)
+    assert google_error(body) == ("Permission denied on the service.; PERMISSION_DENIED; reason=ACCESS_DENIED; "
+                                  "service=places.googleapis.com")
+    assert google_error("x" * 1000) == "x" * 300

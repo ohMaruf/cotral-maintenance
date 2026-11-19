@@ -34,7 +34,11 @@ from .world import CELL_M, Panorama, World, find_panoramas, shared_stretches
 
 MAX_IMAGES = 22  # billed Static API images per stop, the stop photos included (10,000 free a month: see quota.py)
 STOP_PHOTOS = 2  # kept back for photographing a found stop
-OPENING_OFFSET_M = 15.0  # the two opening photos: from about this far before and after the start, converging on it
+OPENING_OFFSETS_M = (35.0, 28.0, 21.0, 14.0)  # the two opening sweeps: ahead-right from this far before the start,
+# behind-right from this far after it, the farthest with a panorama and no corner in between. The stretch around the
+# start is in front of both cameras (0.12.0 photos converged on it from 11 m and missed a sign 4 m behind one of
+# them, f8520); signs face the arriving buses, so the first sees their faces.
+OPENING_PANO_M = 10.0  # a panorama this close to the wanted point of the path
 BEND_DEG = 30.0  # a turn of the path this sharp is a corner: no view sees round it
 BEND_SPAN_M = 10.0
 CORNER_M = 12.0  # the sidewalk this far either side of a corner must be seen close for the corner to count as examined
@@ -77,7 +81,6 @@ HINT_WEIGHT = {"bus_stop": 0.3, "platform": 0.3, "shelter": 0.3, "stop_position"
 HINT_SIGMA_M = 8.0
 SEEN_FACTOR = {"seen_close": 0.1, "surveyed_clear": 0.4, "glimpsed": 0.6}  # likelihood left after each
 CANDIDATE_KINDS = ("sign", "shelter", "pole_with_panel", "bench", "road_marking", "people_waiting")
-HIDDEN_REASONS = ("vehicle", "vegetation", "glare", "blur", "dirty_lens", "dark", "other")
 # Points on photos are given on a 0-1000 grid over the image, whatever its size: the scale Qwen-VL models are
 # trained to point in (Qwen3.8 located a sign within 3 px this way), and easier than pixels for any model.
 GRID = 1000
@@ -164,14 +167,12 @@ class Session:
         self.sweeps = 0
         self.confirms = 0
         self.calls = 0
-        self.reported: set[int] = set()  # sweep photos the explorer has marked something on
         self.judged: set[int] = set()  # close views the confirmer has answered on
         self.outcome: dict | None = None
         self.events: list[dict] = []
         cells = world.cells()
         self.cells = cells
         self.state = ["not_looked" if world.scanned(a) else "unscanned" for a in cells]
-        self.hidden_reason: dict[int, str] = {}
         self._sidewalk = [world.path.sidewalk(a) for a in cells]
         self.bends = self._find_bends()
         self.corners_done: set[float] = set()
@@ -193,8 +194,7 @@ class Session:
     # ------------------------------------------------------------------ tools
 
     def begin(self) -> ToolResult:
-        """The briefing and the two opening photos (taken by the harness): wide, from before and after the start,
-        converging on it, so a sign seen edge on from one side is seen face on from the other."""
+        """The briefing and the two opening sweeps (taken by the harness), with the start in front of both."""
         if self.photos:
             raise ToolError("begin() was already called")
         pair = self._opening()
@@ -226,7 +226,6 @@ class Session:
         camera = self._camera(p)
         heading, pitch = camera.bearing_of(px), max(-30.0, min(45.0, camera.elevation_of(py)))
         z = self._narrow(self._pano(p.pano_id), heading, pitch, fov, "zoom", along=p.along, parent=p.index)
-        self.reported.add(self._root(p).index)
         shown = [z]
         text = (f"PHOTO {z.index}: zoom ×{p.fov / fov:.0f} into photo {p.index} at ({x:.0f}, {y:.0f}), same panorama "
                 f"({_m(p.along)}), {self._narrow_note(z)}.\n" + self._examine(z, shown) + "\n\n" + self._state())
@@ -267,7 +266,6 @@ class Session:
         px, py = self._pixel(p, x, y)
         bearing, point, basis = self._candidate_point(p, px, py)
         elevation = self._camera(p).elevation_of(py)
-        self.reported.add(self._root(p).index)
         if same_as is not None:
             c = self._candidate(same_as)
             if any(self._photo(v[0]).pano_id == p.pano_id for v in c.views):
@@ -289,42 +287,6 @@ class Session:
             text += (f" Next: confirm({c.index})." if p.toward in CLOSE_VIEWS else
                      f" To confirm it, zoom on it first and mark it on the zoom (same panorama: a new candidate).")
         return self._log("mark_candidate", args, ToolResult(text + "\n\n" + self._state()))
-
-    def mark_clear(self, photo: int, x: float, y: float) -> ToolResult:
-        args = {"photo": photo, "x": x, "y": y}
-        self._count_call()
-        p = self._photo(photo)
-        _, point = self._point(p, *self._pixel(p, x, y))
-        end = self.world.path.along_near(point, p.along, 120.0)
-        bend = self._bend_between(p.along, end)
-        if bend is not None:  # a view along the sidewalk can't see round a corner
-            end = bend + (3.0 if end > p.along else -3.0)
-        self.reported.add(self._root(p).index)
-        lo, hi = sorted((p.along, end))
-        changed = self._set_range(lo, hi, "surveyed_clear", only_from=("not_looked", "glimpsed"))
-        text = f"Right-hand sidewalk from {_m(lo)} to {_m(hi)} marked surveyed clear ({changed} m newly covered)."
-        if bend is not None:
-            text += f" Stopped at the corner at {_m(bend)}: look round it from a panorama at the corner."
-        if hi - lo < 10:
-            text += (" That is a short stretch: did you point near the bottom of the photo? Point at the FARTHEST spot"
-                     " of the sidewalk that is still clearly visible.")
-        return self._log("mark_clear", args, ToolResult(text + "\n\n" + self._state()))
-
-    def mark_hidden(self, photo: int, x: float, y: float, reason: str) -> ToolResult:
-        args = {"photo": photo, "x": x, "y": y, "reason": reason}
-        self._count_call()
-        if reason not in HIDDEN_REASONS:
-            raise ToolError(f"reason must be one of {', '.join(HIDDEN_REASONS)}")
-        p = self._photo(photo)
-        _, point = self._point(p, *self._pixel(p, x, y))
-        at = self.world.path.along_near(point, p.along, 120.0)
-        self.reported.add(self._root(p).index)
-        self._set_range(at - 6, at + 6, "hidden", only_from=("not_looked", "glimpsed", "surveyed_clear", "seen_close"))
-        for i, a in enumerate(self.cells):
-            if at - 6 <= a <= at + 6 and self.state[i] == "hidden":
-                self.hidden_reason[i] = reason
-        text = f"Right-hand sidewalk around {_m(at)} ({_m(at - 6)} to {_m(at + 6)}) marked hidden ({reason})."
-        return self._log("mark_hidden", args, ToolResult(text + "\n\n" + self._state()))
 
     def confirm(self, candidate: int) -> ToolResult:
         """No image: the confirmer judges the zoom photo the candidate was last marked on."""
@@ -630,44 +592,47 @@ class Session:
         return min(before or close, key=lambda p: math.dist(self._xy(p), target))
 
     def _opening(self) -> list[Photo]:
-        start = self.world.starts[0]
-        if start.kind.startswith("osm"):
-            target = self.world.frame.to_xy(start.lat, start.lon)
-        else:
-            target = self.world.path.sidewalk(start.along)
-        chosen: list[tuple[Panorama, float, str]] = []
-        for sign, toward in ((-1, "opening_before"), (1, "opening_after")):
-            wanted = self.world.path.point(start.along + sign * OPENING_OFFSET_M)
-            options = [q for q in self.world.panoramas if math.dist(self._xy(q), wanted) <= 25.0
-                       and all(q.pano_id != c[0].pano_id for c in chosen)]
-            if options:
-                pano = min(options, key=lambda q: math.dist(self._xy(q), wanted))
-                along = self.world.path.along_near(self._xy(pano), start.along + sign * OPENING_OFFSET_M, 30.0)
-                chosen.append((pano, along, toward))
-        if len(chosen) < 2:  # a short or one-sided scan: the two panoramas nearest the start, a few metres from it
-            near = sorted((q for q in self.world.panoramas if 4.0 <= math.dist(self._xy(q), target) <= 40.0
-                           and all(q.pano_id != c[0].pano_id for c in chosen)),
-                          key=lambda q: math.dist(self._xy(q), target))
-            for q in near[:2 - len(chosen)]:
-                along = self.world.path.along_near(self._xy(q), start.along, 60.0)
-                chosen.append((q, along, "opening_before" if along < start.along else "opening_after"))
-        if not chosen:
-            raise ToolError("no panorama near the start")
+        """Two wide sweeps taken for the explorer: ahead-right from before the start and behind-right from after it,
+        each from the farthest of OPENING_OFFSETS_M with a panorama and no corner between it and the start."""
+        start = self.world.starts[0].along
+        lo, hi = self.world.limits
+        chosen: list[tuple[Panorama, float, str, str]] = []
+        for sign, facing, toward in ((-1, "ahead", "opening_before"), (1, "behind", "opening_after")):
+            for offset in OPENING_OFFSETS_M:
+                wanted = start + sign * offset
+                if not lo <= wanted <= hi:
+                    continue
+                point = self.world.path.point(wanted)
+                options = [q for q in self.world.panoramas if math.dist(self._xy(q), point) <= OPENING_PANO_M
+                           and all(q.pano_id != c[0].pano_id for c in chosen)]
+                if not options:
+                    continue
+                pano = min(options, key=lambda q: math.dist(self._xy(q), point))
+                along = self.world.path.along_near(self._xy(pano), wanted, 20.0)
+                clear_of_corners = self._bend_between(along, start) is None and all(
+                    abs(b - along) > BEARING_SPAN_M for b, _ in self.bends)  # the facing follows the road
+                if clear_of_corners and sign * (along - start) > 3.0:
+                    chosen.append((pano, along, facing, toward))
+                    break
+        if not chosen:  # a short or broken scan: the panorama nearest the start, looking ahead
+            near = [q for q in self.world.panoramas if math.dist(self._xy(q), self.world.path.point(start)) <= 40.0]
+            if not near:
+                raise ToolError("no panorama near the start")
+            q = min(near, key=lambda q: math.dist(self._xy(q), self.world.path.point(start)))
+            chosen.append((q, self.world.path.along_near(self._xy(q), start, 60.0), "ahead", "opening_before"))
         photos = []
-        for pano, along, toward in chosen:
+        for pano, along, facing, toward in chosen:
             self._spend()
-            heading = compass(target[0] - self._xy(pano)[0], target[1] - self._xy(pano)[1])
+            heading = (self._travel_bearing(along) + SWEEP_TURNS[facing]) % 360
             photo = self._shoot(pano, heading, SWEEP_FOV, 0.0, toward, along=along)
             self._mark_seen_close(photo)
             photos.append(photo)
         return photos
 
     def _opening_caption(self, p: Photo) -> str:
-        start = self.world.starts[0]
-        side = "BEFORE the start, looking forward at it" if p.toward == "opening_before" else \
-            "AFTER the start, looking back at it"
-        return (f"PHOTO {p.index}: opening, from the panorama at {_m(p.along)} ({side}), scan {p.date}, heading "
-                f"{p.heading:.0f}°, fov {p.fov:.0f}°. The start ({start.label}) is at the centre. "
+        where = ("AHEAD-RIGHT, from BEFORE the start" if p.toward == "opening_before" else
+                 "BEHIND-RIGHT, from AFTER the start")
+        return (f"PHOTO {p.index}: opening sweep {where}, from the panorama at {_m(p.along)}, scan {p.date}. "
                 f"Sidewalk: " + (", ".join(self._ticks(p)) or "none within 80 m") + ".")
 
     def _shoot(self, pano: Panorama, heading: float, fov: float, pitch: float, toward: str, along: float,
@@ -781,14 +746,6 @@ class Session:
                 out[i] = "glimpsed"
         return out
 
-    def _set_range(self, lo: float, hi: float, state: str, only_from: tuple[str, ...]) -> int:
-        changed = 0
-        for i, a in enumerate(self.cells):
-            if lo - CELL_M / 2 <= a <= hi + CELL_M / 2 and self.state[i] in only_from:
-                changed += self.state[i] != state
-                self.state[i] = state
-        return int(changed * CELL_M)
-
     def _prior(self) -> list[float]:
         """Where the stop probably is: the measured spread around the start (the most accurate source), plus
         bumps at the OSM hints."""
@@ -862,9 +819,8 @@ class Session:
 
     def _point(self, photo: Photo, x: float, y: float):
         """(bearing, point) of a pixel on the right-hand sidewalk: where its sight line reaches the sidewalk, else
-        where the pointed spot meets the ground. Not the ground range first: the sidewalk positions are given at
-        sign height, near the horizon, where a row says almost nothing about distance (a point there read as ground
-        cleared 70 m too far), and on slopes it was 5-70 m off anyway."""
+        where the pointed spot meets the ground (near the horizon a row says almost nothing about distance, and on
+        slopes the ground range was 5-70 m off)."""
         self._check_pixel(photo, x, y)
         camera = self._camera(photo)
         bearing = camera.bearing_of(x)
@@ -906,13 +862,6 @@ class Session:
             c.along, c.offset, _ = self.world.path.locate(point)
             c.lat, c.lon = self.world.latlon(point)
 
-    def _root(self, photo: Photo) -> Photo:
-        while photo.parent is not None:
-            photo = self._photo(photo.parent)
-        return photo
-
-    # ---------------------------------------------------------------- text
-
     def _briefing(self) -> str:
         w = self.world
         lo, hi = w.limits
@@ -946,8 +895,9 @@ class Session:
         lines.append(f"Budget: {EXPLORE_IMAGES} wide images (the opening one included; 1 per sweep) for looking broadly, "
                      f"{MAX_TILES} tiles for close views (a zoom or look_from costs about 2-4 tiles), {MAX_CONFIRMS} "
                      f"confirmations (free).")
-        lines.append("Below: the two opening photos, taken for you: wide, from before and after the start, both "
-                     "looking at it, so a sign seen edge on in one is seen face on in the other.")
+        lines.append("Below: the two opening sweeps, taken for you: AHEAD-RIGHT from before the start and "
+                     "BEHIND-RIGHT from after it, so the sidewalk around the start is in front of both cameras. Signs "
+                     "face the arriving buses: the first sees their faces, the second their backs.")
         return "\n".join(lines)
 
     def _path_text(self) -> str:
@@ -1035,10 +985,6 @@ class Session:
             lines.append("- CORNERS NOT YET EXAMINED: " + "; ".join(
                              f"{_m(x)} ({'right' if d > 0 else 'left'} turn {abs(d):.0f}°, {share:.0%})"
                              for x, d, share in corners[:4]) + (f"; {len(corners) - 4} more" if len(corners) > 4 else ""))
-        unreported = [p.index for p in self.photos if p.toward.startswith("sweep") and p.index not in self.reported]
-        if unreported:
-            lines.append("- sweep photos not reported on yet (mark_clear / mark_candidate / mark_hidden): "
-                         + ", ".join(map(str, unreported)))
         if self.candidates:
             lines.append("- candidates: " + "; ".join(
                 f"{c.index} {c.kind} at {_m(c.along)} {_side(c.offset)} [{c.status}]" for c in self.candidates))
@@ -1072,8 +1018,7 @@ class Session:
                 start = i
             elif s != state and start is not None:
                 a, b = self.cells[start] - CELL_M / 2, self.cells[i - 1] + CELL_M / 2
-                reasons = {self.hidden_reason[k] for k in range(start, i) if k in self.hidden_reason}
-                out.append(f"{_m(a)} to {_m(b)}" + (f" ({', '.join(sorted(reasons))})" if reasons else ""))
+                out.append(f"{_m(a)} to {_m(b)}")
                 start = None
         return out
 

@@ -61,13 +61,13 @@ and 60 tiles for close views (a zoom or look_from costs about 2-4). Marking, the
 
 # How to work
 1. Call begin() first. THE START is the most accurate position we have, and the stop is usually close to it. The
-   two opening photos look at it from before and from after, so a sign seen edge on in one is seen face on in
-   the other: look hard at both, and zoom on anything stop-like in either before going anywhere else.
+   two opening sweeps have the sidewalk around it in front of both cameras: AHEAD-RIGHT from before the start
+   (sign faces) and BEHIND-RIGHT from after it (sign backs). Look hard at both, and zoom on anything stop-like in
+   either before going anywhere else.
 2. Cover as much ground as possible with as few images as possible. Never pass a corner on the CORNERS list
    without examining it.
-3. After every sweep, look at it carefully and zoom on anything that could be a stop, however small. Then report:
-   mark_clear for the stretch of right-hand sidewalk it clearly shows with nothing stop-like, mark_hidden for parts
-   you can't see. Sidewalk near the camera is bookkept automatically (seen close, or glimpsed further away).
+3. After every sweep, look at it carefully and zoom on anything that could be a stop, however small. What each
+   sweep shows of the sidewalk is bookkept automatically (seen close, or glimpsed further away).
 4. When a sweep shows something that may be the stop, zoom on it: when in doubt, zoom. The harness judges every
    zoom and settles it; when it reports a CONFIRMED candidate, submit_found it.
 5. A candidate seen from two different panoramas (mark_candidate with same_as on a look_from photo) gets a

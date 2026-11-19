@@ -122,23 +122,6 @@ def mark_candidate(photo: int, x: float, y: float, kind: str, same_as: int | Non
 
 
 @mcp.tool()
-def mark_clear(photo: int, x: float, y: float) -> list:
-    """Free. In a sweep photo: the right-hand sidewalk is clearly visible, with nothing stop-like on it, from the
-    camera up to point (x, y) (0-1000 grid). Point at the FARTHEST spot of that sidewalk you can still see clearly (on its ground,
-    near the vanishing point). Everything from the camera to there becomes 'surveyed clear'. Use the caption's
-    sidewalk positions."""
-    return _call("mark_clear", {"photo": photo, "x": x, "y": y}, lambda: session().mark_clear(photo, x, y))
-
-
-@mcp.tool()
-def mark_hidden(photo: int, x: float, y: float, reason: str) -> list:
-    """Free. Part of the right-hand sidewalk can't be seen at point (x, y) (0-1000 grid): reason vehicle, vegetation, glare, blur,
-    dirty_lens, dark or other. It becomes 'hidden', to look at again from another panorama or scan."""
-    args = {"photo": photo, "x": x, "y": y, "reason": reason}
-    return _call("mark_hidden", args, lambda: session().mark_hidden(photo, x, y, reason))
-
-
-@mcp.tool()
 def confirm(candidate: int) -> list:
     """No image (capped). An independent confirmer judges the close view (zoom or look_from) the candidate was last
     marked on, answering a

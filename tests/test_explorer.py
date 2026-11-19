@@ -163,15 +163,19 @@ def test_a_straight_road_shares_nothing():
 
 # ---- the session
 
-def test_begin_takes_two_wide_photos_converging_on_the_start(session):
+def test_begin_takes_two_sweeps_with_the_start_in_front_of_both(session):
     result = session.begin()
     assert len(result.images) == 2 and len(session.photos) == 2
     before, after = session.photos
     assert (before.toward, after.toward) == ("opening_before", "opening_after")
-    assert before.along == pytest.approx(-15, abs=6) and after.along == pytest.approx(15, abs=6)
-    start = session.world.path.sidewalk(0.0)
-    for p in (before, after):  # both look at the start, from opposite sides
-        assert p.fov == SWEEP_FOV and session._camera(p).column_of(start) == pytest.approx(320, abs=1)
+    assert before.along == pytest.approx(-35, abs=6) and after.along == pytest.approx(35, abs=6)
+    assert before.heading == pytest.approx(90 + 50) and after.heading == pytest.approx(90 + 130)  # ahead / behind-right
+    # f8520, 0.12.0: photos converging on the start from 11 m missed a sign 4 m behind one camera. Now the whole
+    # stretch around the start is in view of both
+    for a in (-25, -15, 0, 15, 25):
+        point = session.world.path.sidewalk(a)
+        assert all(session._camera(p).column_of(point) is not None for p in (before, after))
+    assert all(p.fov == SWEEP_FOV for p in (before, after))
     assert session.fetched[0][4:] == IMAGE_SIZE
     assert "STOP f1" in result.text and f"{EXPLORE_IMAGES - 2}/{EXPLORE_IMAGES} images" in result.text
     with pytest.raises(ToolError):
@@ -186,8 +190,16 @@ def test_an_osm_start_is_looked_at_from_both_sides(tmp_path):
     s.begin()
     before, after = s.photos
     assert s._camera(before).position[0] < 330 < s._camera(after).position[0]
-    assert all(s._camera(p).column_of((330.0, -20.0)) == pytest.approx(320, abs=1) for p in (before, after))
+    assert all(s._camera(p).column_of((330.0, -20.0)) is not None for p in (before, after))
     assert s.explore_used == 2
+
+
+def test_an_opening_never_looks_across_a_corner(tmp_path):
+    s = make_session(tmp_path, corner_world())  # the corner 100 m ahead of the start: try a start 20 m before it
+    s.world.starts[0] = Placed("GTFS", "gtfs", *FRAME.to_latlon(280.0, 0.0), 80.0, 0.0)
+    s.begin()
+    after = s.photos[1]
+    assert after.along < 100 and after.along - 80 >= 3  # stepped back to this side of the corner
 
 
 def test_a_candidate_seen_once_is_placed_where_its_sight_line_passes_the_osm_start(tmp_path):
@@ -235,21 +247,6 @@ def test_a_sweep_counts_as_seen_close_only_where_a_sign_is_readable(session):
     assert states[-114] == "not_looked"  # behind: not in an ahead sweep
 
 
-def test_mark_clear_covers_the_sidewalk_up_to_the_clicked_point(session):
-    session.begin()
-    session.sweep(from_m=-100)
-    ahead = session.photos[-1]
-    camera = session._camera(ahead)
-    target = session.world.path.sidewalk(-60)
-    x = camera.column_of(target)
-    y = ahead.height / 2 + camera.focal_px * 2.5 / math.dist(target, camera.position)
-    session.mark_clear(ahead.index, *at(session, ahead.index, x, y))
-    states = {round(a): s for a, s in zip(session.cells, session.state, strict=True)}
-    assert states[-74] == "surveyed_clear" and states[-62] == "surveyed_clear"
-    assert states[-50] == "not_looked"
-    assert ahead.index in session.reported
-
-
 def test_zoom_costs_an_image_and_aims_at_the_clicked_pixel(session):
     session.begin()
     sweep = session.photos[0]
@@ -263,13 +260,6 @@ def test_zoom_costs_an_image_and_aims_at_the_clicked_pixel(session):
         session.zoom(sweep.index, *at(session, sweep.index, 10, 10), fov=60)
     with pytest.raises(ToolError, match="0-1000 grid"):  # points are on the grid, not pixels
         session.zoom(sweep.index, 1100, 10)
-
-
-def test_marking_on_a_zoom_reports_its_sweep(session):
-    session.begin()
-    session.zoom(1, *at(session, 1, 500, 400))
-    session.mark_candidate(3, *at(session, 3, 320, 320), "sign")
-    assert 1 in session.reported
 
 
 def test_cached_images_are_not_billed_again(session):
@@ -462,7 +452,7 @@ def test_invalid_arguments_are_explained(session):
     with pytest.raises(ToolError, match="outside the search limits"):
         session.sweep(from_m=900)
     with pytest.raises(ToolError, match="no photo"):
-        session.mark_clear(99, 10, 10)
+        session.zoom(99, 10, 10)
     with pytest.raises(ToolError, match="kind"):
         session.mark_candidate(1, *at(session, 1, 10, 10), "lamp")
 
@@ -585,34 +575,12 @@ def test_the_corners_of_the_path_are_found(tmp_path):
     assert along == pytest.approx(100, abs=3) and turn == pytest.approx(90, abs=5)
 
 
-def test_nothing_round_a_corner_is_seen_or_cleared(tmp_path):
+def test_nothing_round_a_corner_is_seen(tmp_path):
     s = make_session(tmp_path, corner_world())
     s.begin()
     s.sweep(from_m=55)  # 45 m before the corner, looking ahead: too far for the harness to complete the corner
     states = {round(a): st for a, st in zip(s.cells, s.state, strict=True)}
     assert states[60] == "seen_close" and states[120] == "not_looked"  # round the corner: not even glimpsed
-    photo = s.photos[-1]
-    camera = s._camera(photo)
-    beyond = s.world.path.sidewalk(130)
-    x = camera.column_of(beyond)
-    y = photo.height / 2 + camera.focal_px * 2.5 / math.dist(beyond, camera.position)
-    result = s.mark_clear(photo.index, *at(s, photo.index, x, y))
-    states = {round(a): st for a, st in zip(s.cells, s.state, strict=True)}
-    # the sight line meets this leg's sidewalk before the corner: cleared up to there, nothing round it
-    assert states[120] == "not_looked" and states[128] == "not_looked"
-    assert "corner" in result.text or max(a for a, st in zip(s.cells, s.state, strict=True)
-                                          if st == "surveyed_clear") < 100
-
-
-def test_a_point_at_sign_height_clears_up_to_where_its_sight_line_meets_the_sidewalk(session):
-    session.begin()
-    session.sweep(from_m=-20, facing="ahead")
-    photo = session.photos[-1]
-    camera = session._camera(photo)
-    s = session.world.path.sidewalk(20.0)  # 40 m ahead of the camera, given at sign height (near the horizon)
-    session.mark_clear(photo.index, *at(session, photo.index, camera.column_of(s), camera.row_of(s, 2.2)))
-    clear = [a for a, st in zip(session.cells, session.state, strict=True) if st == "surveyed_clear"]
-    assert max(clear) == pytest.approx(20, abs=3)
 
 
 def test_a_sweep_facing_a_corner_makes_the_harness_look_round_it(tmp_path):

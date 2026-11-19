@@ -79,13 +79,6 @@ TOOLS = [
        {"photo": INT, "x": NUM, "y": NUM,
         "kind": {"type": "string", "enum": ["sign", "shelter", "pole_with_panel", "bench", "road_marking",
                                             "people_waiting"]}, "same_as": INT}, ["photo", "x", "y", "kind"]),
-    fn("mark_clear", f"Free. In a sweep photo the right-hand sidewalk is clearly visible with nothing stop-like from "
-       f"the camera up to a point: point at the FARTHEST clearly visible spot of that sidewalk. {POINT}.",
-       {"photo": INT, "x": NUM, "y": NUM}, ["photo", "x", "y"]),
-    fn("mark_hidden", f"Free. Part of the right-hand sidewalk can't be seen at a point. {POINT}.",
-       {"photo": INT, "x": NUM, "y": NUM,
-        "reason": {"type": "string", "enum": ["vehicle", "vegetation", "glare", "blur", "dirty_lens", "dark",
-                                              "other"]}}, ["photo", "x", "y", "reason"]),
     fn("confirm", "Ask the confirmer again about a candidate you marked yourself on a close view.",
        {"candidate": INT}, ["candidate"]),
     fn("submit_found", "End the search: the stop is this CONFIRMED candidate.", {"candidate": INT}, ["candidate"]),
@@ -140,10 +133,6 @@ def call(session: Session, name: str, args: dict):
         return session.look_from(whole("candidate"))
     if name == "mark_candidate":
         return session.mark_candidate(whole("photo"), num("x"), num("y"), args["kind"], whole("same_as"))
-    if name == "mark_clear":
-        return session.mark_clear(whole("photo"), num("x"), num("y"))
-    if name == "mark_hidden":
-        return session.mark_hidden(whole("photo"), num("x"), num("y"), args["reason"])
     if name == "confirm":
         return session.confirm(whole("candidate"))
     if name == "submit_found":

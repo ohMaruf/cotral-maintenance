@@ -42,7 +42,10 @@ EXPLORE_IMAGES = MAX_IMAGES - STOP_PHOTOS
 MAX_CONFIRMS = 30  # confirmer calls (not Google requests): every close view is judged
 CORNER_REACH_M = 40.0  # a sweep facing a corner this close makes the harness look round it
 CORNER_STEP_M = 6.0  # ... from panoramas about this far past and before it
-SECOND_VIEW_SPAN_M = 8.0  # an automatic second viewpoint frames this much either side of the estimated position
+SECOND_VIEW_SPAN_M = 3.0  # an automatic second view frames the first view's sight line with this margin either side
+SECOND_VIEW_RANGE = (0.6, 1.6)  # ... from this much to this much of the estimated distance: a single view's distance
+                                # was 10 m short at f4156 (0.11.1), and its second view missed the sign
+SECOND_VIEW_FOV = 30.0
 MAX_CALLS = 100
 IMAGE_SIZE = (640, 640)  # the Static API's maximum
 SWEEP_FOV = 110.0
@@ -60,8 +63,6 @@ SIGN_M = 0.6  # width of a stop sign panel
 SIGN_HEIGHT_M = 2.2  # height of a stop sign panel's centre above the sidewalk
 READABLE_PX = 12.0  # a sign this wide in a sweep counts as seen close
 SPOT_PX = 5.0  # ... this wide, as glimpsed: enough to notice and zoom on, not to judge
-SUGGEST_STEP_M = 8.0  # standpoints considered for the suggested next sweeps
-SUGGEST_APART_M = 15.0
 NEARBY_STOP_M = 15.0
 BEARING_SPAN_M = 8.0  # direction of travel averaged over this much path each way
 STATES = ("not_looked", "glimpsed", "surveyed_clear", "seen_close", "hidden", "unscanned")
@@ -164,6 +165,7 @@ class Session:
         self.confirms = 0
         self.calls = 0
         self.reported: set[int] = set()  # sweep photos the explorer has marked something on
+        self.judged: set[int] = set()  # close views the confirmer has answered on
         self.outcome: dict | None = None
         self.events: list[dict] = []
         cells = world.cells()
@@ -339,7 +341,11 @@ class Session:
         if not zooms:
             raise ToolError(f"candidate {candidate} was marked on a wide photo only; the confirmer needs a close view: "
                             f"zoom on it and mark it on the zoom photo")
-        photo = self._photo(zooms[-1])
+        fresh = [i for i in zooms if i not in self.judged]
+        if not fresh:  # the same photo gets the same answer: asking again only spends confirmations
+            raise ToolError(f"photo {zooms[-1]} was already judged by the confirmer; for a new judgement take a new "
+                            f"close view (zoom closer, or look_from({candidate}))")
+        photo = self._photo(fresh[-1])
         try:
             checklist = self.confirmer(self._file(photo))
         except ConfirmerError as error:
@@ -347,6 +353,7 @@ class Session:
                     f"still spotted, you may call confirm again.")
             return self._log("confirm", args, ToolResult(text + "\n\n" + self._state()))
         self.confirms += 1
+        self.judged.add(photo.index)
         result = verdict(checklist.answers)
         c.checklist, c.plate_text, c.confirmer_note = checklist.answers, checklist.plate_text, checklist.note
         c.confirm_photo = photo.index
@@ -409,6 +416,23 @@ class Session:
         text = f"Submitted. The search is over: found. The harness took {len(stop_photos)} photos of the stop."
         return self._log("submit_found", args, ToolResult(text, [self._file(p) for p in stop_photos], done=True))
 
+    def exhausted(self) -> str | None:
+        """Why nothing more can be found, or None. No confirmed candidate, and no way to get one: confirmations
+        used up, or no image or tile left for a close view and no unjudged close view to confirm. The search then
+        ends (0.11.1 runs spent up to 40 turns on free calls after this point: a model can't be asked to stop when
+        every turn must be a tool call)."""
+        if self.outcome is not None or any(c.status == "confirmed" for c in self.candidates):
+            return None
+        if self.confirmer is not None and self.confirms >= MAX_CONFIRMS:
+            return "budget spent: all confirmations used"
+        can_look = self.explore_used < EXPLORE_IMAGES or (self.tile_source is not None
+                                                          and len(self.tiles_paid) + 2 <= MAX_TILES)
+        unjudged = any(i not in self.judged and self._photo(i).toward in CLOSE_VIEWS
+                       for c in self.candidates if c.status == "spotted" for i, _, _ in c.views)
+        if not can_look and not unjudged:
+            return "budget spent: no images or tiles left"
+        return None
+
     def finish(self, reason: str) -> None:
         """Called by the runner when the explorer stops without submitting."""
         if self.outcome is None:
@@ -470,6 +494,7 @@ class Session:
         except ConfirmerError:
             return None
         self.confirms += 1
+        self.judged.add(photo.index)
         return checklist
 
     def _examine(self, view: Photo, shown: list[Photo]) -> str:
@@ -493,17 +518,19 @@ class Session:
                     f"{self._describe(c)} submit_found({c.index}); look_from({c.index}) first triangulates its position.")
         a = checklist.answers
         lookalike = [k for k in LOOKALIKE_FEATURES if a.get(k) == "yes"]
+        design = a.get("same_design_as_reference")
         maybe = a.get("could_be_stop_from_another_angle") in ("yes", "unsure") or a.get("shelter") == "unsure" or \
-            a.get("same_design_as_reference") == "unsure"
-        if lookalike or not maybe:
+            design in ("yes", "unsure") or any(a.get(k) == "yes" for k in ("fermata_or_bus_text", "cotral_logo"))
+        # A close view often holds several signs: a look-alike beside a panel with the Cotral design doesn't close it
+        # (f4156, 0.11.1: the real sign behind a tree, an arrow sign in the same frame).
+        core = any(a.get(k) == "yes" for k in ("fermata_or_bus_text", "cotral_logo", "timetable", "shelter"))
+        if (lookalike and design != "yes" and not core) or not maybe:
             return f"JUDGED by the confirmer: not a stop (\"{checklist.note}\")."
         self.candidates.append(c)
         target = self.world.frame.to_xy(c.lat, c.lon)
         try:
             pano = self._other_viewpoint(c, target, {view.pano_id})
-            d = max(math.dist(self._xy(pano), target), 1.0)
-            fov = max(ZOOM_FOV[0], min(ZOOM_FOV[1] + 10, math.degrees(2 * math.atan(SECOND_VIEW_SPAN_M / d))))
-            heading = compass(target[0] - self._xy(pano)[0], target[1] - self._xy(pano)[1])
+            heading, fov = self._frame_sight_line(self._camera(view).position, bearing, target, pano)
             second = self._narrow(pano, heading, 0.0, fov, "look_from",
                                   along=self.world.path.along_near(self._xy(pano), c.along, 60.0))
         except ToolError as error:
@@ -516,18 +543,22 @@ class Session:
                 + self._rejudge(c, second))
 
     def _rejudge(self, c: Candidate, view: Photo) -> str:
-        """Judge a candidate's view from another panorama; it settles the candidate either way."""
+        """Judge a candidate's view from another panorama. It can confirm the candidate, never reject it: it is aimed
+        at an estimated position and may not show the object at all (f4156, 0.11.1: a bench and an arrow sign in the
+        second view rejected the real stop)."""
         checklist = self._judge(view)
         if checklist is None:
             return f"Not judged automatically: confirm({c.index}) after marking it on this photo."
         result = verdict(checklist.answers)
         if c.status == "confirmed" and not result.confirmed:
             return f"Second view judged: \"{checklist.note}\" (candidate {c.index} stays confirmed)."
-        self._record_judgement(c, view, checklist, result)
         if result.confirmed:
+            self._record_judgement(c, view, checklist, result)
             return (f"Second view JUDGED by the confirmer: \"{checklist.note}\". Candidate {c.index} CONFIRMED "
                     f"({c.evidence}). submit_found({c.index}).")
-        return f"Second view judged: not a stop (\"{checklist.note}\"). Candidate {c.index} rejected from two viewpoints."
+        c.status = "spotted"
+        return (f"Second view judged: \"{checklist.note}\". That does not settle it (the view may have missed the "
+                f"object): candidate {c.index} stays open.")
 
     def _record_judgement(self, c: Candidate, view: Photo, checklist, result) -> None:
         c.checklist, c.plate_text, c.confirmer_note = checklist.answers, checklist.plate_text, checklist.note
@@ -565,6 +596,21 @@ class Session:
             done.add((pano.pano_id, shot.toward))
             shots.append(shot)
         return corner, shots
+
+    def _frame_sight_line(self, origin, bearing: float, target, pano: Panorama) -> tuple[float, float]:
+        """(heading, fov) for a view from `pano` of the stretch of a first view's sight line where the object can be:
+        a single view's bearing is precise, its distance is not."""
+        d0 = max(math.dist(origin, target), 1.0)
+        here = self._xy(pano)
+        ends = [ray_point(origin, bearing, d0 * k) for k in SECOND_VIEW_RANGE]
+        bearings = [compass(e[0] - here[0], e[1] - here[1]) for e in ends]
+        spread = angle_diff(bearings[1], bearings[0])
+        middle = (bearings[0] + spread / 2) % 360
+        margin = math.degrees(math.atan(SECOND_VIEW_SPAN_M / max(math.dist(here, target), 1.0)))
+        fov = max(ZOOM_FOV[0], min(SECOND_VIEW_FOV, abs(spread) + 2 * margin))
+        if abs(spread) + 2 * margin > SECOND_VIEW_FOV:  # too long a stretch to frame: centre on the estimate
+            middle = compass(target[0] - here[0], target[1] - here[1])
+        return middle, fov
 
     def _narrow_note(self, p: Photo) -> str:
         paid = (f"{p.tiles} tile{'s' if p.tiles != 1 else ''} ({MAX_TILES - len(self.tiles_paid)} left)"
@@ -734,43 +780,6 @@ class Session:
             elif px >= SPOT_PX and now == "not_looked":
                 out[i] = "glimpsed"
         return out
-
-    def _suggestions(self, k: int = 3) -> list[tuple[float, str, float]]:
-        """(from_m, facing, share of the remaining likelihood brought into view) of the best next sweeps."""
-        lik = self._likelihood()
-        total = sum(lik)
-        if total <= 0:
-            return []
-        done = {(p.pano_id, p.toward) for p in self.photos}
-        lo, hi = self.world.limits
-        seen_spots: set[tuple[str, int]] = set()
-        scored = []
-        for a in _frange(lo, hi, SUGGEST_STEP_M):
-            target = self.world.path.point(a)
-            pano = min(self.world.panoramas, key=lambda q: math.dist(self._xy(q), target), default=None)
-            if pano is None or math.dist(self._xy(pano), target) > 15.0:
-                continue
-            along = self.world.path.along_near(self._xy(pano), a, 30.0)
-            spot = (pano.pano_id, round(along / 10))
-            if spot in seen_spots:
-                continue
-            seen_spots.add(spot)
-            for facing, turn in SWEEP_TURNS.items():
-                if (pano.pano_id, f"sweep_{facing}") in done:
-                    continue
-                heading = (self._travel_bearing(along) + turn) % 360
-                camera = Camera(self._xy(pano), heading, SWEEP_FOV, 0.0, *IMAGE_SIZE)
-                gain = sum(lik[i] * (1 - SEEN_FACTOR[new] / SEEN_FACTOR.get(self.state[i], 1.0))
-                           for i, new in self._seen_by(camera, along).items())
-                scored.append((gain / total, along, facing))
-        scored.sort(reverse=True)
-        picked: list[tuple[float, str, float]] = []
-        for share, along, facing in scored:
-            if share < 0.01 or len(picked) == k:
-                break
-            if all(abs(along - b) >= SUGGEST_APART_M for b, _, _ in picked):
-                picked.append((along, facing, share))
-        return picked
 
     def _set_range(self, lo: float, hi: float, state: str, only_from: tuple[str, ...]) -> int:
         changed = 0
@@ -1026,11 +1035,6 @@ class Session:
             lines.append("- CORNERS NOT YET EXAMINED: " + "; ".join(
                              f"{_m(x)} ({'right' if d > 0 else 'left'} turn {abs(d):.0f}°, {share:.0%})"
                              for x, d, share in corners[:4]) + (f"; {len(corners) - 4} more" if len(corners) > 4 else ""))
-        if self.outcome is None and self.explore_used < EXPLORE_IMAGES:
-            tips = self._suggestions()
-            if tips:
-                lines.append("- BEST NEXT SWEEPS (share of the remaining likelihood each brings into view): " + "; ".join(
-                    f"sweep({along:+.0f}, '{facing}') {share:.0%}" for along, facing, share in tips))
         unreported = [p.index for p in self.photos if p.toward.startswith("sweep") and p.index not in self.reported]
         if unreported:
             lines.append("- sweep photos not reported on yet (mark_clear / mark_candidate / mark_hidden): "
@@ -1039,8 +1043,8 @@ class Session:
             lines.append("- candidates: " + "; ".join(
                 f"{c.index} {c.kind} at {_m(c.along)} {_side(c.offset)} [{c.status}]" for c in self.candidates))
         if self.explore_used >= EXPLORE_IMAGES and self.outcome is None:
-            lines.append("- NO IMAGES LEFT: mark and confirm on the photos you have; when nothing is left to check, "
-                         "stop calling tools.")
+            lines.append("- NO IMAGES LEFT: zoom, look_from, mark and confirm on the photos you have; the search ends "
+                         "by itself when nothing is left.")
         if self.outcome:
             lines.append(f"- SEARCH OVER: {self.outcome['status']}")
         return "\n".join(lines)

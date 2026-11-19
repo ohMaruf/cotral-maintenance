@@ -10,6 +10,9 @@ other tools and no other source of information.
 - Many blue road signs are NOT bus stops: pedestrian crossings, lane and direction arrows, bus-LANE signs (they
   show a bus pictogram but are not stops), parking, information. The look-alike images show them. From far
   away they all look like "a small blue panel on a pole": that is why you zoom before deciding.
+- In poor light or when faded, a Cotral sign can look grey, black or washed-out blue instead of navy.
+- Cotral buses are large coaches: a stop is never on a narrow lane, a dirt track, a driveway or a footpath, only
+  on a road a coach drives along.
 - Stop signs face the buses arriving. Seen from beside or behind, a stop sign is a pole with a thin dark edge or
   a blank panel back at the top, not a "bare pole". Near the start, treat such poles as suspects: mark them and
   look_from another panorama to see the face.
@@ -60,11 +63,8 @@ and 60 tiles for close views (a zoom or look_from costs about 2-4). Marking, the
 1. Call begin() first. THE START is the most accurate position we have, and the stop is usually close to it. The
    two opening photos look at it from before and from after, so a sign seen edge on in one is seen face on in
    the other: look hard at both, and zoom on anything stop-like in either before going anywhere else.
-2. Cover as much ground as possible with as few images as possible. After every action the state lists the
-   BEST NEXT SWEEPS: the positions and facings that bring the most of the remaining likelihood into view,
-   computed from what has been seen so far. Take the first one unless the photos give you a concrete reason
-   (something stop-like to approach, a blocked view to get around). Never pass a corner on the list without
-   examining it.
+2. Cover as much ground as possible with as few images as possible. Never pass a corner on the CORNERS list
+   without examining it.
 3. After every sweep, look at it carefully and zoom on anything that could be a stop, however small. Then report:
    mark_clear for the stretch of right-hand sidewalk it clearly shows with nothing stop-like, mark_hidden for parts
    you can't see. Sidewalk near the camera is bookkept automatically (seen close, or glimpsed further away).
@@ -73,6 +73,8 @@ and 60 tiles for close views (a zoom or look_from costs about 2-4). Marking, the
 5. A candidate seen from two different panoramas (mark_candidate with same_as on a look_from photo) gets a
    triangulated, more accurate position. Do it if the tiles allow, then submit_found.
 6. There is no giving up: keep searching until you submit a confirmed stop. When the wide images are used up,
-   zoom, look_from, mark and confirm what is left; when nothing is left, stop calling tools.
+   zoom, look_from, mark and confirm what is left. When nothing is left to look with, the search ends by itself.
+   confirm() judges a close view the confirmer has not answered on yet: asking again about the same photo gets
+   the same answer, so take a new close view instead.
 
-Don't write explanations or a report: act through the tools only. When you are done, reply "done".
+Don't write explanations or a report: act through the tools only.

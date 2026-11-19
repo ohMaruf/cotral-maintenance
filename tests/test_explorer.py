@@ -3,8 +3,8 @@ import re
 
 import pytest
 
-from cotral_maintenance.explorer.confirmer import Checklist, ConfirmerError, parse, verdict
-from cotral_maintenance.explorer.geometry import Camera, PathFrame, triangulate
+from cotral_maintenance.explorer.confirmer import FEATURES, Checklist, ConfirmerError, parse, verdict
+from cotral_maintenance.explorer.geometry import Camera, PathFrame, angle_diff, compass, triangulate
 from cotral_maintenance.explorer.session import (GRID, EXPLORE_IMAGES, IMAGE_SIZE, MAX_CONFIRMS, MAX_IMAGES,
                                                  MAX_TILES, STOP_PHOTOS, SWEEP_FOV, ZOOM_SIZE, Session,
                                                  ToolError)
@@ -13,9 +13,7 @@ from cotral_maintenance.models import Stop
 from cotral_maintenance.roadpath import LocalFrame
 
 FRAME = LocalFrame(41.9, 12.5)
-NO = dict.fromkeys(("fermata_or_bus_text", "cotral_logo", "timetable", "plate", "shelter", "road_marking",
-                    "bus_pictogram", "same_design_as_reference", "walking_figure", "arrows", "letter_p", "wheelchair",
-                    "plain_blue_square", "street_name", "could_be_stop_from_another_angle"), "no")
+NO = dict.fromkeys(FEATURES, "no")
 
 
 class FakeMetadata:
@@ -309,7 +307,32 @@ def test_something_that_could_be_a_stop_is_looked_at_from_a_second_viewpoint(ses
     result = spot_and_confirm(session, could_be_stop_from_another_angle="yes")  # a shelter from behind, say
     zoom, second = session.photos[-2:]
     assert second.toward == "look_from" and second.pano_id != zoom.pano_id and len(session.confirmer.seen) == 2
-    assert "rejected from two viewpoints" in result.text and session.candidates[0].status == "rejected"
+    # a second view that doesn't confirm can't reject: it may not show the object at all
+    assert "stays open" in result.text and session.candidates[0].status == "spotted"
+
+
+def test_a_cotral_design_beside_a_look_alike_gets_a_second_view(session):
+    # f4156, 0.11.1: the real sign behind a tree, an arrow sign in the same close view
+    session.tile_source = FakeTiles()
+    result = spot_and_confirm(session, same_design_as_reference="yes", arrows="yes")
+    assert session.photos[-1].toward == "look_from" and "stays open" in result.text
+
+
+def test_the_second_view_frames_the_first_views_sight_line(session):
+    """The second view covers the sight line from 0.6 to 1.6 times the estimated distance, not just the estimate."""
+    session.tile_source = FakeTiles()
+    spot_and_confirm(session, could_be_stop_from_another_angle="yes")
+    zoom, second = session.photos[-2:]
+    c = session.candidates[0]
+    origin = session._camera(zoom).position
+    bearing = c.views[0][1]
+    target = session.world.frame.to_xy(c.lat, c.lon)
+    d0 = math.dist(origin, target)
+    here = session._xy(session._pano(second.pano_id))
+    for k in (0.7, 1.0, 1.5):  # the sign may be anywhere along the sight line around the estimate
+        q = (origin[0] + d0 * k * math.sin(math.radians(bearing)), origin[1] + d0 * k * math.cos(math.radians(bearing)))
+        off = abs(angle_diff(compass(q[0] - here[0], q[1] - here[1]), second.heading - 1.0))  # FakeTiles nudges 1°
+        assert off <= second.fov / 2
 
 
 def test_the_second_viewpoint_can_confirm_it(session):
@@ -330,13 +353,31 @@ def test_confirm_needs_a_zoom(session):
         session.confirm(1)
 
 
-def test_a_manual_confirm_judges_the_latest_close_view(session):
-    session.confirmer = FakeConfirmer(then={"bus_pictogram": "yes"})
+def test_a_manual_confirm_judges_a_close_view_not_judged_yet(session):
+    answers = iter([ConfirmerError("no JSON"), Checklist({**NO, "bus_pictogram": "yes"}, note="a bus-lane sign")])
+
+    def flaky(photo):
+        a = next(answers)
+        if isinstance(a, Exception):
+            raise a
+        return a
+
+    session.confirmer = flaky
     session.begin()
-    session.zoom(1, *at(session, 1, 500, 400))  # judged: nothing
+    assert "Not judged automatically" in session.zoom(1, *at(session, 1, 500, 400)).text
     session.mark_candidate(3, *at(session, 3, 320, 400), "sign")
     result = session.confirm(1)
     assert "REJECTED" in result.text and "bus pictogram alone" in result.text
+
+
+def test_confirm_refuses_a_photo_the_confirmer_already_judged(session):
+    # first20 f8520, 0.11.1: 16 rounds of mark_candidate + confirm on already judged zooms spent every confirmation
+    session.begin()
+    session.zoom(1, *at(session, 1, 500, 400))  # judged at once: not a stop
+    session.mark_candidate(3, *at(session, 3, 320, 400), "sign")
+    with pytest.raises(ToolError, match="already judged"):
+        session.confirm(1)
+    assert session.confirms == 1
 
 
 def test_a_failed_confirmer_call_spends_nothing(session):
@@ -464,9 +505,10 @@ def test_look_from_shows_a_candidate_from_another_panorama_before_it(session):
     assert v.toward == "look_from" and v.pano_id != session.photos[0].pano_id
     assert session._camera(v).position[0] < target[0] - 2  # before it in the direction of travel (east)
     assert "same_as=1" in result.text
+    assert session.confirmer.seen[-1] == session._file(v)  # the new viewpoint is judged at once
     session.mark_candidate(v.index, *at(session, v.index, 256, 300), "sign", same_as=1)
-    session.confirm(1)
-    assert session.confirmer.seen[-1] == session._file(v)  # the newest close view is judged
+    with pytest.raises(ToolError, match="already judged"):  # asking again would get the same answer
+        session.confirm(1)
 
 
 def test_look_from_a_position_already_used_is_refused(session):
@@ -485,15 +527,27 @@ def test_a_sweep_glimpses_the_sidewalk_where_a_sign_would_be_a_few_pixels(sessio
     assert states[-94] == "seen_close" and states[-78] == "glimpsed" and states[-50] == "not_looked"
 
 
-def test_the_state_suggests_the_sweeps_that_show_the_most_likely_sidewalk(session):
-    result = session.begin()
-    tips = session._suggestions()
-    assert len(tips) == 3 and "BEST NEXT SWEEPS" in result.text
-    assert all(abs(along) <= 60 for along, _, _ in tips)  # the likelihood sits around the start
-    along, facing, share = tips[0]
-    assert share > 0.05
-    session.sweep(from_m=along, facing=facing)
-    assert (along, facing) not in [(a, f) for a, f, _ in session._suggestions()]
+def test_the_state_suggests_no_sweeps(session):
+    # the model chooses where to look: a ready-made list was followed blindly (NVFP4, f8520, 0.11.1: 14 sweeps
+    # marked clear, no zoom, past the real sign)
+    assert "BEST NEXT" not in session.begin().text and "sweep(" not in session._state()
+
+
+def test_the_search_ends_when_nothing_is_left_to_look_with(session):
+    session.begin()
+    assert session.exhausted() is None
+    session.confirms = MAX_CONFIRMS
+    assert "confirmations" in session.exhausted()
+    session.confirms = 0
+    while session.explore_used < EXPLORE_IMAGES:
+        session.sweep(from_m=-150 + 10 * session.explore_used)
+    assert "no images or tiles" in session.exhausted()  # no tile source here, so no close view either
+
+
+def test_a_confirmed_candidate_keeps_the_search_open(session):
+    spot_and_confirm(session, cotral_logo="yes")
+    session.confirms = MAX_CONFIRMS
+    assert session.exhausted() is None  # it can still be submitted
 
 
 def test_an_osm_start_beside_an_unscanned_access_road_moves_to_the_scanned_road(tmp_path):
@@ -583,11 +637,33 @@ def test_verdict_needs_a_stop_feature_and_no_lookalike():
     assert not verdict({**NO, "fermata_or_bus_text": "unsure"}).confirmed
 
 
+def test_a_plate_alone_is_not_a_stop():
+    # NVFP4, f8520, 0.11.1: a private-road sign with a "96" house-number plate at a dirt track was confirmed
+    house_number = {**NO, "plate": "yes", "fermata_or_bus_text": "unsure", "cotral_logo": "unsure"}
+    assert not verdict(house_number).confirmed and "plate alone" in verdict(house_number).reason
+    assert verdict({**house_number, "fermata_or_bus_text": "yes"}).evidence == "other_stop_sign"
+
+
+def test_the_cotral_logo_wins_over_a_road_sign_in_the_same_view():
+    # NVFP4, f4156, 0.11.1: "A Cotral bus stop sign ... next to a bench", a parking P in the frame: rejected
+    seen = {**NO, "fermata_or_bus_text": "yes", "cotral_logo": "yes", "same_design_as_reference": "yes", "letter_p": "yes"}
+    assert verdict(seen).confirmed and verdict(seen).evidence == "cotral_sign"
+    assert not verdict({**NO, "fermata_or_bus_text": "yes", "letter_p": "yes"}).confirmed  # FERMATA alone: no
+
+
+def test_prohibition_discs_private_plates_and_narrow_tracks_are_look_alikes():
+    for feature in ("prohibition_disc", "private_plate", "narrow_track"):
+        assert not verdict({**NO, "fermata_or_bus_text": "yes", feature: "yes"}).confirmed
+
+
 def test_a_sign_too_small_to_read_is_confirmed_by_its_design():
     far = {**NO, "same_design_as_reference": "yes", "fermata_or_bus_text": "unsure", "cotral_logo": "unsure"}
     assert verdict(far).confirmed and verdict(far).evidence == "cotral_sign_by_design"
     assert not verdict({**far, "letter_p": "yes"}).confirmed  # a look-alike still wins
-    assert not verdict({**far, "cotral_logo": "no"}).confirmed  # readable, and not a Cotral sign
+    readable_other = {**far, "text_readable": "yes", "fermata_or_bus_text": "no", "cotral_logo": "no"}
+    assert not verdict(readable_other).confirmed  # read, and not a Cotral sign
+    # f4156, 0.11.1: "too far/obscured to read", yet text and logo answered "no": unreadable, so the design decides
+    assert verdict({**far, "fermata_or_bus_text": "no", "cotral_logo": "no"}).confirmed
 
 
 def test_parse_reads_the_last_json_object_and_checks_every_answer():

@@ -80,12 +80,26 @@ maintenance finding, later.
      road; a bus pictogram
    - **look-alike features:** a walking figure (pedestrian crossing); arrows (lane,
      direction, mandatory signs); a "P"; a wheelchair; a plain blue square; a street
-     name plate
+     name plate; a red prohibition disc or warning triangle; a private-road,
+     house-number or field plate; a pole at a narrow lane, dirt track, driveway or
+     footpath (Cotral buses are coaches: no stop is there)
+   - **design:** the Cotral sign's design (navy, or grey or washed out in poor
+     light); whether the panel's text is readable at all
 
-   **Code decides:** confirmed when no look-alike feature is "yes", and at least one
-   stop feature other than the bus pictogram is "yes". **A bus pictogram alone is
-   not enough:** bus-lane and reserved-lane signs carry one too
-   (`GROUND_TRUTH/lookalikes/blu_signs.png`).
+   **Code decides** (`confirmer.verdict`, since harness 0.12):
+   - the Cotral logo with FERMATA or the Cotral design: confirmed, whatever else is
+     in view (busy stops have road signs beside them);
+   - otherwise any look-alike feature: not a stop;
+   - otherwise a stop feature other than the bus pictogram and the plate: confirmed.
+     **A bus pictogram alone is not enough** (bus-lane signs carry one,
+     `GROUND_TRUTH/lookalikes/blu_signs.png`), **nor is a plate alone** (a house
+     number "96" under a private-road sign was confirmed in 0.11.1);
+   - otherwise the Cotral design with unreadable text: `cotral_sign_by_design`.
+
+   **Second views** of a "could be a stop" close view are framed on the first view's
+   sight line (0.6 to 1.6 times the estimated distance: a single view's distance is
+   unreliable). A second view can confirm a candidate, never reject it: it may not
+   show the object at all.
 
 **What both calls see** (frozen, so it caches): the reference Cotral sign, and the
 look-alikes in `GROUND_TRUTH/lookalikes/` (`blu_signs.png`: 50 blue Italian road

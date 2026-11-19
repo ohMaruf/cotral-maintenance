@@ -130,7 +130,8 @@ TOOLS = [
        {"photo": INT, "x": NUM, "y": NUM,
         "reason": {"type": "string", "enum": ["vehicle", "vegetation", "glare", "blur", "dirty_lens", "dark",
                                               "other"]}}, ["photo", "x", "y", "reason"]),
-    fn("confirm", "Ask the confirmer again about a candidate you marked yourself on a close view.",
+    fn("confirm", "Ask the confirmer about a candidate you marked yourself on a close view it has not "
+       "judged yet (the same photo always gets the same answer).",
        {"candidate": INT}, ["candidate"]),
     fn("submit_found", "End the search: the stop is this CONFIRMED candidate.", {"candidate": INT}, ["candidate"]),
     fn("find_other_scans", "Free. Look for panoramas of other drives (other dates, the other carriageway) around "
@@ -304,6 +305,9 @@ class Explorer:
             last_failure = failed
             if repeats >= MAX_REPEATS:
                 return "stuck repeating a failing call", turn
+            spent = session.exhausted()
+            if spent:  # nothing more can be confirmed: the model can't stop by itself (every turn is a tool call)
+                return spent, turn
             stalled = 0 if progress(session) != before else stalled + 1
             if stalled >= STALL_END:
                 return "stalled", turn
@@ -312,8 +316,7 @@ class Explorer:
                 nudge = "That call failed again with the same error. Read the error, fix the arguments or do " \
                         "something else."
             elif stalled == STALL_NUDGE:
-                nudge = ("The last turns changed nothing. Take one of the BEST NEXT SWEEPS, examine a corner, or zoom "
-                         "on something stop-like you haven't zoomed on.")
+                nudge = "The last turns changed nothing."
             if nudge:  # appended to the last message, so the history stays an extension of the cached prompt
                 last = messages[-1]
                 last["content"] = (last["content"] + f"\n\nHARNESS: {nudge}" if isinstance(last["content"], str)

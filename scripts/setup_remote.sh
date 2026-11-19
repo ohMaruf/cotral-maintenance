@@ -12,8 +12,9 @@
 #        b11773 (the scorer, H2O Lightning: the first build that answers /v1/systemone) into
 #        ~/.local/opt/llama.cpp-b11773, which the `remote` profile's scorer names as its binary
 #   4. downloads the `remote` profile's model files (pinned revisions) into $COTRAL_MODELS (~/models)
-#   5. fetches inputs/, the data repository (a private git submodule: the GTFS zip, GROUND_TRUTH/), and
-#      unzips the Cotral GTFS feed, inputs/GTFS_COTRAL.zip, into GTFS_COTRAL/ when it is not there
+#   5. the dataset: fetches inputs/ (the data repository, a private git submodule; the OSM extracts in Git LFS),
+#      verifies every file against inputs/dataset.toml, unzips the GTFS feed into GTFS_COTRAL/ and builds the
+#      OSM store from the extracts (a few minutes), each once
 #   6. checks the input that is not in git: .env (the Google API key)
 set -euo pipefail
 
@@ -38,6 +39,7 @@ log "CUDA: $("$NVCC" --version | tail -1)"
 for tool in git cmake g++ curl; do
   command -v "$tool" >/dev/null || die "$tool not found (apt install git cmake build-essential curl)"
 done
+git lfs version >/dev/null 2>&1 || die "git-lfs not found (apt install git-lfs): the OSM extracts are in Git LFS"
 # The GPU's compute capability, e.g. 8.9 -> 89: building for it alone keeps the build short.
 ARCH="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | head -1 | tr -d '.')"
 
@@ -89,53 +91,26 @@ if (( models )); then
   (cd "$ROOT" && uv run cotral models fetch --profile remote)
 fi
 
-# 5. Inputs: the data repository and the Cotral GTFS feed -------------------------------------------
+# 5. The dataset ------------------------------------------------------------------------------
 # inputs/ is https://github.com/ohMaruf/cotral-maintenance-data, private, at the commit this checkout pins,
 # fetched over HTTPS with the same GitHub credentials as this repository: a token that can read both repositories
 # (stored once by `git config --global credential.helper store` and the first fetch, or by `gh auth login`).
-log "Inputs: the data repository (inputs/)"
+# The OSM extracts in it are Git LFS files. inputs/dataset.toml lists every input with its sha256.
+log "Dataset: the data repository (inputs/)"
+git lfs install --skip-repo >/dev/null
 git -C "$ROOT" submodule update --init inputs \
   || die "inputs/: cannot fetch https://github.com/ohMaruf/cotral-maintenance-data.git. The server's GitHub token
   must be able to read it (a fine-grained token: add the repository to it), then re-run"
-# The GTFS zip is in the data repository (the feed's download server is not reachable from everywhere); it is
-# unzipped once.
-# An unzipped feed is never replaced: a run is tied to the feed it started with (`cotral run` checks stops.txt's
-# sha256). When the zip has a newer feed, this says so; remove GTFS_COTRAL/ and re-run to switch, and start new runs.
-GTFS_ZIP="$ROOT/inputs/GTFS_COTRAL.zip"
-GTFS_DIR="$ROOT/GTFS_COTRAL"
-if [[ -f "$GTFS_DIR/stops.txt" ]]; then
-  if [[ -f "$GTFS_ZIP" ]] && ! (cd "$ROOT" && uv run python - "$GTFS_ZIP" "$GTFS_DIR/stops.txt" <<'PY'
-import sys, zipfile
-with zipfile.ZipFile(sys.argv[1]) as z, open(sys.argv[2], "rb") as f:
-    sys.exit(0 if z.read("stops.txt") == f.read() else 1)
-PY
-  ); then
-    log "GTFS: inputs/GTFS_COTRAL.zip differs from GTFS_COTRAL/ (kept). To switch feed: rm -rf GTFS_COTRAL and re-run"
-  else
-    log "GTFS: GTFS_COTRAL/ is there"
-  fi
-elif [[ -f "$GTFS_ZIP" ]]; then
-  (cd "$ROOT" && uv run python - "$GTFS_ZIP" "$GTFS_DIR" <<'PY'
-import sys, zipfile
-from pathlib import Path
-need = {"agency.txt", "calendar.txt", "routes.txt", "shapes.txt", "stop_times.txt", "stops.txt", "trips.txt"}
-out = Path(sys.argv[2])
-with zipfile.ZipFile(sys.argv[1]) as z:
-    files = {Path(n).name: n for n in z.namelist() if n.endswith(".txt") and "/." not in n}
-    missing = need - files.keys()
-    if missing:
-        sys.exit(f"GTFS_COTRAL.zip lacks {', '.join(sorted(missing))}")
-    tmp = out.with_name(out.name + ".partial")
-    tmp.mkdir(exist_ok=True)
-    for name, member in files.items():  # flat, whether the zip has a folder or not
-        (tmp / name).write_bytes(z.read(member))
-    tmp.rename(out)
-print(f"{sum(1 for _ in open(out / 'stops.txt', encoding='utf-8-sig')) - 1} stops")
-PY
-  ) | { read -r n; log "GTFS: inputs/GTFS_COTRAL.zip unzipped into GTFS_COTRAL/ ($n)"; } || die "GTFS: unzipping inputs/GTFS_COTRAL.zip failed"
-  [[ -f "$GTFS_DIR/stops.txt" ]] || die "GTFS: unzipping inputs/GTFS_COTRAL.zip failed"
+git -C "$ROOT/inputs" lfs pull || die "inputs/: git lfs pull failed (the OSM extracts)"
+# Every file checked against its sha256; the GTFS feed unzipped into GTFS_COTRAL/ once (an unzipped feed is never
+# replaced: a run is tied to the feed it started with).
+(cd "$ROOT" && uv run cotral inputs fetch) || die "the dataset is not complete (see above)"
+# The OSM store, built once from the extracts (an existing store is kept: runs record the store they used).
+if [[ -f "$ROOT/data/osm/osm.sqlite3" ]]; then
+  log "OSM store: data/osm/osm.sqlite3 is there"
 else
-  die "GTFS: no inputs/GTFS_COTRAL.zip and no GTFS_COTRAL/"
+  log "OSM store: building it from the extracts (a few minutes)"
+  (cd "$ROOT" && uv run --extra osm cotral osm build) || die "the OSM store build failed"
 fi
 
 # 6. .env, not in git -------------------------------------------------------------------------
@@ -145,5 +120,4 @@ if (( ${#missing[@]} )); then
   log "Still to copy from the laptop: ${missing[*]}"
   log "  e.g. scp .env <this-server>:$(basename "$ROOT")/"
 fi
-[[ -f "$ROOT/data/osm/osm.sqlite3" ]] || log "Then build the OSM store: uv run cotral osm download && uv run --extra osm cotral osm build"
 log "Done. First run: uv run cotral run first20 --limit 20"

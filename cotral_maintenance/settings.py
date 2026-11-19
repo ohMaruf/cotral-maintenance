@@ -1,11 +1,11 @@
 """Where things live and which models run: paths from the environment, model profiles from config/profiles.toml.
 
 Paths (defaults relative to the repository root; override with environment variables or .env):
-  COTRAL_GTFS        GTFS_COTRAL              the Cotral GTFS feed (the pipeline's input)
-  COTRAL_OSM_STORE   data/osm/osm.sqlite3     the OSM store built from Geofabrik (`cotral osm build`)
-  COTRAL_OSM_DIR     data/osm/extracts        the Geofabrik extracts
-  COTRAL_ASSETS      inputs/GROUND_TRUTH      stop_sign_reference.png and lookalikes/ for the explorer (inputs/:
-                                              the data repository, a git submodule)
+  COTRAL_DATASET     inputs/dataset.toml      the dataset manifest (dataset.py): the GTFS zip, the OSM extracts, the
+                                              explorer's reference images, with their sha256 (inputs/: the data
+                                              repository, a git submodule)
+  COTRAL_GTFS        GTFS_COTRAL              the GTFS feed, unzipped from the dataset (`cotral inputs fetch`)
+  COTRAL_OSM_STORE   data/osm/osm.sqlite3     the OSM store built from the dataset's extracts (`cotral osm build`)
   COTRAL_CACHE       data/cache               caches shared by runs (metadata, photos, tiles, Places, usage)
   COTRAL_RUNS        runs                     one directory per run
   COTRAL_MODELS      ~/models                 model files downloaded from Hugging Face
@@ -31,8 +31,7 @@ DEFAULT_PROFILE = "remote"
 class Paths:
     gtfs: Path
     osm_store: Path
-    osm_dir: Path
-    assets: Path
+    dataset_manifest: Path
     cache: Path
     runs: Path
     models: Path
@@ -47,18 +46,24 @@ class Paths:
             return value if value.is_absolute() else ROOT / value
 
         return cls(gtfs=p("COTRAL_GTFS", "GTFS_COTRAL"), osm_store=p("COTRAL_OSM_STORE", "data/osm/osm.sqlite3"),
-                   osm_dir=p("COTRAL_OSM_DIR", "data/osm/extracts"), assets=p("COTRAL_ASSETS", "inputs/GROUND_TRUTH"),
+                   dataset_manifest=p("COTRAL_DATASET", "inputs/dataset.toml"),
                    cache=p("COTRAL_CACHE", "data/cache"), runs=p("COTRAL_RUNS", "runs"),
                    models=p("COTRAL_MODELS", Path.home() / "models"),
                    profiles=p("COTRAL_PROFILES", "config/profiles.toml"))
 
     @property
+    def dataset(self) -> "Dataset":
+        from .dataset import Dataset
+
+        return Dataset.load(self.dataset_manifest)
+
+    @property
     def reference_sign(self) -> Path:
-        return self.assets / "stop_sign_reference.png"
+        return self.dataset.sign
 
     @property
     def lookalikes(self) -> list[Path]:
-        return sorted((self.assets / "lookalikes").glob("*.png"))
+        return self.dataset.lookalikes
 
 
 @dataclass(frozen=True)

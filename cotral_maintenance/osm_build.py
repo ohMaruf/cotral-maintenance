@@ -1,7 +1,8 @@
-"""Build the local OSM store (osm_store.py) from Geofabrik extracts: `cotral osm download`, `cotral osm build`.
+"""Build the local OSM store (osm_store.py) from the dataset's OSM extracts: `cotral osm build`.
 
-Input: Geofabrik's Central and Southern Italy extracts (Lazio, Umbria, Tuscany, Abruzzo, Campania, ...).
-Only what lies within REGION_MARGIN_DEG of the Cotral network's extent is kept:
+Input: the dataset's `osm` sources (for Cotral, Geofabrik's Central and Southern Italy extracts), each checked
+against its sha256. `cotral osm download` replaces them with their newest copies, for making a new dataset.
+Only what lies within REGION_MARGIN_DEG of the network's extent (from the GTFS stops) is kept:
   - roads a bus may drive on, with the one-way rule for a bus
   - every stop-like object (bus stops, platforms, stop positions, public-transport
     shelters, bus stations), whatever its tagging
@@ -15,12 +16,12 @@ from pathlib import Path
 
 import requests
 
+from .dataset import Source, sha256_file
 from .osm_store import OsmStore, Road, StopFeature, bus_road, stop_kind
 from .provenance import utc_now
 from .stops import load_stops
 
-GEOFABRIK = "https://download.geofabrik.de/europe/italy/{name}-latest.osm.pbf"
-EXTRACTS = ("centro", "sud")
+BUILD_VERSION = 2  # bump when the build's output changes for the same extracts (what is kept, how)
 REGION_MARGIN_DEG = 0.05  # about 5 km around the network's extent
 BATCH = 20_000
 TAG_KEYS = ("highway", "public_transport", "amenity")
@@ -92,31 +93,37 @@ def read_extract(path: Path, store: OsmStore, region) -> tuple[int, int]:
     return n_roads, n_stops
 
 
-def download(directory: Path) -> list[Path]:
-    """Fetch the extracts (about 1 GB in all), replacing older copies."""
-    directory.mkdir(parents=True, exist_ok=True)
+def download(sources: list[Source]) -> list[dict]:
+    """Download the newest copy of each OSM source from its url (Geofabrik's "-latest" files change daily), in
+    place of the pinned one: for making a new dataset. Returns what to write in the manifest."""
     out = []
-    for name in EXTRACTS:
-        url, path = GEOFABRIK.format(name=name), directory / f"{name}-latest.osm.pbf"
-        tmp = path.with_name(path.name + ".part")
-        logger.info("Downloading %s", url)
-        with requests.get(url, stream=True, timeout=60) as r:
+    for source in sources:
+        if not source.url:
+            raise ValueError(f"{source.file} has no url")
+        tmp = source.path.with_name(source.path.name + ".part")
+        source.path.parent.mkdir(parents=True, exist_ok=True)
+        logger.info("Downloading %s", source.url)
+        with requests.get(source.url, stream=True, timeout=60) as r:
             r.raise_for_status()
             with tmp.open("wb") as f:
                 for chunk in r.iter_content(1 << 20):
                     f.write(chunk)
-        tmp.replace(path)
-        out.append(path)
+        tmp.replace(source.path)
+        out.append({"file": source.file, "sha256": sha256_file(source.path), "retrieved": utc_now()[:10]})
     return out
 
 
-def build(directory: Path, store_path: Path, stops_file: Path) -> dict:
+def build(sources: list[Source], store_path: Path, stops_file: Path) -> dict:
+    """Build the store from the dataset's OSM extracts, each checked against its sha256 first. The store records
+    the build version and the extracts' sha256: what the ingest version is made of, the same on every machine."""
     import osmium  # noqa: F401  (the "osm" extra; checked before the store is emptied)
 
-    extracts = [directory / f"{name}-latest.osm.pbf" for name in EXTRACTS]
-    missing = [p for p in extracts if not p.is_file()]
-    if missing:
-        raise FileNotFoundError(f"missing extracts: {', '.join(map(str, missing))} (run `cotral osm download`)")
+    if not sources:
+        raise ValueError("the dataset has no osm source")
+    bad = {s.file: state for s in sources if (state := s.state()) != "ok"}
+    if bad:
+        raise ValueError(f"OSM extracts not usable: {bad} (`cotral inputs fetch`; Git LFS pointers need `git lfs pull`)")
+    extracts = [s.path for s in sources]
     region = network_region(stops_file)
     store = OsmStore(store_path)
     store.create()
@@ -129,8 +136,8 @@ def build(directory: Path, store_path: Path, stops_file: Path) -> dict:
         logger.info("%s: %d roads, %d stop-like objects in %.0f s", path.name, n_roads, n_stops,
                     time.monotonic() - start)
     store.set_meta({
-        "built_at": utc_now(), "region": ",".join(f"{v:.4f}" for v in region),
-        "extracts": ",".join(f"{p.name}@{time.strftime('%Y-%m-%dT%H:%M:%S', time.gmtime(p.stat().st_mtime))}"
-                             for p in extracts),
+        "built_at": utc_now(), "build_version": str(BUILD_VERSION), "region": ",".join(f"{v:.4f}" for v in region),
+        "extracts": ",".join(p.name for p in extracts),
+        "extracts_sha256": ",".join(s.sha256 for s in sources),
     })
     return totals

@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..caches import UsageLedger, key_id, open_metadata_cache, this_month
+from ..errors import CotralMaintenanceError
 from ..fileutils import RawStore
 from ..models import Stop
 from ..osm_store import OsmStore
@@ -211,7 +212,11 @@ def _stamp_versions(run: RunStore, seq: int, req: RunRequest, paths: Paths, osm:
     for phase, detail in details.items():
         run.add_version(versions[phase], detail, seq)
         run.stamp[phase] = (versions[phase], seq)
-    run.set_invocation_versions(seq, {"package": package, **versions})
+    try:
+        dataset = paths.dataset.identity()
+    except (CotralMaintenanceError, OSError) as error:  # a run on inputs without a manifest still runs
+        dataset = {"error": str(error)}
+    run.set_invocation_versions(seq, {"package": package, "dataset": dataset, **versions})
 
 
 def _add(counts: dict, phase: str, c: dict) -> None:

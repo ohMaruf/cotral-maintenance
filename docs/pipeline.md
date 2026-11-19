@@ -48,16 +48,16 @@ own head, such as H2O Lightning 4B: llama-server, build 11773 or later, answers 
 ```bash
 git clone https://github.com/ohMaruf/cotral-maintenance.git && cd cotral-maintenance
 scripts/setup_remote.sh            # uv, Python 3.14, llama.cpp b11429 + b11773 built with CUDA, the models,
-                                   # inputs/ (the private data repository, over HTTPS: see README) + the GTFS
+                                   # the dataset: inputs/ (private data repository, LFS), verified against
+                                   # inputs/dataset.toml, GTFS unzipped, OSM store built (a few minutes)
 # the one input in no repository: the Google API key
 scp .env server:cotral-maintenance/
-uv run cotral osm download && uv run --extra osm cotral osm build    # once, ~10 min
 uv run cotral run first20 --limit 20                                 # the first end-to-end run
 ```
 
 `.env` needs `MAPS_API_KEY` (Street View Static, Map Tiles and Places enabled); `MAPS_API_REFERRER`
-if the key is restricted by referrer. `inputs/GROUND_TRUTH/stop_sign_reference.png` and
-`inputs/GROUND_TRUTH/lookalikes/` (the data repository) are the explorer's reference images.
+if the key is restricted by referrer. Every other input is in the dataset, `inputs/dataset.toml` (see the
+README): the GTFS zip, the OSM extracts, the explorer's reference images, each with its sha256.
 
 Long runs: start them in `tmux` (or `nohup`); Ctrl-C (or losing the session) loses only the stops in
 flight. `uv run cotral status RUN` shows progress; `uv run cotral usage` the month's Google usage.
@@ -161,7 +161,7 @@ Every result says what made it. Each phase has a **version**, a 12-hex hash of w
 
 | Phase | Hash of |
 |---|---|
-| ingest | `INGEST_VERSION`, the OSM store's build (time, region, extracts), the GTFS `stops.txt` sha256 |
+| ingest | `INGEST_VERSION`, the OSM store's build version, its extracts' sha256 and region (not when or where it was built), the GTFS `stops.txt` sha256 |
 | explore | `HARNESS_VERSION`, the explorer prompt's sha256, the reference images' sha256, the explorer models (files, revisions, sampling, server arguments) |
 | score | `SCORER_VERSION`, the sha256 of every prompt text the scorer reads (header, questions, state), the scorer model (files, revisions, readout, calibration, rotations) |
 

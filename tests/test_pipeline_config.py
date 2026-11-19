@@ -143,9 +143,9 @@ def test_a_run_refuses_to_mix_versions(tmp_path, monkeypatch):
     monkeypatch.setattr(R, "sha256_file", lambda p: "sha")
     req = SimpleNamespace(phases=("ingest",), allow_mixed=False)
     with pytest.raises(R.MixedVersions, match="ingest: this code is version"):
-        R._stamp_versions(store, 2, req, SimpleNamespace(gtfs=tmp_path), None, "0.2.0", ["f1", "f2"])
-    R._stamp_versions(store, 2, SimpleNamespace(phases=("ingest",), allow_mixed=True), SimpleNamespace(gtfs=tmp_path),
+        R._stamp_versions(store, 2, req, SimpleNamespace(gtfs=tmp_path, dataset=SimpleNamespace(identity=lambda: {"name": "t"})), None, "0.2.0", ["f1", "f2"])
+    R._stamp_versions(store, 2, SimpleNamespace(phases=("ingest",), allow_mixed=True), SimpleNamespace(gtfs=tmp_path, dataset=SimpleNamespace(identity=lambda: {"name": "t"})),
                       None, "0.2.0", ["f1", "f2"])
     assert store.stamp["ingest"][1] == 2
-    assert R._stamp_versions(store, 3, req, SimpleNamespace(gtfs=tmp_path), None, "0.2.0", ["f1"]) is None  # done
+    assert R._stamp_versions(store, 3, req, SimpleNamespace(gtfs=tmp_path, dataset=SimpleNamespace(identity=lambda: {"name": "t"})), None, "0.2.0", ["f1"]) is None  # done
     store.close()

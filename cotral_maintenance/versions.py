@@ -3,7 +3,8 @@
 Every phase row (starts, explorations, scores) carries the `version` that made it: the first 12 hex of the
 sha256 of a canonical JSON of what decides the phase's output:
 
-  ingest   INGEST_VERSION, the OSM store (its build time, region, extracts), the GTFS stops.txt sha256
+  ingest   INGEST_VERSION, the OSM store (its build version, its extracts' sha256, its region), the GTFS
+           stops.txt sha256
   explore  the harness (HARNESS_VERSION, the prompt's sha256) and the explorer models (files, revisions,
            sampling, server arguments)
   score    SCORER_VERSION, the sha256 of the prompts Imajev reads (header, questions, state template) and the
@@ -57,8 +58,10 @@ def pipeline() -> dict:
 
 
 def ingest_detail(osm_meta: dict, gtfs_stops_sha256: str) -> dict:
+    """The store's build version, its extracts' sha256 and its region: what it was built from, not when or where
+    (a store rebuilt from the same extracts on another machine has the same version)."""
     return {"phase": "ingest", "ingest_version": INGEST_VERSION, "gtfs_stops_sha256": gtfs_stops_sha256,
-            "osm_store": {k: osm_meta.get(k) for k in ("built_at", "region", "extracts")}}
+            "osm_store": {k: osm_meta.get(k) for k in ("build_version", "extracts_sha256", "region")}}
 
 
 def explore_detail(harness: dict, explorer: dict) -> dict:

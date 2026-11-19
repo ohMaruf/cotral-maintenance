@@ -1,6 +1,7 @@
 """Command line: `uv run cotral --help` (or `python -m cotral_maintenance`).
 
-    cotral osm download | build          the local OSM store, from Geofabrik
+    cotral inputs check | fetch          the dataset (inputs/dataset.toml): verify, fetch, unzip the GTFS
+    cotral osm build | download          the local OSM store, from the dataset's extracts
     cotral models fetch [--profile P]    download a profile's model files (pinned revisions)
     cotral run RUN (--limit N | --stop-id ID ... | --all | --resume) [--profile P]
                                          GTFS -> OSM / Places -> explore -> score -> results.csv
@@ -33,8 +34,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
     sub = parser.add_subparsers(dest="command", required=True)
 
-    osm = sub.add_parser("osm", help="the local OSM store, from Geofabrik")
-    osm.add_argument("action", choices=["download", "build"])
+    inputs = sub.add_parser("inputs", help="the dataset (inputs/dataset.toml): check it, fetch what is missing")
+    inputs.add_argument("action", choices=["check", "fetch"],
+                        help="check: every file against its sha256; fetch: download what is missing from its url "
+                             "(refused if the bytes differ), then unzip the GTFS feed once")
+
+    osm = sub.add_parser("osm", help="the local OSM store, from the dataset's extracts")
+    osm.add_argument("action", choices=["build", "download"],
+                     help="build: the store from the extracts; download: replace the extracts with their newest "
+                          "copies (for a new dataset: then update the manifest's sha256)")
 
     models = sub.add_parser("models", help="model files of a profile")
     models.add_argument("action", choices=["fetch", "show"])
@@ -127,12 +135,29 @@ def main(argv: list[str] | None = None) -> int:
 def cmd_osm(args, paths: Paths) -> int:
     from .osm_build import build, download
 
+    sources = paths.dataset.of("osm")
     if args.action == "download":
-        for p in download(paths.osm_dir):
-            logger.info("Saved %s", p)
+        for entry in download(sources):
+            print(json.dumps(entry))
+        print("Now update these sources' sha256 (and dates) in the manifest:", paths.dataset_manifest)
     else:
-        logger.info("Built %s: %s", paths.osm_store, build(paths.osm_dir, paths.osm_store, paths.gtfs / "stops.txt"))
+        logger.info("Built %s: %s", paths.osm_store, build(sources, paths.osm_store, paths.gtfs / "stops.txt"))
     return EXIT_OK
+
+
+def cmd_inputs(args, paths: Paths) -> int:
+    from .dataset import fetch
+
+    dataset = paths.dataset
+    if args.action == "fetch":
+        print(json.dumps(fetch(dataset, paths.gtfs), indent=1))
+        return EXIT_OK
+    bad = 0
+    for source, state in dataset.check():
+        bad += state != "ok"
+        print(f"{state:12s} {source.role:10s} {source.file}")
+    print(f"dataset {dataset.name}: {'all files verified' if not bad else f'{bad} not verified'} ({dataset.manifest})")
+    return EXIT_OK if not bad else EXIT_ERROR
 
 
 def cmd_models(args, paths: Paths) -> int:
@@ -212,7 +237,7 @@ def cmd_usage(args, paths: Paths) -> int:
     return EXIT_OK
 
 
-COMMANDS = {"osm": cmd_osm, "models": cmd_models, "run": cmd_run, "status": cmd_status, "export": cmd_export,
+COMMANDS = {"inputs": cmd_inputs, "osm": cmd_osm, "models": cmd_models, "run": cmd_run, "status": cmd_status, "export": cmd_export,
             "bundle": cmd_bundle, "unbundle": cmd_unbundle, "usage": cmd_usage}
 
 if __name__ == "__main__":

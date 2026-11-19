@@ -90,15 +90,13 @@ if (( models )); then
 fi
 
 # 5. Inputs: the data repository and the Cotral GTFS feed -------------------------------------------
-# inputs/ is github.com/ohMaruf/cotral-maintenance-data, private, at the commit this checkout pins. The server
-# reads it with a deploy key: ssh-keygen -t ed25519 -f ~/.ssh/cotral_data -N "", add ~/.ssh/cotral_data.pub to
-# the data repository (Settings > Deploy keys, read-only), and in ~/.ssh/config:
-#   Host github.com
-#     IdentityFile ~/.ssh/cotral_data
+# inputs/ is https://github.com/ohMaruf/cotral-maintenance-data, private, at the commit this checkout pins,
+# fetched over HTTPS with the same GitHub credentials as this repository: a token that can read both repositories
+# (stored once by `git config --global credential.helper store` and the first fetch, or by `gh auth login`).
 log "Inputs: the data repository (inputs/)"
 git -C "$ROOT" submodule update --init inputs \
-  || die "inputs/: cannot fetch git@github.com:ohMaruf/cotral-maintenance-data.git. The server needs read access: a
-  deploy key (see the comment above this step in scripts/setup_remote.sh), then re-run"
+  || die "inputs/: cannot fetch https://github.com/ohMaruf/cotral-maintenance-data.git. The server's GitHub token
+  must be able to read it (a fine-grained token: add the repository to it), then re-run"
 # The GTFS zip is in the data repository (the feed's download server is not reachable from everywhere); it is
 # unzipped once.
 # An unzipped feed is never replaced: a run is tied to the feed it started with (`cotral run` checks stops.txt's

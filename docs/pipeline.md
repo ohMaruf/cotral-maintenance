@@ -46,9 +46,9 @@ own head, such as H2O Lightning 4B: llama-server, build 11773 or later, answers 
 ## On the GPU server (Linux, NVIDIA, CUDA)
 
 ```bash
-git clone git@github.com:ohMaruf/cotral-maintenance.git && cd cotral-maintenance
+git clone https://github.com/ohMaruf/cotral-maintenance.git && cd cotral-maintenance
 scripts/setup_remote.sh            # uv, Python 3.14, llama.cpp b11429 + b11773 built with CUDA, the models,
-                                   # inputs/ (the data repository: needs a deploy key, see README) + the GTFS
+                                   # inputs/ (the private data repository, over HTTPS: see README) + the GTFS
 # the one input in no repository: the Google API key
 scp .env server:cotral-maintenance/
 uv run cotral osm download && uv run --extra osm cotral osm build    # once, ~10 min

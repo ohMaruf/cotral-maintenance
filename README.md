@@ -47,7 +47,7 @@ Other locations can be set in `.env` or the environment: `COTRAL_GTFS`, `COTRAL_
 `COTRAL_PROFILES` (see `cotral_maintenance/settings.py`).
 
 ```bash
-git clone --recurse-submodules git@github.com:ohMaruf/cotral-maintenance.git   # code + inputs/
+git clone --recurse-submodules https://github.com/ohMaruf/cotral-maintenance.git   # code + inputs/
 git submodule update --init inputs                  # in a clone made without --recurse-submodules
 unzip -o inputs/GTFS_COTRAL.zip -d GTFS_COTRAL      # on the Mac (setup_remote.sh does it on the server)
 ```
@@ -65,7 +65,7 @@ Needs: the NVIDIA driver, the CUDA toolkit (`nvcc`), `git cmake build-essential 
 disk (models 15 GB, OSM 3 GB, llama.cpp builds).
 
 ```bash
-git clone git@github.com:ohMaruf/cotral-maintenance.git && cd cotral-maintenance
+git clone https://github.com/ohMaruf/cotral-maintenance.git && cd cotral-maintenance
 scripts/setup_remote.sh          # uv + Python 3.14, llama.cpp b11429 and b11773 with CUDA, the models, inputs/ + GTFS
 ```
 
@@ -79,16 +79,18 @@ capability:
 `--no-models` skips the model downloads; `uv run cotral models fetch --profile remote` does them later.
 
 It fetches `inputs/` (the data repository) and unzips the GTFS into `GTFS_COTRAL/` when that is not
-there; it says when the zip and the unzipped feed differ. The data repository is private, so the server
-needs read access to it, once: a **deploy key**.
+there; it says when the zip and the unzipped feed differ. The submodule is fetched over HTTPS
+(`.gitmodules`), with the same GitHub credentials the server uses for this repository. The data
+repository is private, so that token must be able to read it too: with a fine-grained token, add
+`cotral-maintenance-data` to its repositories (Contents: read).
+
+A clone that works over SSH (the laptop, which pushes) can use SSH for `inputs/` too, in its own
+config (`.gitmodules` stays HTTPS):
 
 ```bash
-ssh-keygen -t ed25519 -f ~/.ssh/cotral_data -N ""
-cat ~/.ssh/cotral_data.pub     # add it to cotral-maintenance-data: Settings > Deploy keys (read-only)
-printf 'Host github.com\n  IdentityFile ~/.ssh/cotral_data\n' >> ~/.ssh/config
+git config submodule.inputs.url git@github.com:ohMaruf/cotral-maintenance-data.git
+git -C inputs remote set-url origin git@github.com:ohMaruf/cotral-maintenance-data.git
 ```
-
-(If the server already reads GitHub with a key of your account, nothing is needed.)
 
 Copy `.env` from the laptop (the only input in no repository), then build the OSM store once (about 10 minutes):
 

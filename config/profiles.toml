@@ -32,7 +32,10 @@ dialect = "llamacpp"
 model = "qwen3.8-27b"
 concurrency = 2
 sampling = { temperature = 1.0, top_p = 0.95, top_k = 20, min_p = 0.0, presence_penalty = 0.0 }
-template = { reasoning_effort = "low", preserve_thinking = true }
+# The explorer needs to act through tools, not expose a chain of thought.  Keeping that
+# trace made every subsequent request carry it again, eventually growing a stop's
+# context into the tens of thousands of tokens.
+template = { preserve_thinking = false }
 max_tokens = 3000
 
 [profiles.remote.explorer.server]
@@ -47,8 +50,7 @@ args = ["-m", "{file:model}", "--mmproj", "{file:mmproj}", "--alias", "qwen3.8-2
         "--host", "127.0.0.1", "--port", "{port}",
         "-c", "98304", "-np", "4", "--kv-unified", "-ngl", "99", "-fa", "on",
         "--cache-type-k", "q8_0", "--cache-type-v", "q8_0",
-        "--jinja", "--reasoning-format", "deepseek",
-        "--reasoning-budget", "300", "--reasoning-budget-message", " Enough thinking: act now with one tool call."]
+        "--jinja", "--reasoning-format", "deepseek", "--reasoning-budget", "0"]
 
 [profiles.remote.scorer]
 # H2O Lightning 4B: a Jev decision model whose GGUF carries its decision head; llama-server answers

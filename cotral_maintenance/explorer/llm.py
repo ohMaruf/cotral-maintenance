@@ -9,9 +9,9 @@ Two dialects, because servers differ in what they accept:
             (a reply without a call is answered with a reminder), no slots or template controls, and
             images only in user messages, so a tool result's photos follow it as a user message.
 
-The loop (ported from experiments/explore/qwen_run.py, harness 0.11) keeps the history an exact
-extension of the previous request, so the server's prompt cache is reused every turn: thinking is
-kept in the history, and harness nudges are appended to the last tool result.
+The loop keeps the history an exact extension of the previous request, so the server's prompt cache
+is reused every turn. Reasoning is disabled at the server and deliberately never retained in the
+history; harness nudges are appended to the last tool result.
 """
 
 import base64
@@ -268,8 +268,6 @@ class Explorer:
                 continue
             invalid = 0
             assistant = {"role": "assistant", "content": message.get("content") or "", "tool_calls": calls}
-            if self.client.dialect == "llamacpp":
-                assistant["reasoning_content"] = message.get("reasoning_content") or ""
             messages.append(assistant)
             before = progress(session)
             failed = None

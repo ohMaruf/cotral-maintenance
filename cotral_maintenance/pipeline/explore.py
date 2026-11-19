@@ -138,6 +138,19 @@ def explore(ctx: ExploreContext, stop_ids: list[str], on_done: Callable[[str, st
     return counts
 
 
+def progress_line(stop_id: str, entry: dict) -> None:
+    """One log line per explorer turn and per confirmer call, so a stop in progress shows that it is moving."""
+    if "tool_calls" in entry:
+        calls = ", ".join(f"{c['name']}({c['arguments'][:80]})" for c in entry["tool_calls"]) or "no tool call"
+        timings = entry.get("timings") or {}
+        logger.info("%s turn %d: %s (%.0f s, %s prompt tokens new, %s generated)", stop_id, entry["turn"], calls,
+                    entry.get("seconds") or 0, timings.get("prompt_n"), timings.get("predicted_n"))
+    elif "error" in entry and "turn" in entry:
+        logger.warning("%s turn %d: %s", stop_id, entry["turn"], entry["error"][:200])
+    elif "confirm" in entry:
+        logger.info("%s confirmer: %s on %s", stop_id, entry.get("status"), entry.get("photo"))
+
+
 def explore_stop(ctx: ExploreContext, row: dict, shapes: dict, slots: tuple[int | None, int | None]
                  ) -> tuple[str, dict[str, int]]:
     """Explore one stop and store the result. Returns (status, billed requests)."""
@@ -155,6 +168,7 @@ def explore_stop(ctx: ExploreContext, row: dict, shapes: dict, slots: tuple[int 
     def log(entry: dict) -> None:
         with lock:
             transcript.append({"at": utc_now(), **entry})
+        progress_line(stop_id, entry)
 
     started_at, t0 = utc_now(), time.monotonic()
     sv = StreetViewClient(ctx.google.api_key, 20.0, ctx.google.referrer)

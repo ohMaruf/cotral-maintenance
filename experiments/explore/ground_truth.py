@@ -1,6 +1,6 @@
 """Convert the manually verified stops spreadsheet into a ground-truth CSV for the explorer (agent_dry_run.py).
 
-Input: GROUND_TRUTH/bus_stops_new_coordinates.xlsx, one row per GTFS stop. A verifier
+Input: inputs/GROUND_TRUTH/bus_stops_new_coordinates.xlsx, one row per GTFS stop. A verifier
 checked a row when `Verified` is TRUE; `Latitude/Longitude_with_corrections` is then
 where they found the stop in Street View, unless `Not found?` is TRUE.
 
@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from cotral_maintenance.geo import distance_m  # noqa: E402
 from cotral_maintenance.stops import load_stops  # noqa: E402
 
-SHEET = Path("GROUND_TRUTH/bus_stops_new_coordinates.xlsx")
+SHEET = Path("inputs/GROUND_TRUTH/bus_stops_new_coordinates.xlsx")
 STOPS = Path("GTFS_COTRAL/stops.txt")
 OUT = Path("data/ground_truth_manual.csv")
 COLUMNS = ("stop_id", "lat", "lon", "has_sign", "comments", "offset_m")

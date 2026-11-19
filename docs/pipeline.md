@@ -46,17 +46,18 @@ own head, such as H2O Lightning 4B: llama-server, build 11773 or later, answers 
 ## On the GPU server (Linux, NVIDIA, CUDA)
 
 ```bash
-git clone <this repo> cotral-maintenance && cd cotral-maintenance
-scripts/setup_remote.sh            # uv, Python 3.14, llama.cpp b11429 + b11773 built with CUDA, the models
-# inputs that are not in git: copy them from the laptop
-rsync -a GTFS_COTRAL GROUND_TRUTH .env server:cotral-maintenance/
+git clone git@github.com:ohMaruf/cotral-maintenance.git && cd cotral-maintenance
+scripts/setup_remote.sh            # uv, Python 3.14, llama.cpp b11429 + b11773 built with CUDA, the models,
+                                   # inputs/ (the data repository: needs a deploy key, see README) + the GTFS
+# the one input in no repository: the Google API key
+scp .env server:cotral-maintenance/
 uv run cotral osm download && uv run --extra osm cotral osm build    # once, ~10 min
 uv run cotral run first20 --limit 20                                 # the first end-to-end run
 ```
 
 `.env` needs `MAPS_API_KEY` (Street View Static, Map Tiles and Places enabled); `MAPS_API_REFERRER`
-if the key is restricted by referrer. `GROUND_TRUTH/stop_sign_reference.png` and `GROUND_TRUTH/lookalikes/`
-are the explorer's reference images.
+if the key is restricted by referrer. `inputs/GROUND_TRUTH/stop_sign_reference.png` and
+`inputs/GROUND_TRUTH/lookalikes/` (the data repository) are the explorer's reference images.
 
 Long runs: start them in `tmux` (or `nohup`); Ctrl-C (or losing the session) loses only the stops in
 flight. `uv run cotral status RUN` shows progress; `uv run cotral usage` the month's Google usage.

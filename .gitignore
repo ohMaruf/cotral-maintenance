@@ -8,7 +8,9 @@ data/
 .pytest_cache/
 GTFS_COTRAL/
 GTFS_ATAC/
+# old copies of what is now in inputs/ (the data repository)
 GROUND_TRUTH/
+GTFS_COTRAL.zip
 turbo-fieldfare/
 .DS_Store
 *.log

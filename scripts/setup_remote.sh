@@ -12,7 +12,9 @@
 #        b11773 (the scorer, H2O Lightning: the first build that answers /v1/systemone) into
 #        ~/.local/opt/llama.cpp-b11773, which the `remote` profile's scorer names as its binary
 #   4. downloads the `remote` profile's model files (pinned revisions) into $COTRAL_MODELS (~/models)
-#   5. checks the inputs that are not in git (GTFS_COTRAL/, GROUND_TRUTH/, .env)
+#   5. fetches inputs/, the data repository (a private git submodule: the GTFS zip, GROUND_TRUTH/), and
+#      unzips the Cotral GTFS feed, inputs/GTFS_COTRAL.zip, into GTFS_COTRAL/ when it is not there
+#   6. checks the input that is not in git: .env (the Google API key)
 set -euo pipefail
 
 LLAMA_CPP_TAG="${LLAMA_CPP_TAG:-b11429}"   # the build the pipeline was verified with (media markers, Qwen3.8)
@@ -87,14 +89,63 @@ if (( models )); then
   (cd "$ROOT" && uv run cotral models fetch --profile remote)
 fi
 
-# 5. Inputs not in git -----------------------------------------------------------------------
+# 5. Inputs: the data repository and the Cotral GTFS feed -------------------------------------------
+# inputs/ is github.com/ohMaruf/cotral-maintenance-data, private, at the commit this checkout pins. The server
+# reads it with a deploy key: ssh-keygen -t ed25519 -f ~/.ssh/cotral_data -N "", add ~/.ssh/cotral_data.pub to
+# the data repository (Settings > Deploy keys, read-only), and in ~/.ssh/config:
+#   Host github.com
+#     IdentityFile ~/.ssh/cotral_data
+log "Inputs: the data repository (inputs/)"
+git -C "$ROOT" submodule update --init inputs \
+  || die "inputs/: cannot fetch git@github.com:ohMaruf/cotral-maintenance-data.git. The server needs read access: a
+  deploy key (see the comment above this step in scripts/setup_remote.sh), then re-run"
+# The GTFS zip is in the data repository (the feed's download server is not reachable from everywhere); it is
+# unzipped once.
+# An unzipped feed is never replaced: a run is tied to the feed it started with (`cotral run` checks stops.txt's
+# sha256). When the zip has a newer feed, this says so; remove GTFS_COTRAL/ and re-run to switch, and start new runs.
+GTFS_ZIP="$ROOT/inputs/GTFS_COTRAL.zip"
+GTFS_DIR="$ROOT/GTFS_COTRAL"
+if [[ -f "$GTFS_DIR/stops.txt" ]]; then
+  if [[ -f "$GTFS_ZIP" ]] && ! (cd "$ROOT" && uv run python - "$GTFS_ZIP" "$GTFS_DIR/stops.txt" <<'PY'
+import sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as z, open(sys.argv[2], "rb") as f:
+    sys.exit(0 if z.read("stops.txt") == f.read() else 1)
+PY
+  ); then
+    log "GTFS: inputs/GTFS_COTRAL.zip differs from GTFS_COTRAL/ (kept). To switch feed: rm -rf GTFS_COTRAL and re-run"
+  else
+    log "GTFS: GTFS_COTRAL/ is there"
+  fi
+elif [[ -f "$GTFS_ZIP" ]]; then
+  (cd "$ROOT" && uv run python - "$GTFS_ZIP" "$GTFS_DIR" <<'PY'
+import sys, zipfile
+from pathlib import Path
+need = {"agency.txt", "calendar.txt", "routes.txt", "shapes.txt", "stop_times.txt", "stops.txt", "trips.txt"}
+out = Path(sys.argv[2])
+with zipfile.ZipFile(sys.argv[1]) as z:
+    files = {Path(n).name: n for n in z.namelist() if n.endswith(".txt") and "/." not in n}
+    missing = need - files.keys()
+    if missing:
+        sys.exit(f"GTFS_COTRAL.zip lacks {', '.join(sorted(missing))}")
+    tmp = out.with_name(out.name + ".partial")
+    tmp.mkdir(exist_ok=True)
+    for name, member in files.items():  # flat, whether the zip has a folder or not
+        (tmp / name).write_bytes(z.read(member))
+    tmp.rename(out)
+print(f"{sum(1 for _ in open(out / 'stops.txt', encoding='utf-8-sig')) - 1} stops")
+PY
+  ) | { read -r n; log "GTFS: inputs/GTFS_COTRAL.zip unzipped into GTFS_COTRAL/ ($n)"; } || die "GTFS: unzipping inputs/GTFS_COTRAL.zip failed"
+  [[ -f "$GTFS_DIR/stops.txt" ]] || die "GTFS: unzipping inputs/GTFS_COTRAL.zip failed"
+else
+  die "GTFS: no inputs/GTFS_COTRAL.zip and no GTFS_COTRAL/"
+fi
+
+# 6. .env, not in git -------------------------------------------------------------------------
 missing=()
-[[ -f "$ROOT/GTFS_COTRAL/stops.txt" ]] || missing+=("GTFS_COTRAL/")
-[[ -f "$ROOT/GROUND_TRUTH/stop_sign_reference.png" ]] || missing+=("GROUND_TRUTH/ (stop_sign_reference.png, lookalikes/)")
 grep -q '^MAPS_API_KEY=' "$ROOT/.env" 2>/dev/null || missing+=(".env with MAPS_API_KEY")
 if (( ${#missing[@]} )); then
   log "Still to copy from the laptop: ${missing[*]}"
-  log "  e.g. rsync -a GTFS_COTRAL GROUND_TRUTH .env <this-server>:$(basename "$ROOT")/"
+  log "  e.g. scp .env <this-server>:$(basename "$ROOT")/"
 fi
 [[ -f "$ROOT/data/osm/osm.sqlite3" ]] || log "Then build the OSM store: uv run cotral osm download && uv run --extra osm cotral osm build"
 log "Done. First run: uv run cotral run first20 --limit 20"

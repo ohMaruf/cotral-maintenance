@@ -4,7 +4,8 @@ Paths (defaults relative to the repository root; override with environment varia
   COTRAL_GTFS        GTFS_COTRAL              the Cotral GTFS feed (the pipeline's input)
   COTRAL_OSM_STORE   data/osm/osm.sqlite3     the OSM store built from Geofabrik (`cotral osm build`)
   COTRAL_OSM_DIR     data/osm/extracts        the Geofabrik extracts
-  COTRAL_ASSETS      GROUND_TRUTH             stop_sign_reference.png and lookalikes/ for the explorer
+  COTRAL_ASSETS      inputs/GROUND_TRUTH      stop_sign_reference.png and lookalikes/ for the explorer (inputs/:
+                                              the data repository, a git submodule)
   COTRAL_CACHE       data/cache               caches shared by runs (metadata, photos, tiles, Places, usage)
   COTRAL_RUNS        runs                     one directory per run
   COTRAL_MODELS      ~/models                 model files downloaded from Hugging Face
@@ -46,7 +47,7 @@ class Paths:
             return value if value.is_absolute() else ROOT / value
 
         return cls(gtfs=p("COTRAL_GTFS", "GTFS_COTRAL"), osm_store=p("COTRAL_OSM_STORE", "data/osm/osm.sqlite3"),
-                   osm_dir=p("COTRAL_OSM_DIR", "data/osm/extracts"), assets=p("COTRAL_ASSETS", "GROUND_TRUTH"),
+                   osm_dir=p("COTRAL_OSM_DIR", "data/osm/extracts"), assets=p("COTRAL_ASSETS", "inputs/GROUND_TRUTH"),
                    cache=p("COTRAL_CACHE", "data/cache"), runs=p("COTRAL_RUNS", "runs"),
                    models=p("COTRAL_MODELS", Path.home() / "models"),
                    profiles=p("COTRAL_PROFILES", "config/profiles.toml"))

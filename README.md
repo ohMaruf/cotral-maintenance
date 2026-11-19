@@ -30,17 +30,32 @@ More detail: [docs/pipeline.md](docs/pipeline.md) (phases, run format, scores, v
 A profile is picked with `--profile NAME` (or `COTRAL_PROFILE`); profiles live in
 [config/profiles.toml](config/profiles.toml). The pipeline starts and stops the model servers itself.
 
-## Inputs (not in git)
+## Inputs
+
+The data the pipeline reads lives in a separate, private repository,
+[cotral-maintenance-data](https://github.com/ohMaruf/cotral-maintenance-data), included here as a git
+submodule at `inputs/`, pinned to a commit: each commit of the code names the data it runs on.
 
 | What | Where | Needed by |
 |---|---|---|
-| Cotral GTFS feed (`stops.txt`, `trips.txt`, `stop_times.txt`, `shapes.txt`) | `GTFS_COTRAL/` | every run |
-| Explorer reference images: `stop_sign_reference.png`, `lookalikes/*.png` | `GROUND_TRUTH/` | explore |
-| `.env` with `MAPS_API_KEY` (Street View Static, Map Tiles and Places enabled) and, if the key is restricted by referrer, `MAPS_API_REFERRER` | `.env` | ingest, explore |
+| Cotral GTFS feed, zipped | `inputs/GTFS_COTRAL.zip`, unzipped into `GTFS_COTRAL/` | every run |
+| Explorer reference images: `stop_sign_reference.png`, `lookalikes/*.png` (the folder also holds the spreadsheets of verified stop positions the experiments use) | `inputs/GROUND_TRUTH/` | explore |
+| `.env` (in no repository: it holds the API key) with `MAPS_API_KEY` (Street View Static, Map Tiles and Places enabled) and, if the key is restricted by referrer, `MAPS_API_REFERRER` | `.env` | ingest, explore |
 
 Other locations can be set in `.env` or the environment: `COTRAL_GTFS`, `COTRAL_ASSETS`, `COTRAL_RUNS`
 (default `runs/`), `COTRAL_CACHE` (`data/cache/`), `COTRAL_MODELS` (`~/models`), `COTRAL_OSM_STORE`,
 `COTRAL_PROFILES` (see `cotral_maintenance/settings.py`).
+
+```bash
+git clone --recurse-submodules git@github.com:ohMaruf/cotral-maintenance.git   # code + inputs/
+git submodule update --init inputs                  # in a clone made without --recurse-submodules
+unzip -o inputs/GTFS_COTRAL.zip -d GTFS_COTRAL      # on the Mac (setup_remote.sh does it on the server)
+```
+
+To update the feed: commit the new `GTFS_COTRAL.zip` in the data repository, then here
+`git -C inputs pull origin main` and commit the new `inputs` pointer. An unzipped feed is never replaced
+by the setup, because a run is tied to the feed it started with: `rm -rf GTFS_COTRAL`, unzip again, and
+start new runs (old runs refuse to continue without `--allow-new-gtfs`).
 
 ---
 
@@ -50,8 +65,8 @@ Needs: the NVIDIA driver, the CUDA toolkit (`nvcc`), `git cmake build-essential 
 disk (models 15 GB, OSM 3 GB, llama.cpp builds).
 
 ```bash
-git clone <this repo> cotral-maintenance && cd cotral-maintenance
-scripts/setup_remote.sh          # uv + Python 3.14, llama.cpp b11429 and b11773 with CUDA, the models
+git clone git@github.com:ohMaruf/cotral-maintenance.git && cd cotral-maintenance
+scripts/setup_remote.sh          # uv + Python 3.14, llama.cpp b11429 and b11773 with CUDA, the models, inputs/ + GTFS
 ```
 
 `setup_remote.sh` is safe to re-run. It builds llama.cpp twice, both with CUDA for the card's compute
@@ -61,13 +76,25 @@ capability:
 - **b11773** into `~/.local/opt/llama.cpp-b11773`, for the scorer. This is the first build that answers
   H2O Lightning's decision API itself, and the `remote` profile names it as the scorer's `binary`.
 
-`--no-models` skips the downloads; `uv run cotral models fetch --profile remote` does them later.
+`--no-models` skips the model downloads; `uv run cotral models fetch --profile remote` does them later.
 
-Copy the inputs from the laptop, then build the OSM store once (about 10 minutes):
+It fetches `inputs/` (the data repository) and unzips the GTFS into `GTFS_COTRAL/` when that is not
+there; it says when the zip and the unzipped feed differ. The data repository is private, so the server
+needs read access to it, once: a **deploy key**.
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/cotral_data -N ""
+cat ~/.ssh/cotral_data.pub     # add it to cotral-maintenance-data: Settings > Deploy keys (read-only)
+printf 'Host github.com\n  IdentityFile ~/.ssh/cotral_data\n' >> ~/.ssh/config
+```
+
+(If the server already reads GitHub with a key of your account, nothing is needed.)
+
+Copy `.env` from the laptop (the only input in no repository), then build the OSM store once (about 10 minutes):
 
 ```bash
 # on the laptop
-rsync -a GTFS_COTRAL GROUND_TRUTH .env server:cotral-maintenance/
+scp .env server:cotral-maintenance/
 # on the server
 uv run cotral osm download                 # Geofabrik extracts (centro, sud)
 uv run --extra osm cotral osm build        # data/osm/osm.sqlite3
@@ -149,7 +176,7 @@ HF_UI_VERSION=b11773 cmake --build build --config Release -j --target llama-serv
 ./build/bin/llama-server --version  # commit 7e3eeee
 ```
 
-Then, with the inputs in place (`GTFS_COTRAL/`, `GROUND_TRUTH/`, `.env`):
+Then, with `inputs/` fetched, `GTFS_COTRAL/` unzipped and `.env` in place:
 
 ```bash
 uv sync --extra osm
@@ -207,4 +234,5 @@ cd review-ui && eval "$(fnm env)" && fnm use && npm run test:ci   # Angular
 | `scripts/` | server setup, Imajev MLX setup and parity check |
 | `docs/` | pipeline, review API, explorer design and versions |
 | `experiments/` | scratch experiments, not part of the pipeline |
+| `inputs/` | the data repository (submodule): GTFS zip, ground truth |
 | `runs/`, `data/` | runs and caches (not in git) |

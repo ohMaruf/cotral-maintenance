@@ -27,8 +27,8 @@ PLACES = Path("data/stops_corrected.csv")
 STORE = Path("data/osm/osm.sqlite3")
 CACHE = Path("data/agent_runs/cache")
 TILES = Path("data/tiles")
-REFERENCE = Path("GROUND_TRUTH/stop_sign_reference.png")
-LOOKALIKES = Path("GROUND_TRUTH/lookalikes")
+REFERENCE = Path("inputs/GROUND_TRUTH/stop_sign_reference.png")
+LOOKALIKES = Path("inputs/GROUND_TRUTH/lookalikes")
 
 
 def build_session(run_dir: Path, config: dict, make_confirmer: Callable[[Path], Confirmer]) -> Session:

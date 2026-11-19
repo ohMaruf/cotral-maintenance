@@ -100,6 +100,30 @@ args = ["-m", "{file:model}", "--mmproj", "{file:mmproj}", "--alias", "imajev-4b
         "--embeddings", "--pooling", "last"]
 
 
+# Explorer experiment: Qwen3.8-27B NVFP4 is already served by another process on
+# the GPU.  This profile only checks that process; it never starts or stops it.
+# Run ingest,explore with this profile, then stop the external service before
+# resuming score with the regular `remote` profile (the two models do not fit
+# together on the 16 GB card).
+[profiles.remote-nvfp4]
+description = "Linux server: externally deployed Qwen3.8-27B NVFP4 explorer; score separately with remote"
+inherit = "remote"
+
+[profiles.remote-nvfp4.explorer]
+# The deployed service is OpenAI-compatible rather than llama.cpp.  One worker
+# is intentionally conservative until its tool-calling throughput is measured.
+dialect = "strict"
+model = "qwen3.8-27b"
+concurrency = 1
+
+[profiles.remote-nvfp4.explorer.server]
+inherit = false
+kind = "external"
+port = 18155
+base_url = "http://127.0.0.1:18155"
+health = "/v1/models"
+
+
 [profiles.local-smoke]
 description = "MacBook: TurboFieldfare (Gemma 4 26B-A4B) explorer, Imajev-4B MLX reference server scorer"
 

@@ -18,7 +18,8 @@ def paths_with(tmp_path, text):
 
 def test_shipped_profiles_load():
     paths = Paths.from_env()
-    for name in ("remote", "remote-imajev", "local-smoke", "local-smoke-gguf", "local-gguf", "local-imajev"):
+    for name in ("remote", "remote-imajev", "remote-nvfp4", "local-smoke", "local-smoke-gguf", "local-gguf",
+                 "local-imajev"):
         profile = load_profile(paths, name)
         assert profile.explorer.dialect in ("llamacpp", "strict")
         assert profile.scorer.dialect in SCORER_DIALECTS

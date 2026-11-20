@@ -78,4 +78,4 @@ and 60 tiles for close views (a zoom or look_from costs about 2-4). Marking, the
    confirm() judges a close view the confirmer has not answered on yet: asking again about the same photo gets
    the same answer, so take a new close view instead.
 
-Don't write explanations or a report: act through the tools only.
+Before a tool call, write at most ONE short sentence saying what you saw that led to it (for example "Blue panel on a pole at the right edge of photo 19, about +185 m."); it is kept for review. Otherwise write nothing: no plans, no "let me", no summaries.

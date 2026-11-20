@@ -262,12 +262,41 @@ def test_zoom_costs_an_image_and_aims_at_the_clicked_pixel(session):
         session.zoom(sweep.index, 1100, 10)
 
 
-def test_cached_images_are_not_billed_again(session):
+def test_cached_images_are_not_billed_again(tmp_path):
+    first = make_session(tmp_path)
+    first.begin()
+    first.sweep(from_m=50)
+    again = make_session(tmp_path)  # the same stop explored again, with the same image cache
+    again.begin()
+    again.sweep(from_m=50)
+    assert len(again.photos) == 3 and again.fetched == [] and again.billed == 0
+    assert again.explore_used == 3  # the budget counts every image, billed or not
+
+
+def fill_images(session, leave: int = 0) -> None:
+    """Sweep everywhere new (repeats are refused) until only `leave` wide images are left."""
+    for a in range(-190, 191, 10):
+        for facing in ("ahead", "behind"):
+            if session.explore_used >= EXPLORE_IMAGES - leave:
+                return
+            try:
+                session.sweep(from_m=a, facing=facing)
+            except ToolError:
+                pass
+    assert session.explore_used == EXPLORE_IMAGES - leave
+
+
+def test_a_sweep_that_would_show_nothing_new_is_refused(session):
+    # f306, 0.14.0: sweeps repeating the opening photos, "this is the same view as photo 1"
     session.begin()
-    session.sweep(from_m=50)
-    session.sweep(from_m=50)
-    assert len(session.photos) == 4 and len(session.fetched) == 3
-    assert session.billed == 3 and session.explore_used == 4  # the budget counts every image, billed or not
+    before = session.photos[0]
+    with pytest.raises(ToolError, match="nothing new.*photos 1"):
+        session.sweep(from_m=before.along, facing="ahead")
+    assert session.explore_used == 2 and len(session.photos) == 2  # no image spent
+
+
+def test_the_state_names_no_most_likely_stretch(session):
+    assert "most likely" not in session.begin().text
 
 
 def spot_and_confirm(session, **answers):
@@ -422,8 +451,7 @@ def test_submit_found_ends_the_search_and_photographs_the_stop(session):
 
 def test_the_stop_photos_are_kept_back_when_the_explorer_runs_out(session):
     session.begin()
-    for i in range(EXPLORE_IMAGES - 3):
-        session.sweep(from_m=-150 + 22 * i)
+    fill_images(session, leave=1)
     session.confirmer = FakeConfirmer(fermata_or_bus_text="yes")
     session.zoom(session.photos[-1].index, *at(session, session.photos[-1].index, 500, 330))
     assert session.explore_used == EXPLORE_IMAGES and "NO IMAGES LEFT" in session._state()
@@ -534,8 +562,7 @@ def test_the_search_ends_when_nothing_is_left_to_look_with(session):
     session.confirms = MAX_CONFIRMS
     assert "confirmations" in session.exhausted()
     session.confirms = 0
-    while session.explore_used < EXPLORE_IMAGES:
-        session.sweep(from_m=-150 + 10 * session.explore_used)
+    fill_images(session)
     assert "no images or tiles" in session.exhausted()  # no tile source here, so no close view either
 
 

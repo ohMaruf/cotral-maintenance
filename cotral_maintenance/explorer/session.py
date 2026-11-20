@@ -433,11 +433,30 @@ class Session:
         self._spend()
         pano = self._nearest_pano(from_m, scan)
         along = self.world.path.along_near(self._xy(pano), from_m, 30.0)  # on the pass that was asked for
-        self.sweeps += 1
         heading = (self._travel_bearing(along) + SWEEP_TURNS[facing]) % 360
+        self._refuse_if_nothing_new(Camera(self._xy(pano), heading, SWEEP_FOV, 0.0, *IMAGE_SIZE), along, facing)
+        self.sweeps += 1
         photo = self._shoot(pano, heading, SWEEP_FOV, 0.0, f"sweep_{facing}", along=along, shot=self.sweeps)
         self._mark_seen_close(photo)
         return photo
+
+    def _refuse_if_nothing_new(self, camera: Camera, along: float, facing: str) -> None:
+        """A sweep that would show no sidewalk not already seen close or glimpsed is refused before it is taken: it
+        costs an image and a turn for nothing (f306, 0.14.0: two sweeps repeated the opening photos, the model wrote
+        "this is the same view as photo 1"). Its stretch is named, and the wide photos that already show it."""
+        if self._seen_by(camera, along):
+            return
+        shown = [i for i, p in enumerate(self._sidewalk) if camera.column_of(p) is not None
+                 and math.dist(p, camera.position) <= 80 and abs(self.cells[i] - along) <= 120]
+        if not shown:
+            raise ToolError(f"a sweep {facing} from {_m(along)} would show no right-hand sidewalk within 80 m")
+        lo, hi = sorted((self.cells[shown[0]], self.cells[shown[-1]]))
+        mid = self._sidewalk[shown[len(shown) // 2]]
+        earlier = [q.index for q in self.photos if q.fov == SWEEP_FOV and self._camera(q).column_of(mid) is not None]
+        raise ToolError(f"a sweep {facing} from {_m(along)} would show nothing new: the sidewalk from {_m(lo)} to "
+                        f"{_m(hi)} is already seen close or glimpsed" + (f" (photos {', '.join(map(str, earlier[-3:]))})"
+                                                                         if earlier else "") +
+                        ". Zoom on something in those photos, or sweep where the sidewalk is not looked at yet.")
 
     def _narrow(self, pano: Panorama, heading: float, pitch: float, fov: float, toward: str, along: float,
                 parent: int | None = None) -> Photo:
@@ -992,7 +1011,6 @@ class Session:
             ranges = self._ranges(state)
             if ranges:
                 lines.append(f"- {state.replace('_', ' ')}: {', '.join(ranges)}")
-        lines.append("- most likely, of what is not yet seen: " + self._likely_text(lik, total))
         corners = self._unexamined_corners()
         if corners and self.outcome is None:
             lines.append("- CORNERS NOT YET EXAMINED: " + "; ".join(
@@ -1007,22 +1025,6 @@ class Session:
         if self.outcome:
             lines.append(f"- SEARCH OVER: {self.outcome['status']}")
         return "\n".join(lines)
-
-    def _likely_text(self, lik: list[float], total: float) -> str:
-        if total <= 0:
-            return "nothing left"
-        windows = []
-        for i in range(len(self.cells)):
-            j = min(i + 10, len(self.cells))
-            windows.append((sum(lik[i:j]) / total, self.cells[i] - CELL_M / 2, self.cells[j - 1] + CELL_M / 2))
-        windows.sort(reverse=True)
-        picked = []
-        for share, a, b in windows:
-            if all(b <= pa or a >= pb for _, pa, pb in picked):
-                picked.append((share, a, b))
-            if len(picked) == 3:
-                break
-        return "; ".join(f"{share:.0%} between {_m(a)} and {_m(b)}" for share, a, b in picked)
 
     def _ranges(self, state: str) -> list[str]:
         out, start = [], None

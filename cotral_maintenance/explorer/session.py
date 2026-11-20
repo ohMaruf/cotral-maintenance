@@ -83,7 +83,8 @@ SPREAD = {
     "places": ((10, 0.38), (25, 0.22), (50, 0.20), (100, 0.14), (400, 0.06)),
     "gtfs": ((10, 0.18), (25, 0.22), (50, 0.31), (100, 0.18), (400, 0.11)),
 }
-HINT_WEIGHT = {"bus_stop": 0.3, "platform": 0.3, "shelter": 0.3, "stop_position": 0.2, "bus_station": 0.1}
+HINT_WEIGHT = {"bus_stop": 0.3, "platform": 0.3, "shelter": 0.3, "stop_position": 0.2, "bus_station": 0.1,
+               "found_partner": 0.4}  # the same-name stop of the other direction, found across the road
 HINT_SIGMA_M = 8.0
 SEEN_FACTOR = {"seen_close": 0.1, "surveyed_clear": 0.4, "glimpsed": 0.6}  # likelihood left after each
 CANDIDATE_KINDS = ("sign", "shelter", "pole_with_panel", "bench", "road_marking", "people_waiting")
@@ -834,8 +835,9 @@ class Session:
                     weights[i] += share / (2 * (hi - lo)) * CELL_M
                     break
                 lo = hi
-        for h in self.world.hints:
-            if h.offset < -3:
+        partners = [o for o in self.world.found if o.kind == "found_partner"]
+        for h in [*self.world.hints, *partners]:
+            if h.offset < -3 and h.kind != "found_partner":  # a partner is across the road by definition
                 continue
             w = HINT_WEIGHT.get(h.kind, 0.1)
             for i, a in enumerate(self.cells):
@@ -965,6 +967,11 @@ class Session:
             for h in w.hints) or "none") + ".")
         lines.append("Other stops nearby (NOT this stop; don't submit a sign of theirs): " + ("; ".join(
             f"{o.label} at {_m(o.along)}, {_side(o.offset)}" for o in w.others) or "none") + ".")
+        for o in (o for o in w.found if o.kind == "found_partner"):
+            lines.append(f"PARTNER STOP FOUND: {o.ref}, the same name, was found at {_m(o.along)}, {abs(o.offset):.0f} m "
+                         f"LEFT of the path: most likely this stop's partner for the other direction. The two often "
+                         f"face each other across the road, so look on the RIGHT-hand side across from it, around "
+                         f"{_m(o.along)}, early.")
         if w.found:
             lines.append("Other stops already FOUND (their signs are confirmed, a few metres accurate; a sign there is "
                          "theirs): " + "; ".join(f"{o.label} at {_m(o.along)}, {abs(o.offset):.0f} m {_side(o.offset)}"

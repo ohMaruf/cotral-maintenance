@@ -183,5 +183,8 @@ def place_found(world: World, found: list[tuple[str, str, float, float]]) -> lis
         if math.hypot(*xy) > HALF_M * 1.5:
             continue
         along, offset, _ = world.path.locate(xy)
-        out.append(Placed(f"{stop_id} {name} (found)", "found", lat, lon, along, offset, stop_id))
+        # the same name across the road: very likely the stop of the other direction, this stop's partner
+        partner = name.strip().lower() == world.stop.name.strip().lower() and offset < 0
+        out.append(Placed(f"{stop_id} {name} (found)", "found_partner" if partner else "found", lat, lon, along,
+                          offset, stop_id))
     return out

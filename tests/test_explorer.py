@@ -785,3 +785,15 @@ def test_a_stop_already_found_is_placed_and_its_sign_is_never_submitted(session)
     with pytest.raises(ToolError, match="confirmed sign of f9"):
         session.submit_found(1)
     assert "already FOUND" in session._briefing()
+
+
+def test_a_found_partner_across_the_road_is_a_hint(session):
+    from cotral_maintenance.explorer.aerial import place_found
+    across = FRAME.to_latlon(260.0, 9.0)  # -40 m, left of the eastbound path
+    session.world.found = place_found(session.world, [("f2", "Test stop", *across), ("f3", "Other name", *across)])
+    assert [o.kind for o in session.world.found] == ["found_partner", "found"]
+    session.prior = session._prior()
+    text = session._briefing()
+    assert "PARTNER STOP FOUND: f2" in text and "f3" not in text.split("PARTNER")[1].split("\n")[0]
+    near = max(range(len(session.cells)), key=lambda i: session.prior[i])
+    assert session.cells[near] == pytest.approx(-40, abs=6)  # the likeliest cell is across from the partner

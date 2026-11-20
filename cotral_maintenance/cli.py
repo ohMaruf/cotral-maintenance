@@ -7,6 +7,7 @@
                                          GTFS -> OSM / Places -> explore -> score -> results.csv
     cotral status RUN                    what a run has done so far
     cotral export RUN                    rewrite RUN/results.csv
+    cotral merge NEW RUN RUN...          a new run from several (per stop: found wins, then the later run)
     cotral bundle RUN [--media all|stop] one .tar.zst to carry the run to another machine
     cotral unbundle FILE [--replace]     unpack a bundle into the runs directory
     cotral usage                         billed Google requests this month, per API key
@@ -78,6 +79,10 @@ def build_parser() -> argparse.ArgumentParser:
     for name, text in (("status", "what a run has done"), ("export", "rewrite results.csv")):
         p = sub.add_parser(name, help=text)
         p.add_argument("run_id")
+
+    merge = sub.add_parser("merge", help="a new run from several: per stop, a found row wins, then the later run")
+    merge.add_argument("run_id", help="the new run")
+    merge.add_argument("sources", nargs="+", help="the runs to merge, oldest first")
 
     bundle = sub.add_parser("bundle", help="pack a run into one .tar.zst")
     bundle.add_argument("run_id")
@@ -219,6 +224,13 @@ def cmd_export(args, paths: Paths) -> int:
     return EXIT_OK
 
 
+def cmd_merge(args, paths: Paths) -> int:
+    from .pipeline.merge import merge
+
+    print(json.dumps(merge(paths.runs / args.run_id, [paths.runs / s for s in args.sources]), indent=1))
+    return EXIT_OK
+
+
 def cmd_bundle(args, paths: Paths) -> int:
     from .pipeline.bundle import bundle
 
@@ -246,7 +258,7 @@ def cmd_usage(args, paths: Paths) -> int:
 
 
 COMMANDS = {"inputs": cmd_inputs, "osm": cmd_osm, "models": cmd_models, "run": cmd_run, "status": cmd_status, "export": cmd_export,
-            "bundle": cmd_bundle, "unbundle": cmd_unbundle, "usage": cmd_usage}
+            "merge": cmd_merge, "bundle": cmd_bundle, "unbundle": cmd_unbundle, "usage": cmd_usage}
 
 if __name__ == "__main__":
     sys.exit(main())

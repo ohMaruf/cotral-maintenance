@@ -185,3 +185,41 @@ def test_versions_ignore_speed_settings_and_git():
                                                                    "server": {"port": 9000, "args": ["-c", "1"]}})
     c = explore_detail({"version": "2"}, {"model": "m", "server": {"args": ["-c", "1"]}})
     assert fingerprint(a) == fingerprint(b) != fingerprint(c)
+
+
+def test_merge_takes_a_found_row_over_a_failed_one_and_else_the_later_run(tmp_path):
+    from cotral_maintenance.pipeline.merge import MergeError, merge
+
+    runs = tmp_path / "runs"
+    first, second = RunStore(runs / "a", create=True), RunStore(runs / "b", create=True)
+    first.add_stops(STOPS[:3])
+    second.add_stops([STOPS[1], STOPS[2], STOPS[0], STOPS[3]])
+    old, new = first.put_media(b"old photo"), second.put_media(b"new photo")
+    first.put_exploration(exploration("f1"), [], [])
+    first.put_exploration(exploration("f2", "not_found"), [], [])
+    first.put_exploration(exploration("f3", photos=[old]), [photo_row(1, old)], [{"turn": 1}])
+    first.put_score(score_row("f3", 0.3, photos=[old]))
+    second.put_exploration(exploration("f1", "not_found"), [], [])
+    second.put_exploration(exploration("f2", photos=[new]), [photo_row(1, new)], [{"turn": 2}])
+    second.put_exploration(exploration("f3", photos=[new]), [photo_row(1, new)], [])
+    second.put_exploration(exploration("f4"), [], [])
+    first.add_usage("2026-11", "k", "static", 3)
+    second.add_usage("2026-11", "k", "static", 4)
+    first.close()
+    second.close()
+
+    summary = merge(runs / "m", [runs / "a", runs / "b"])
+    assert summary["stops"] == 4 and summary["found"] == 4 and summary["from"] == {"a": 1, "b": 3}
+    with RunStore(runs / "m") as m:
+        assert m.stop_ids() == ["f1", "f2", "f3", "f4"]
+        assert m.exploration("f1")["status"] == "found"
+        assert m.exploration("f2")["stop_photos"] == [new] and media_path(runs / "m", new).is_file()
+        assert m.exploration("f3")["stop_photos"] == [new]
+        assert m.query("SELECT COUNT(*) FROM scores")[0][0] == 0
+        assert m.summary()["billed"] == {"static": 7}
+    assert (runs / "m" / "results.csv").is_file()
+    with pytest.raises(MergeError, match="already exists"):
+        merge(runs / "m", [runs / "a", runs / "b"])
+    with pytest.raises(MergeError, match="no run"):
+        merge(runs / "n", [runs / "a", runs / "missing"])
+    assert not (runs / "n").exists()

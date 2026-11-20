@@ -139,6 +139,7 @@ uv run cotral run first20 --limit 20        # the first 20 stops of the seeded s
 | `uv run cotral status RUN` | progress, versions, invocations |
 | `uv run cotral usage` | this month's billed Google requests |
 | `uv run cotral export RUN` | rewrite `runs/RUN/results.csv` |
+| `uv run cotral merge NEW A B` | a new run from runs A and B: per stop, a found row wins, then the later run; usage is summed |
 
 Things to know:
 

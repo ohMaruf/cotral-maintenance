@@ -178,6 +178,11 @@ are free, explorations are billed), start a new run for the new version, or pass
 Rows made before versions were recorded show `unknown`; explorations got theirs back from the
 harness and models they had recorded.
 
+Before anything else, `cotral run` fetches the branch's upstream and refuses to start when the
+checkout is behind it (or has diverged), or when `inputs/` is not at the commit the checkout pins:
+`git pull && git submodule update inputs` first. Unpushed local commits, a missing upstream, a
+detached HEAD or a failed fetch (offline) only warn. `--allow-stale` skips the check.
+
 ## Measured
 
 See the commit history and `docs/explore-harness-versions.md` for the explorer; the scorer's

@@ -71,6 +71,8 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--allow-new-gtfs", action="store_true", help="accept a GTFS feed that changed since the run began")
     run.add_argument("--allow-mixed", action="store_true",
                      help="add rows of this code's versions to phases whose rows another version made")
+    run.add_argument("--allow-stale", action="store_true",
+                     help="run even if this checkout is behind its remote or inputs/ is not at the pinned commit")
 
     for name, text in (("status", "what a run has done"), ("export", "rewrite results.csv")):
         p = sub.add_parser(name, help=text)
@@ -175,8 +177,13 @@ def cmd_models(args, paths: Paths) -> int:
 
 
 def cmd_run(args, paths: Paths) -> int:
+    from .freshness import check_up_to_date
     from .pipeline.run import RunRequest, run_pipeline
 
+    if args.allow_stale:
+        logger.warning("--allow-stale: not checking that this checkout is up to date")
+    else:
+        check_up_to_date()
     phases = tuple(p.strip() for p in args.phases.split(",") if p.strip())
     unknown = set(phases) - {"ingest", "explore", "score"}
     if unknown:

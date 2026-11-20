@@ -231,6 +231,7 @@ def test_the_budget_leaves_room_for_the_stop_photos():
 
 def test_a_sweep_can_face_behind(session):
     session.begin()
+    session.balance_m = math.inf
     session.sweep(from_m=-100, facing="behind")
     photo = session.photos[-1]
     assert photo.toward == "sweep_behind" and photo.heading == pytest.approx(90 + 130)
@@ -240,7 +241,8 @@ def test_a_sweep_can_face_behind(session):
 
 def test_a_sweep_counts_as_seen_close_only_where_a_sign_is_readable(session):
     session.begin()
-    session.sweep(from_m=-100)
+    session.balance_m = math.inf
+    session.sweep(from_m=-100, facing="ahead")
     states = {round(a): s for a, s in zip(session.cells, session.state, strict=True)}
     assert states[-98] == "seen_close" and states[-94] == "seen_close"  # beside and just ahead
     assert states[-70] == "not_looked"  # 30 m ahead: a sign is a few pixels
@@ -492,6 +494,7 @@ def test_invalid_arguments_are_explained(session):
 
 def test_a_sweep_from_the_return_pass_looks_at_its_own_right_hand_side(tmp_path):
     s = make_session(tmp_path, out_and_back_world())
+    s.balance_m = math.inf
     s.sweep(from_m=300.0)  # 300 m along = x 150 on the way back, heading west
     photo = s.photos[-1]
     assert photo.along == pytest.approx(300.0, abs=2) and photo.heading == pytest.approx(270 + 50)
@@ -545,7 +548,8 @@ def test_look_from_a_position_already_used_is_refused(session):
 
 def test_a_sweep_glimpses_the_sidewalk_where_a_sign_would_be_a_few_pixels(session):
     session.begin()
-    session.sweep(from_m=-100)
+    session.balance_m = math.inf
+    session.sweep(from_m=-100, facing="ahead")
     states = {round(a): s for a, s in zip(session.cells, session.state, strict=True)}
     assert states[-94] == "seen_close" and states[-78] == "glimpsed" and states[-50] == "not_looked"
 
@@ -715,3 +719,33 @@ def test_a_zoom_must_name_the_stop_like_thing_it_is_aimed_at(session):
     assert len(session.photos) == 2  # refused before any image
     result = session.zoom(1, 500, 500, 10, what="dark panel on a pole")
     assert "on 'dark panel on a pole'" in result.text
+
+
+def test_a_sweep_looks_away_from_the_start(session):
+    # looking back from behind the start covers new ground; 0.16.0 NVFP4 stood at -46 m and looked forward
+    session.begin()
+    session.sweep(from_m=-40)
+    behind = session.photos[-1]
+    assert behind.toward == "sweep_behind" and behind.heading == pytest.approx(90 + 130)
+    session.sweep(from_m=40)
+    assert session.photos[-1].toward == "sweep_ahead"
+
+
+def test_the_search_spreads_out_evenly(session):
+    # f306, 0.16.0: ahead out to +436 m before one sweep behind found the stop at -44 m
+    session.begin()
+    reach = session.looked_out_to(-1)
+    with pytest.raises(ToolError, match="evenly.*Sweep behind first"):
+        session.sweep(from_m=reach + 60)
+    session.sweep(from_m=-40)  # behind: now it reaches farther
+    assert session.looked_out_to(-1) > reach
+    session.sweep(from_m=session.looked_out_to(-1) + 30)  # allowed now
+
+
+def test_a_side_with_nothing_left_to_see_doesnt_hold_the_other_back(tmp_path):
+    world = straight_world()
+    world.limits = (-20.0, 200.0)  # almost nothing behind the start
+    s = make_session(tmp_path, world)
+    s.begin()
+    assert s.looked_out_to(-1) == math.inf
+    s.sweep(from_m=120)

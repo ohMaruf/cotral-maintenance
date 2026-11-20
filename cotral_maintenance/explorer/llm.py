@@ -109,10 +109,10 @@ POINT = (f"x, y: a point on the photo on a 0-{GRID} grid (0,0 top left, {GRID},{
 TOOLS = [
     fn("begin", "Start the search. Returns the briefing, the reference Cotral sign, the look-alikes, the two opening "
        "photos and the state. Call it once, first.", {}, []),
-    fn("sweep", "Costs 1 image. One wide photo (fov 110) from the panorama nearest from_m metres along the path. "
-       "facing 'ahead': from straight ahead along the road round to straight right. facing 'behind': from straight "
-       "right round to straight back.",
-       {"from_m": NUM, "facing": {"type": "string", "enum": ["ahead", "behind"]}}, ["from_m", "facing"]),
+    fn("sweep", "Costs 1 image. One wide photo (fov 110) from the panorama nearest from_m metres along the path, "
+       "looking AWAY from the start along the route: ahead (and right) from a + position, back (and right) from a - "
+       "position. The search spreads out evenly: a sweep more than 40 m farther out than the other side has been "
+       "looked at is refused.", {"from_m": NUM}, ["from_m"]),
     fn("zoom", f"Costs about 2-4 tiles. A sharp close-up centred on a point of a photo, from the same panorama. "
        f"{POINT}. fov 5-20 degrees (10 is a good start). what: the stop-like thing you SEE at that point, in a few "
        f"words (e.g. 'dark panel on a thin pole by the gate', 'shelter roof behind the parked van'). The harness judges "
@@ -173,7 +173,7 @@ def call(session: Session, name: str, args: dict, references: list[Path], draw_m
                             "blue road signs that are NOT bus stops. Then the two opening photos.\n\n" + result.text,
                             references + result.images)
     if name == "sweep":
-        return session.sweep(num("from_m"), args["facing"])
+        return session.sweep(num("from_m"))
     if name == "zoom":
         return session.zoom(whole("photo"), num("x"), num("y"), num("fov", 10.0), what=str(args.get("what") or ""))
     if name == "look_from":

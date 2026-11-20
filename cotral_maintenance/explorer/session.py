@@ -51,6 +51,10 @@ SECOND_VIEW_SPAN_M = 3.0  # an automatic second view frames the first view's sig
 SECOND_VIEW_RANGE = (0.6, 1.6)  # ... from this much to this much of the estimated distance: a single view's distance
                                 # was 10 m short at f4156 (0.11.1), and its second view missed the sign
 SECOND_VIEW_FOV = 30.0
+# The search spreads out evenly from the start: a sweep standing more than this much farther out than the other side
+# has been looked at is refused (0.16.0 NVFP4 swept ahead out to +436 m before one sweep behind found f306 at -44 m).
+BALANCE_M = 40.0
+LOOKED_SHARE = 0.7  # a side counts as looked at out to where this share of its sidewalk has been seen
 MAX_CALLS = 100
 IMAGE_SIZE = (640, 640)  # the Static API's maximum
 SWEEP_FOV = 110.0
@@ -169,6 +173,7 @@ class Session:
         self.confirms = 0
         self.calls = 0
         self.judged: set[int] = set()  # close views the confirmer has answered on
+        self.balance_m = BALANCE_M  # inf switches the even-spread rule off (geometry tests)
         self.outcome: dict | None = None
         self.events: list[dict] = []
         cells = world.cells()
@@ -202,7 +207,10 @@ class Session:
         text = "\n\n".join([self._briefing(), *(self._opening_caption(p) for p in pair), self._state()])
         return self._log("begin", {}, ToolResult(text, [self._file(p) for p in pair]))
 
-    def sweep(self, from_m: float, facing: str = "ahead", scan: str | None = None) -> ToolResult:
+    def sweep(self, from_m: float, facing: str | None = None, scan: str | None = None) -> ToolResult:
+        """A wide photo looking AWAY from the start along the route: ahead from a + position, back from a - one, so
+        every sweep shows new ground. (`facing` is only for tests and experiments; the explorer can't choose it.)"""
+        facing = facing or ("behind" if from_m < 0 else "ahead")
         args = {"from_m": from_m, "facing": facing, "scan": scan}
         self._count_call()
         if facing not in SWEEP_TURNS:
@@ -441,11 +449,33 @@ class Session:
         pano = self._nearest_pano(from_m, scan)
         along = self.world.path.along_near(self._xy(pano), from_m, 30.0)  # on the pass that was asked for
         heading = (self._travel_bearing(along) + SWEEP_TURNS[facing]) % 360
+        self._refuse_if_unbalanced(along)
         self._refuse_if_nothing_new(Camera(self._xy(pano), heading, SWEEP_FOV, 0.0, *IMAGE_SIZE), along, facing)
         self.sweeps += 1
         photo = self._shoot(pano, heading, SWEEP_FOV, 0.0, f"sweep_{facing}", along=along, shot=self.sweeps)
         self._mark_seen_close(photo)
         return photo
+
+    def looked_out_to(self, side: int) -> float:
+        """How far from the start (metres along the path) one side (+1 ahead, -1 behind) has been looked at: the
+        farthest distance within which LOOKED_SHARE of its sidewalk is seen close or glimpsed (unscanned and hidden
+        count as done: nothing more can be seen there). inf when the side is done to its limit."""
+        cells = sorted((abs(a), st) for a, st in zip(self.cells, self.state, strict=True) if a * side > 0)
+        reach, looked = 0.0, 0
+        for n, (d, st) in enumerate(cells, 1):
+            looked += st != "not_looked"
+            if looked / n >= LOOKED_SHARE:
+                reach = d
+        return math.inf if cells and reach >= cells[-1][0] - CELL_M else reach
+
+    def _refuse_if_unbalanced(self, along: float) -> None:
+        side = 1 if along >= 0 else -1
+        other = self.looked_out_to(-side)
+        if abs(along) > other + self.balance_m:
+            name, sign = ("behind" if side > 0 else "ahead"), -side
+            raise ToolError(f"the search spreads out evenly from the start: {name} it is looked at only out to "
+                            f"{_m(sign * other)}, so no sweep stands farther out than {_m(side * (other + self.balance_m))} "
+                            f"here yet. Sweep {name} first.")
 
     def _refuse_if_nothing_new(self, camera: Camera, along: float, facing: str) -> None:
         """A sweep that would show no sidewalk not already seen close or glimpsed is refused before it is taken: it

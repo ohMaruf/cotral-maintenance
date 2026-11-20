@@ -158,7 +158,7 @@ def run_pipeline(req: RunRequest, paths: Paths) -> dict:
                 _add(counts, "explore", c)
                 budget_left = not c.get("skipped")
                 if ctx.stop_event.is_set():
-                    raise RuntimeError("exploration stopped (see the log): the explorer server is unreachable")
+                    raise RuntimeError(f"exploration stopped (see the log): {ctx.stop_reason or 'stopped'}")
             to_score = scorable(run, chunk)
             if scorer and to_score:
                 servers.ensure("scorer")

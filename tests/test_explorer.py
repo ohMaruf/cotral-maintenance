@@ -1150,3 +1150,14 @@ def test_without_a_confirmed_candidate_the_end_is_not_found(session):
     spot_and_confirm(session)
     session.finish("turn cap")
     assert session.outcome == {"status": "not_found", "reason": "turn cap"}
+
+
+def test_found_scans_open_an_unscanned_stretch(tmp_path, monkeypatch):
+    world = straight_world()
+    full = list(world.panoramas)
+    world.panoramas = [p for p in full if not 80 <= p.along <= 160]
+    s = make_session(tmp_path, world)
+    assert state_at(s, 120) == "unscanned"
+    monkeypatch.setattr("cotral_maintenance.explorer.session.find_panoramas", lambda *a, **k: full)
+    s.find_other_scans(at_m=120)
+    assert state_at(s, 120) == "not_looked"

@@ -3,6 +3,8 @@
 import csv
 import io
 import json
+import os
+import threading
 from collections.abc import Iterator, Sequence
 from dataclasses import asdict, fields
 from pathlib import Path
@@ -11,7 +13,7 @@ from pathlib import Path
 def write_atomic(path: Path, data: bytes) -> None:
     """Write via a temp file + rename; the rename is atomic on the same filesystem."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_bytes(data)
     tmp.replace(path)
 

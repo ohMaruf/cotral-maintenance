@@ -26,6 +26,7 @@ from pathlib import Path
 import requests
 from PIL import Image
 
+from ..errors import ApiError, CotralMaintenanceError
 from .confirmer import ANSWERS, FEATURES, Checklist, ConfirmerError, instructions, parse
 from .session import GRID, ScanReply, Session, ToolError
 
@@ -288,6 +289,12 @@ class Explorer:
                     text = f"ERROR: {error}"
                     failed = (name, c["function"]["arguments"])
                     session.log_error(name, {"raw": c["function"]["arguments"]}, str(error))
+                except (CotralMaintenanceError, OSError) as error:
+                    if isinstance(error, ApiError) and error.fatal:
+                        raise
+                    text = (f"ERROR: a network request failed ({type(error).__name__}) and the call did not "
+                            f"complete. Try again or try something else.")
+                    session.log_error(name, {"raw": c["function"]["arguments"]}, f"{type(error).__name__}: {error}")
                 if images and self.client.images_in_tool_results:
                     content: list[dict] | str = [{"type": "text", "text": text}, *_photo_parts(images, session)]
                 else:

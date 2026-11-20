@@ -28,6 +28,7 @@ from typing import Protocol
 
 from PIL import Image
 
+from ..fileutils import write_atomic
 from ..provenance import utc_now
 from . import HARNESS_VERSION
 from .confirmer import LOOKALIKE_FEATURES, Confirmer, ConfirmerError, verdict
@@ -403,6 +404,9 @@ class Session:
         before = {p.pano_id for p in self.world.panoramas}
         self.world.panoramas = find_panoramas(self.world, self.metadata, at=at_m)
         new = [p for p in self.world.panoramas if p.pano_id not in before]
+        opened = [i for i, a in enumerate(self.cells) if self.state[i] == "unscanned" and self.world.scanned(a)]
+        for i in opened:
+            self.state[i] = "not_looked"
         text = (f"{len(new)} new panoramas near {_m(at_m)}: "
                 + "; ".join(f"{_m(p.along)} {_side(p.offset)} scan {p.date}" for p in new)) if new else \
             f"No other panoramas from 2024 onwards near {_m(at_m)}."
@@ -662,8 +666,7 @@ class Session:
         key = f"s_{photo.pano_id}_{strip.heading:.1f}_{strip.fov:.1f}_{strip.pitch:.1f}_{strip.width}x{strip.height}.jpg"
         cached = self.image_cache / key
         if not cached.is_file():
-            self.image_cache.mkdir(parents=True, exist_ok=True)
-            cached.write_bytes(self.tile_source.render(*view))
+            write_atomic(cached, self.tile_source.render(*view))
         folder = self.run_dir / "scans"
         folder.mkdir(exist_ok=True)
         image = Image.open(cached)
@@ -966,11 +969,10 @@ class Session:
         cached = self.image_cache / key
         billed = tiles > 0 if source == "tiles" else not cached.is_file()
         if not cached.is_file():
-            self.image_cache.mkdir(parents=True, exist_ok=True)
             if source == "tiles":
-                cached.write_bytes(self.tile_source.render(pano.pano_id, heading, pitch, fov, width, height))
+                write_atomic(cached, self.tile_source.render(pano.pano_id, heading, pitch, fov, width, height))
             else:
-                cached.write_bytes(self.fetch_image(pano.pano_id, heading, fov, pitch, width, height))
+                write_atomic(cached, self.fetch_image(pano.pano_id, heading, fov, pitch, width, height))
         index = len(self.photos) + 1
         file = f"photos/{index:02d}_{key}"
         (self.run_dir / file).write_bytes(cached.read_bytes())

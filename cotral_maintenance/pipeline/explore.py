@@ -22,7 +22,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..errors import ApiError
+from ..errors import ApiError, CotralMaintenanceError
 from ..caches import BudgetExhausted, MetadataCache, UsageLedger
 from ..explorer import HARNESS_VERSION
 from ..explorer.aerial import EsriTiles, draw_aerial, place_found
@@ -57,7 +57,13 @@ class ExploreContext:
     metadata: MetadataCache
     ledger: UsageLedger
     stop_event: threading.Event = field(default_factory=threading.Event)
+    stop_reason: str = ""
     max_turns: int | None = None
+
+    def stop(self, reason: str) -> None:
+        if not self.stop_event.is_set():
+            self.stop_reason = reason
+        self.stop_event.set()
 
     @property
     def harness(self) -> dict:
@@ -104,11 +110,16 @@ def explore(ctx: ExploreContext, stop_ids: list[str], on_done: Callable[[str, st
         slot_pair = slots.get()
         billed = {"static": 0, "tiles": 0}
         try:
-            status, billed = explore_stop(ctx, rows[stop_id], shapes, slot_pair)
-            return status
-        except ApiError:
-            ctx.stop_event.set()  # a rejected key or a disabled API fails every stop the same way
-            raise
+            return explore_stop(ctx, rows[stop_id], shapes, slot_pair, billed)
+        except ApiError as error:
+            if error.fatal:
+                ctx.stop(f"Google refused a request: {error}")
+                raise
+            logger.warning("%s: a Google request failed (%s); not stored, explored again next run", stop_id, error)
+            return "failed"
+        except CotralMaintenanceError as error:
+            logger.warning("%s: %s; not stored, explored again next run", stop_id, error)
+            return "failed"
         finally:
             slots.put(slot_pair)
             ctx.ledger.settle(reservation, billed)
@@ -155,9 +166,8 @@ def progress_line(stop_id: str, entry: dict) -> None:
         logger.info("%s scan: %s on %s", stop_id, entry.get("status"), entry.get("piece"))
 
 
-def explore_stop(ctx: ExploreContext, row: dict, shapes: dict, slots: tuple[int | None, int | None]
-                 ) -> tuple[str, dict[str, int]]:
-    """Explore one stop and store the result. Returns (status, billed requests)."""
+def explore_stop(ctx: ExploreContext, row: dict, shapes: dict, slots: tuple[int | None, int | None],
+                 billed: dict[str, int]) -> str:
     stop_id = row["stop_id"]
     work = ctx.run.root / "work" / stop_id
     shutil.rmtree(work, ignore_errors=True)
@@ -182,29 +192,29 @@ def explore_stop(ctx: ExploreContext, row: dict, shapes: dict, slots: tuple[int 
     scanner = LlmScanner(client, ctx.paths.reference_sign, log, confirmer_slot)
     base = {"stop_id": stop_id, "explorer": explorer_description(spec),
             "harness": ctx.harness, "started_at": started_at}
+    session: Session | None = None
     try:
         made = make_session(ctx, row, shapes, work, sv, tiles, confirmer, scanner)
         if isinstance(made, tuple):
-            return _store_without_search(ctx, base, *made, t0, transcript), {"static": 0, "tiles": 0}
+            return _store_without_search(ctx, base, *made, t0, transcript)
         session = made
         agent = Explorer(client, PROMPT.read_text(), [ctx.paths.reference_sign, *ctx.paths.lookalikes], draw_map,
                          explorer_slot, should_stop=ctx.stop_event.is_set)
         if ctx.max_turns:
             agent.max_turns = ctx.max_turns
         ended, turns = agent.run(session, log)
-        billed = session.billed_requests()
         if ended == "interrupted":
-            return "interrupted", billed
+            return "interrupted"
         if ended.startswith("server unreachable"):
-            # The model server is down: not the stop's fault. Not stored, so the next run explores it again.
-            ctx.stop_event.set()
+            ctx.stop(f"the explorer server is unreachable ({ended})")
             logger.error("The explorer server is unreachable (%s); stopping", ended)
-            return "server_down", billed
+            return "server_down"
         session.finish(f"the explorer ended: {ended}")
-        billed = session.billed_requests()
         _store(ctx, base, session, ended, turns, t0, transcript, work)
-        return session.outcome["status"], billed
+        return session.outcome["status"]
     finally:
+        if session is not None:
+            billed.update(session.billed_requests())
         sv.close()
         tiles_client.close()
         shutil.rmtree(work, ignore_errors=True)

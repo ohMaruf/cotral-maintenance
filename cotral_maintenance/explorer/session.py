@@ -35,7 +35,7 @@ from .geometry import Camera, angle_diff, compass, ray_point, ray_to_sidewalk, t
 from ..caches import MetadataCache
 from .world import CELL_M, Panorama, World, find_panoramas, shared_stretches
 
-MAX_IMAGES = 22  # billed Static API images per stop, the stop photos included (10,000 free a month: see quota.py)
+MAX_IMAGES = 22  # billed Static API images per stop, the stop photos included (1,000 free a month: see quota.py)
 STOP_PHOTOS = 2  # kept back for photographing a found stop
 OPENING_OFFSETS_M = (21.0, 28.0, 14.0, 35.0)
 OPENING_PANO_M = 10.0  # a panorama this close to the wanted point of the path
@@ -71,7 +71,7 @@ MAX_SCAN_TILES = 200
 IMAGE_SIZE = (640, 640)  # the Static API's maximum
 SWEEP_FOV = 110.0
 SWEEP_TURNS = {"ahead": 50.0, "behind": 130.0}  # image centre, degrees right of travel: -5..105 or 75..185
-MAX_TILES = 60  # Map Tiles tiles per stop, for zooms and new viewpoints (100,000 free a month: see quota.py)
+MAX_TILES = 60  # Map Tiles tiles per stop, for zooms and new viewpoints (10,000 free a month: see quota.py)
 ZOOM_SIZE = (512, 512)  # a tile view: about 45 px per degree at fov 10
 ZOOM_FOV = (5.0, 20.0)
 DEFAULT_ZOOM_FOV = 10.0

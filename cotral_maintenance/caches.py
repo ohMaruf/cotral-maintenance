@@ -4,7 +4,7 @@ Both are SQLite files in the cache directory, safe for the explorer's parallel w
 travels with a run: a run records the usage it caused in its own store, and the photos it used.
 
 The ledger keeps runs inside a monthly cap per API key (Google's free tiers are per billing
-account and calendar month: 10,000 Static Street View images, 100,000 Map Tiles tiles). A stop
+account and calendar month: 1,000 Static Street View images, 10,000 Map Tiles tiles). A stop
 is started only after reserving the most it could bill; when it ends, the reservation is
 replaced by what it actually billed. Keys are stored as a fingerprint, never in clear.
 """
@@ -21,7 +21,7 @@ from pathlib import Path
 from .errors import NoImageryError, ServerError
 from .models import PanoMetadata
 
-FREE_PER_MONTH = {"static": 10_000, "tiles": 100_000, "places": 5_000}
+FREE_PER_MONTH = {"static": 1_000, "tiles": 10_000, "places": 5_000}
 
 
 def key_id(api_key: str) -> str:

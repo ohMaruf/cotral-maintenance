@@ -1,7 +1,7 @@
 """The monthly free tiers of the billed Google APIs, and a ledger that keeps runs inside them.
 
-Google gives, per billing account and calendar month, 10,000 Static Street View images and
-100,000 Map Tiles Street View tiles free (metadata requests are free and unlimited). The
+Google gives, per billing account and calendar month, 1,000 Static Street View images and
+10,000 Map Tiles Street View tiles free (metadata requests are free and unlimited). The
 dataset is computed over months: a stop is started only when the month's remaining free
 requests cover the most that stop could use, and every run adds what it actually billed.
 
@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-FREE_PER_MONTH = {"static": 10_000, "tiles": 100_000}
+FREE_PER_MONTH = {"static": 1_000, "tiles": 10_000}
 
 
 @dataclass(frozen=True)

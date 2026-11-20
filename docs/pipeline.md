@@ -74,7 +74,7 @@ profile (65536), or run one explorer (`concurrency = 1`, `-np 2`). The scorer ru
 Every Street View and Places request is counted per API key and calendar month in
 `data/cache/usage.sqlite`. A stop is started only if the month's remaining budget covers the most it
 could bill (22 Static images, 60 tiles); when it ends, what it actually billed is recorded. The caps
-default to Google's free tiers (10,000 Static images, 100,000 tiles, 5,000 Places searches a month)
+default to Google's free tiers (1,000 Static images, 10,000 tiles, 5,000 Places searches a month)
 and can be changed per run: `--cap static=8000`. When the budget runs out the run stops starting
 stops, scores what was explored, and can be resumed next month.
 

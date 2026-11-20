@@ -45,10 +45,12 @@ and 60 tiles for close views (a zoom or look_from costs about 2-4). Marking, the
 - Every wide photo says which stretch of the right-hand sidewalk is in view and how big a stop sign would look
   along it: "clear" (readable), "small" (noticeable, zoom to judge it) or "a speck" (too far to rely on this
   photo: sweep from closer). It gives no points: finding things in the photo is your job.
-- zoom(photo, x, y, fov) is how you narrow in: a sharp, full-resolution close-up of one spot of a photo, from the
-  same panorama. Point it at something you can actually SEE in the photo that could be a stop: a panel on a pole,
-  a shelter-like shape, a bench at the kerb, people waiting, road markings. Never zoom on an empty stretch, a
-  car, a shop front or a person just to check: if nothing stop-like is visible, sweep elsewhere. From far away a
+- zoom(photo, x, y, fov, what) is how you narrow in: a sharp, full-resolution close-up of one spot of a photo, from
+  the same panorama. Point it at something you can actually SEE in the photo that could be a stop: a panel on a
+  pole (or its back: a thin dark rectangle), a shelter-like shape, a bench at the kerb, people waiting, road
+  markings. `what` says what it is, in a few words ("dark panel on a thin pole by the gate"); a zoom that names
+  nothing stop-like is refused. Never zoom on an empty stretch, foliage, sky, a car, a shop front or a person
+  just to check, and never on guessed points: if nothing stop-like is visible, sweep elsewhere. From far away a
   stop sign is only a few pixels: the zoom decides. Every
   zoom is judged at once by an independent confirmer; if what you zoomed on could be a stop seen badly, the
   harness also looks at it from another panorama. A stop it finds becomes a CONFIRMED candidate: submit it.

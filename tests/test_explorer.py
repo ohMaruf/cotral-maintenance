@@ -5,7 +5,7 @@ import pytest
 
 from cotral_maintenance.explorer.confirmer import FEATURES, Checklist, ConfirmerError, parse, verdict
 from cotral_maintenance.explorer.geometry import Camera, PathFrame, angle_diff, compass, triangulate
-from cotral_maintenance.explorer.session import (GRID, plate_matches, EXPLORE_IMAGES, IMAGE_SIZE, MAX_CONFIRMS, MAX_IMAGES,
+from cotral_maintenance.explorer.session import (GRID, plate_matches, names_a_stop_like_thing, EXPLORE_IMAGES, IMAGE_SIZE, MAX_CONFIRMS, MAX_IMAGES,
                                                  MAX_TILES, STOP_PHOTOS, SWEEP_FOV, ZOOM_SIZE, Session,
                                                  ToolError)
 from cotral_maintenance.explorer.world import Panorama, Placed, World, _visible_start_shift, shared_stretches
@@ -700,3 +700,18 @@ def test_a_plate_matches_its_stop_id_however_it_is_written():
     for read in ("N.f 11164", "21640", "", "f 2165"):
         assert not plate_matches(read, "f2164")
     assert plate_matches("f 77", "f00077")
+
+
+def test_a_zoom_must_name_the_stop_like_thing_it_is_aimed_at(session):
+    # f306, 0.15.0: 26 zooms on a grid of guessed points (tree tops, sky, hedges) while the sign's pole was in view
+    for good in ("dark panel on a thin pole by the gate", "back of a sign", "shelter roof behind the van",
+                 "people waiting at the kerb", "BUS road marking", "blue plates on a post"):
+        assert names_a_stop_like_thing(good), good
+    for bad in ("trees", "green bushes and hedge", "the sky", "check the area", "possible", "", "foliage near +40 m"):
+        assert not names_a_stop_like_thing(bad), bad
+    session.begin()
+    with pytest.raises(ToolError, match="names nothing stop-like"):
+        session.zoom(1, 500, 500, 10, what="green bushes")
+    assert len(session.photos) == 2  # refused before any image
+    result = session.zoom(1, 500, 500, 10, what="dark panel on a pole")
+    assert "on 'dark panel on a pole'" in result.text

@@ -217,18 +217,25 @@ class Session:
         text = "\n".join(lines) + "\n\n" + self._state()
         return self._log("sweep", args, ToolResult(text, [self._file(q) for q in [photo, *extra]]))
 
-    def zoom(self, photo: int, x: float, y: float, fov: float = DEFAULT_ZOOM_FOV) -> ToolResult:
-        args = {"photo": photo, "x": x, "y": y, "fov": fov}
+    def zoom(self, photo: int, x: float, y: float, fov: float = DEFAULT_ZOOM_FOV, what: str | None = None) -> ToolResult:
+        """`what`: the stop-like thing the explorer sees at the point (required from the explorer; None only for
+        direct calls). Kept with the zoom for review, never shown to the confirmer."""
+        args = {"photo": photo, "x": x, "y": y, "fov": fov, "what": what}
         self._count_call()
         if not ZOOM_FOV[0] <= fov <= ZOOM_FOV[1]:
             raise ToolError(f"fov must be between {ZOOM_FOV[0]:.0f} and {ZOOM_FOV[1]:.0f}")
+        if what is not None and not names_a_stop_like_thing(what):
+            raise ToolError(f"what={what!r} names nothing stop-like. Zoom only on something you can see in the photo "
+                            f"that could be a stop: a sign, panel, pole, plate, shelter, bench, road marking or people "
+                            f"waiting, and say what it is. If you see nothing like that, sweep elsewhere.")
         p = self._photo(photo)
         px, py = self._pixel(p, x, y)
         camera = self._camera(p)
         heading, pitch = camera.bearing_of(px), max(-30.0, min(45.0, camera.elevation_of(py)))
         z = self._narrow(self._pano(p.pano_id), heading, pitch, fov, "zoom", along=p.along, parent=p.index)
         shown = [z]
-        text = (f"PHOTO {z.index}: zoom ×{p.fov / fov:.0f} into photo {p.index} at ({x:.0f}, {y:.0f}), same panorama "
+        text = (f"PHOTO {z.index}: zoom ×{p.fov / fov:.0f} into photo {p.index} at ({x:.0f}, {y:.0f})"
+                + (f" on '{what}'" if what else "") + ", same panorama "
                 f"({_m(p.along)}), {self._narrow_note(z)}.\n" + self._examine(z, shown) + "\n\n" + self._state())
         return self._log("zoom", args, ToolResult(text, [self._file(q) for q in shown]))
 
@@ -1111,6 +1118,17 @@ def _frange(lo: float, hi: float, step: float):
     while v <= hi + 1e-9:
         yield v
         v += step
+
+
+# What a zoom may be aimed at: something that could be a stop. 0.15.0 NVFP4 zoomed on a grid of guessed points (tree
+# tops, sky, hedges: 26 zooms on f306) while the sign's pole stood in one of its photos.
+STOP_LIKE_WORDS = ("sign", "panel", "pole", "post", "plate", "shelter", "canopy", "bench", "marking", "bus", "stop",
+                   "fermata", "waiting", "timetable", "board", "lay-by", "layby", "zig")
+
+
+def names_a_stop_like_thing(what: str) -> bool:
+    words = re.findall(r"[a-z-]+", what.lower())
+    return len(words) >= 2 and any(w.startswith(k) and not w.startswith("bush") for w in words for k in STOP_LIKE_WORDS)
 
 
 def plate_matches(plate_text: str, stop_id: str) -> bool:

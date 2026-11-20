@@ -114,8 +114,10 @@ TOOLS = [
        "right round to straight back.",
        {"from_m": NUM, "facing": {"type": "string", "enum": ["ahead", "behind"]}}, ["from_m", "facing"]),
     fn("zoom", f"Costs about 2-4 tiles. A sharp close-up centred on a point of a photo, from the same panorama. "
-       f"{POINT}. fov 5-20 degrees (10 is a good start). The harness judges every zoom at once and, when needed, "
-       f"looks from another panorama too.", {"photo": INT, "x": NUM, "y": NUM, "fov": NUM}, ["photo", "x", "y", "fov"]),
+       f"{POINT}. fov 5-20 degrees (10 is a good start). what: the stop-like thing you SEE at that point, in a few "
+       f"words (e.g. 'dark panel on a thin pole by the gate', 'shelter roof behind the parked van'). The harness judges "
+       f"every zoom at once and, when needed, looks from another panorama too.",
+       {"photo": INT, "x": NUM, "y": NUM, "fov": NUM, "what": {"type": "string"}}, ["photo", "x", "y", "fov", "what"]),
     fn("look_from", "Costs about 2-4 tiles. A close-up of a candidate from ANOTHER panorama: a new viewpoint.",
        {"candidate": INT}, ["candidate"]),
     fn("mark_candidate", f"Free. Mark something that may be the stop on a photo: point where it meets the ground. "
@@ -173,7 +175,7 @@ def call(session: Session, name: str, args: dict, references: list[Path], draw_m
     if name == "sweep":
         return session.sweep(num("from_m"), args["facing"])
     if name == "zoom":
-        return session.zoom(whole("photo"), num("x"), num("y"), num("fov", 10.0))
+        return session.zoom(whole("photo"), num("x"), num("y"), num("fov", 10.0), what=str(args.get("what") or ""))
     if name == "look_from":
         return session.look_from(whole("candidate"))
     if name == "mark_candidate":

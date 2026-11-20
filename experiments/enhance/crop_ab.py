@@ -18,6 +18,8 @@ from cotral_maintenance.tiles import MapTilesClient
 
 FULL_PX = 1254
 BAND_SCALE = 3.9
+PIECE_PX = 1000
+PIECE_OVERLAP_PX = 120
 CASES = [
     {"run": "test-nvfp4-11", "stop": "f13310", "photo": 1, "sign_px": 157},
     {"run": "test-nvfp4-11", "stop": "f306", "photo": 6, "sign_latlon": (42.148483, 12.114685)},
@@ -43,17 +45,18 @@ def load(case: dict):
     return ph, cam, path, bearing
 
 
-def answer(client: ChatClient, reference: dict, image: Path) -> tuple[dict | None, str]:
+def answer(client: ChatClient, reference: dict, image: Path) -> tuple[dict | None, str, int | None]:
     messages = [{"role": "user", "content": [
         {"type": "text", "text": "REFERENCE: the Cotral bus stop sign."}, reference,
         {"type": "text", "text": PROMPT}, image_part(image)]}]
     status, body, _ = client.complete(messages, [], None, seed=1)
     text = (body["choices"][0]["message"].get("content") or "") if status == 200 else str(body)
+    tokens = body.get("usage", {}).get("prompt_tokens") if status == 200 else None
     m = re.search(r"\{.*\}", text, re.DOTALL)
     try:
-        return (json.loads(m.group(0)) if m else None), text
+        return (json.loads(m.group(0)) if m else None), text, tokens
     except json.JSONDecodeError:
-        return None, text
+        return None, text, tokens
 
 
 def main() -> int:
@@ -87,13 +90,23 @@ def main() -> int:
             band_cam = Camera((0.0, 0.0), (b0 + fov / 2) % 360, fov,
                               (cam.elevation_of(box[1]) + cam.elevation_of(box[3])) / 2,
                               int((box[2] - box[0]) * BAND_SCALE), int((box[3] - box[1]) * BAND_SCALE))
-            render_view(tiles, g, band_cam.heading, band_cam.pitch, band_cam.fov, band_cam.width,
-                        band_cam.height).save(out / f"{name}_crop4x.png")
-            for kind, view, offset, size in (
-                    ("full", full_cam, (0, 0), (FULL_PX, FULL_PX)),
-                    ("crop", full_cam, crop[:2], (crop[2] - crop[0], crop[3] - crop[1])),
-                    ("crop4x", band_cam, (0, 0), (band_cam.width, band_cam.height))):
-                j, text = answer(client, reference, out / f"{name}_{kind}.png")
+            strip = render_view(tiles, g, band_cam.heading, band_cam.pitch, band_cam.fov, band_cam.width,
+                                band_cam.height)
+            strip.save(out / f"{name}_crop4x.png")
+            images = [("full", full_cam, (0, 0), (FULL_PX, FULL_PX)),
+                      ("crop", full_cam, crop[:2], (crop[2] - crop[0], crop[3] - crop[1])),
+                      ("crop4x", band_cam, (0, 0), (band_cam.width, band_cam.height))]
+            x0, n = 0, 1
+            while True:
+                x1 = min(x0 + PIECE_PX, band_cam.width)
+                kind = f"crop4x_{n}"
+                strip.crop((x0, 0, x1, band_cam.height)).save(out / f"{name}_{kind}.png")
+                images.append((kind, band_cam, (x0, 0), (x1 - x0, band_cam.height)))
+                if x1 >= band_cam.width:
+                    break
+                x0, n = x1 - PIECE_OVERLAP_PX, n + 1
+            for kind, view, offset, size in images:
+                j, text, tokens = answer(client, reference, out / f"{name}_{kind}.png")
                 verdict = "no answer"
                 if j is not None and j.get("sign") and all(isinstance(j.get(c), (int, float)) for c in "xy"):
                     px = offset[0] + j["x"] / 1000 * size[0]
@@ -101,7 +114,8 @@ def main() -> int:
                     verdict = f"said yes, {miss:.1f}° from the sign: {'ON THE SIGN' if miss <= 1.5 else 'elsewhere'}"
                 elif j is not None:
                     verdict = "said no sign"
-                print(f"{name} {kind:6s}: {verdict}   reply: {text.strip()[:120]!r}")
+                print(f"{name} {kind:8s} {size[0]}x{size[1]} ({tokens} prompt tokens): {verdict}   "
+                      f"reply: {text.strip()[:80]!r}")
     return 0
 
 

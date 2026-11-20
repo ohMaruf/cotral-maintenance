@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS photos (
     stop_id  TEXT NOT NULL REFERENCES stops(stop_id),
     idx      INTEGER NOT NULL,         -- the photo number the explorer saw
     media    TEXT NOT NULL,            -- sha256 -> media/<2>/<sha256>.jpg
-    toward   TEXT NOT NULL,            -- opening_before/after, sweep_ahead/behind, zoom, look_from, stop_photo
+    toward   TEXT NOT NULL,            -- opening_ahead/behind, sweep_ahead/behind, zoom, look_from, stop_photo
     pano_id  TEXT NOT NULL,
     date     TEXT,
     heading  REAL NOT NULL,

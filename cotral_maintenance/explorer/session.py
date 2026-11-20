@@ -37,8 +37,6 @@ from .world import CELL_M, Panorama, World, find_panoramas, shared_stretches
 
 MAX_IMAGES = 22  # billed Static API images per stop, the stop photos included (1,000 free a month: see quota.py)
 STOP_PHOTOS = 2  # kept back for photographing a found stop
-OPENING_OFFSETS_M = (21.0, 28.0, 14.0, 35.0)
-OPENING_PANO_M = 10.0  # a panorama this close to the wanted point of the path
 BEND_DEG = 30.0  # a turn of the path this sharp is a corner: no view sees round it
 BEND_SPAN_M = 10.0
 CORNER_M = 12.0  # the sidewalk this far either side of a corner must be seen close for the corner to count as examined
@@ -148,7 +146,7 @@ class Photo:
     heading: float
     fov: float
     pitch: float
-    toward: str  # opening_before, opening_after, sweep_ahead, sweep_behind, zoom, look_from, stop_photo
+    toward: str
     file: str
     lat: float
     lon: float
@@ -874,41 +872,20 @@ class Session:
 
     def _opening(self) -> list[Photo]:
         start = self.world.starts[0].along
-        lo, hi = self.world.limits
-        chosen: list[tuple[Panorama, float, str, str]] = []
-        for sign, facing, toward in ((-1, "ahead", "opening_before"), (1, "behind", "opening_after")):
-            for offset in OPENING_OFFSETS_M:
-                wanted = start + sign * offset
-                if not lo <= wanted <= hi:
-                    continue
-                point = self.world.path.point(wanted)
-                options = [q for q in self.world.panoramas if math.dist(self._xy(q), point) <= OPENING_PANO_M
-                           and all(q.pano_id != c[0].pano_id for c in chosen)]
-                if not options:
-                    continue
-                pano = min(options, key=lambda q: math.dist(self._xy(q), point))
-                along = self.world.path.along_near(self._xy(pano), wanted, 20.0)
-                clear_of_corners = self._bend_between(along, start) is None and all(
-                    abs(b - along) > BEARING_SPAN_M for b, _ in self.bends)  # the facing follows the road
-                if clear_of_corners and sign * (along - start) > 3.0:
-                    chosen.append((pano, along, facing, toward))
-                    break
-        if not chosen:  # a short or broken scan: the panorama nearest the start, looking ahead
-            near = [q for q in self.world.panoramas if math.dist(self._xy(q), self.world.path.point(start)) <= 40.0]
-            if not near:
-                raise ToolError("no panorama near the start")
-            q = min(near, key=lambda q: math.dist(self._xy(q), self.world.path.point(start)))
-            chosen.append((q, self.world.path.along_near(self._xy(q), start, 60.0), "ahead", "opening_before"))
         photos = []
-        for pano, along, facing, toward in chosen:
+        for facing, at in (("ahead", start + SWEEP_STANDOFF_M), ("behind", start - SWEEP_STANDOFF_M)):
+            options, _ = self._sweep_options(at, facing, None)
+            if not options:
+                continue
+            *_, f, pano, along, heading, camera, gain = options[0]
             self._spend()
-            heading = (self._travel_bearing(along) + SWEEP_TURNS[facing]) % 360
-            photos.append(self._shoot(pano, heading, SWEEP_FOV, 0.0, toward, along=along))
+            photos.append(self._shoot(pano, heading, SWEEP_FOV, 0.0, f"opening_{facing}", along=along))
+        if not photos:
+            raise ToolError("no panorama near the start")
         return photos
 
     def _opening_caption(self, p: Photo) -> str:
-        where = ("AHEAD-RIGHT, from BEFORE the start" if p.toward == "opening_before" else
-                 "BEHIND-RIGHT, from AFTER the start")
+        where = "AHEAD-RIGHT" if p.toward == "opening_ahead" else "BEHIND-RIGHT"
         return (f"PHOTO {p.index}: opening sweep {where}, from the panorama at {_m(p.along)}, scan {p.date}. "
                 f"In view: {self._coverage(p)}.")
 
@@ -1220,8 +1197,8 @@ class Session:
         lines.append(f"Budget: {EXPLORE_IMAGES} wide images (the opening one included; 1 per sweep) for looking broadly, "
                      f"{MAX_TILES} tiles for close views (a zoom or look_from costs about 2-4 tiles), {MAX_CONFIRMS} "
                      f"confirmations (free).")
-        lines.append("Below: the two opening sweeps, taken for you: AHEAD-RIGHT from before the start and "
-                     "BEHIND-RIGHT from after it, so the sidewalk around the start is in front of both cameras.")
+        lines.append("Below: the two opening sweeps, taken for you from the start: AHEAD-RIGHT and BEHIND-RIGHT, "
+                     "so the sidewalk on both sides of the start is close in front of the cameras.")
         return "\n".join(lines)
 
     def _path_text(self) -> str:

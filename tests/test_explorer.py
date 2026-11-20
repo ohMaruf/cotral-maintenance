@@ -167,43 +167,44 @@ def test_a_straight_road_shares_nothing():
 
 # ---- the session
 
-def test_begin_takes_two_sweeps_with_the_start_in_front_of_both(session):
+def test_begin_takes_two_outward_sweeps_from_the_start(session):
     result = session.begin()
     assert len(result.images) == 2 and len(session.photos) == 2
-    before, after = session.photos
-    assert (before.toward, after.toward) == ("opening_before", "opening_after")
-    assert before.along == pytest.approx(-21, abs=6) and after.along == pytest.approx(21, abs=6)
-    assert before.heading == pytest.approx(90 + 50) and after.heading == pytest.approx(90 + 130)  # ahead / behind-right
-    # f8520, 0.12.0: photos converging on the start from 11 m missed a sign 4 m behind one camera. Now the whole
-    # stretch around the start is in view of both
-    for a in (-15, -5, 0, 5, 15):
-        point = session.world.path.sidewalk(a)
-        assert all(session._camera(p).column_of(point) is not None for p in (before, after))
-    assert all(p.fov == SWEEP_FOV for p in (before, after))
+    ahead, behind = session.photos
+    assert (ahead.toward, behind.toward) == ("opening_ahead", "opening_behind")
+    assert ahead.along == pytest.approx(0, abs=6) and behind.along == pytest.approx(0, abs=6)
+    assert ahead.heading == pytest.approx(90 + 50) and behind.heading == pytest.approx(90 + 130)
+    for a in (5, 15, 25):
+        assert session._camera(ahead).column_of(session.world.path.sidewalk(a)) is not None
+        assert session._camera(behind).column_of(session.world.path.sidewalk(-a)) is not None
+    assert all(p.fov == SWEEP_FOV for p in (ahead, behind))
     assert session.fetched[0][4:] == IMAGE_SIZE
     assert "STOP f1" in result.text and f"{EXPLORE_IMAGES - 2}/{EXPLORE_IMAGES} images" in result.text
     with pytest.raises(ToolError):
         session.begin()
 
 
-def test_an_osm_start_is_looked_at_from_both_sides(tmp_path):
+def test_scanned_openings_see_the_sidewalk_close_on_both_sides_of_the_start(tmp_path):
+    s = scanning_session(tmp_path, FakeScanner())
+    s.begin()
+    assert all(state_at(s, a) == "seen_close" for a in (-25, -15, -5, 5, 15, 25))
+
+
+def test_an_osm_start_is_in_view_of_both_openings(tmp_path):
     world = straight_world()
-    lat, lon = FRAME.to_latlon(330.0, -20.0)  # 20 m right of the road, 30 m ahead
+    lat, lon = FRAME.to_latlon(330.0, -20.0)
     world.starts.insert(0, Placed("OSM shelter", "osm_nearest", lat, lon, 30.0, 20.0))
     s = make_session(tmp_path, world)
     s.begin()
-    before, after = s.photos
-    assert s._camera(before).position[0] < 330 < s._camera(after).position[0]
-    assert all(s._camera(p).column_of((330.0, -20.0)) is not None for p in (before, after))
+    assert all(s._camera(p).column_of((330.0, -20.0)) is not None for p in s.photos[:2])
     assert s.explore_used == 2
 
 
-def test_an_opening_never_looks_across_a_corner(tmp_path):
-    s = make_session(tmp_path, corner_world())  # the corner 100 m ahead of the start: try a start 20 m before it
+def test_openings_stand_at_the_start_even_before_a_corner(tmp_path):
+    s = make_session(tmp_path, corner_world())
     s.world.starts[0] = Placed("GTFS", "gtfs", *FRAME.to_latlon(280.0, 0.0), 80.0, 0.0)
     s.begin()
-    after = s.photos[1]
-    assert after.along < 100 and after.along - 80 >= 3  # stepped back to this side of the corner
+    assert [round(p.along) for p in s.photos] == [80, 80]
 
 
 def test_a_candidate_seen_once_is_placed_where_its_sight_line_passes_the_osm_start(tmp_path):
@@ -298,7 +299,7 @@ def test_a_sweep_that_would_show_nothing_new_is_refused(tmp_path):
     session = scanning_session(tmp_path, FakeScanner())
     session.begin()
     assert state_at(session, -15) == state_at(session, 0) == state_at(session, 15) == "seen_close"
-    with pytest.raises(ToolError, match="nothing new.*photos 1, 2"):
+    with pytest.raises(ToolError, match="nothing new.*photos 1"):
         session.sweep(at_m=0)
     assert session.explore_used == 2 and len(session.photos) == 2  # no image spent
 
@@ -758,10 +759,10 @@ def test_a_sweep_looks_at_its_spot_from_before_it_away_from_the_start(session):
     behind = session.photos[-1]
     assert behind.toward == "sweep_behind" and behind.heading == pytest.approx(90 + 130)
     assert behind.along == pytest.approx(-25, abs=6)
-    session.sweep(at_m=17)
+    session.sweep(at_m=45)
     ahead = session.photos[-1]
-    assert ahead.toward == "sweep_ahead" and ahead.along == pytest.approx(2, abs=6)
-    assert session._camera(ahead).column_of(session.world.path.sidewalk(17)) is not None
+    assert ahead.toward == "sweep_ahead" and ahead.along == pytest.approx(30, abs=6)
+    assert session._camera(ahead).column_of(session.world.path.sidewalk(45)) is not None
 
 
 def test_sweeps_aim_inside_a_ring_that_widens_every_two_sweeps(tmp_path):
@@ -779,13 +780,12 @@ def test_sweeps_aim_inside_a_ring_that_widens_every_two_sweeps(tmp_path):
 
 
 def test_an_osm_start_has_a_tighter_ring(tmp_path):
-    s = scanning_session(tmp_path, FakeScanner())
-    s.__init__(osm_start_world(), s.run_dir, s.image_cache, s.metadata, s.fetch_image, s.confirmer, s.tile_source,
-               scanner=s.scanner)
+    s = make_session(tmp_path, osm_start_world())
     s.begin()
+    assert s.ring_m == 25
     with pytest.raises(ToolError, match="within 25 m"):
-        s.sweep(at_m=40)
-    s.sweep(at_m=25)
+        s.sweep(at_m=60)
+    assert make_session(tmp_path / "g").ring_m == 50
 
 
 def test_the_ring_opens_when_nothing_inside_it_is_left_to_see(tmp_path):

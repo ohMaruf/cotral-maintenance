@@ -77,9 +77,9 @@ and 60 tiles for close views (a zoom or look_from costs about 2-4). Marking, the
 
 # How to work
 1. Call begin() first. THE START is the most accurate position we have, and the stop is usually close to it. The
-   two opening sweeps have the sidewalk around it in front of both cameras: AHEAD-RIGHT from before the start
-   and BEHIND-RIGHT from after it. Look hard at both, and zoom on anything stop-like in
-   either before going anywhere else.
+   two opening sweeps are taken from the start, AHEAD-RIGHT and BEHIND-RIGHT, so the sidewalk on both sides of it
+   is close in front of the cameras. Look hard at both, and zoom on anything stop-like in either before going
+   anywhere else.
 2. Read the MAP (when given): where the bus's path runs around the start, where it passes close to the start
    again later (a position far along the path can be right next to the start), its corners and junctions, and the
    stops already FOUND (green: their signs are confirmed and never this stop's).

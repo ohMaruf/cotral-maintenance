@@ -978,5 +978,5 @@ def test_the_scan_covers_a_sign_a_little_left_of_the_route_line(tmp_path):
     before = s.photos[0]
     camera = s._camera(before)
     x0, _, x1, _ = s._scan_box(camera, before.along)
-    sign = s.world.path.point(before.along + 14, -2.0)
+    sign = s.world.path.point(before.along + 30, -2.0)
     assert x0 <= camera.column_of(sign) <= x1

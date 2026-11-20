@@ -32,3 +32,8 @@ The tiles a sign standing on each sidewalk spot (20-80 m, every 2 m, 3/8/14 m ri
 far band's rectangle, on the same 39 photos: band 6.4 tiles (zoom 4), sidewalk-only 5.9; same 36/39 coverage.
 A zoom-4 tile is 22.5° x 22.5°, the far sidewalk ~8° tall: sky and asphalt mostly share the sidewalk's tiles,
 so excluding them saves few tiles. They do cost image tokens, which cropping to the sidewalk saves.
+
+## Does cropping hurt the model? (`crop_ab.py`, run on the server)
+
+Same photo four ways: A Static API (today), B full view from tiles at 2x, D = B cropped to the far sidewalk band,
+C the band at 4x. B vs D isolates cropping; C vs D adds resolution. See the script's docstring for the commands.

@@ -201,6 +201,7 @@ def explore_stop(ctx: ExploreContext, row: dict, shapes: dict, slots: tuple[int 
             logger.error("The explorer server is unreachable (%s); stopping", ended)
             return "server_down", billed
         session.finish(f"the explorer ended: {ended}")
+        billed = session.billed_requests()
         _store(ctx, base, session, ended, turns, t0, transcript, work)
         return session.outcome["status"], billed
     finally:

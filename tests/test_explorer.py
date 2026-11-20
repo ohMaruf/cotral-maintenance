@@ -1084,3 +1084,17 @@ def test_the_other_directions_osm_node_gets_an_opening_and_close_spots_share_one
     assert anchors == [100, 60, 130]
     result = s.begin()
     assert "in OpenStreetMap" in result.text and s.explore_used == 5
+
+
+def test_a_confirmed_candidate_left_unsubmitted_is_submitted_when_the_search_ends(session):
+    spot_and_confirm(session, fermata_or_bus_text="yes", cotral_logo="yes")
+    assert session.candidates[0].status == "confirmed" and session.outcome is None
+    session.finish("turn cap")
+    assert session.outcome["status"] == "found" and session.outcome["candidate"] == 1
+    assert session.outcome["submitted_by"] == "the harness (turn cap)"
+
+
+def test_without_a_confirmed_candidate_the_end_is_not_found(session):
+    spot_and_confirm(session)
+    session.finish("turn cap")
+    assert session.outcome == {"status": "not_found", "reason": "turn cap"}

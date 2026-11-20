@@ -467,10 +467,22 @@ class Session:
         return None
 
     def finish(self, reason: str) -> None:
-        """Called by the runner when the explorer stops without submitting."""
-        if self.outcome is None:
-            self.outcome = {"status": "not_found", "reason": reason}
+        if self.outcome is not None:
+            return
+        confirmed = [c for c in self.candidates if c.status == "confirmed"]
+        own = self.world.stop.stop_id
+        for c in sorted(confirmed, key=lambda c: (plate_matches(c.plate_text, own), c.evidence == "cotral_sign",
+                                                   c.index), reverse=True):
+            self.calls = min(self.calls, MAX_CALLS - 1)
+            try:
+                self.submit_found(c.index)
+            except ToolError:
+                continue
+            self.outcome["submitted_by"] = f"the harness ({reason})"
             self.save()
+            return
+        self.outcome = {"status": "not_found", "reason": reason}
+        self.save()
 
     # ------------------------------------------------------------ bookkeeping
 

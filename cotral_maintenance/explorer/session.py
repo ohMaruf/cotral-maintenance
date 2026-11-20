@@ -50,6 +50,7 @@ SECOND_VIEW_RANGE = (0.6, 1.6)  # ... from this much to this much of the estimat
 SECOND_VIEW_FOV = 30.0
 RING_START_M = {"osm": 25.0, "places": 50.0, "gtfs": 50.0}
 RING_STEP_M = 25.0
+MAX_OPENINGS = 4
 RING_EVERY = 2
 RING_PROBE_M = 10.0
 MAX_CALLS = 100
@@ -204,8 +205,9 @@ class Session:
         self.calls = 0
         self.judged: set[int] = set()  # close views the confirmer has answered on
         start = world.starts[0]
-        self.ring_start_m = RING_START_M["osm" if start.kind.startswith("osm") else start.kind
-                                         if start.kind in RING_START_M else "gtfs"]
+        self.ring_start_m = max([RING_START_M["osm" if start.kind.startswith("osm") else start.kind
+                                              if start.kind in RING_START_M else "gtfs"],
+                                 *(abs(a - start.along) + SWEEP_TARGET_M for a, _ in self._anchors())])
         self.aimed = 0
         self.outcome: dict | None = None
         self.events: list[dict] = []
@@ -234,19 +236,16 @@ class Session:
     # ------------------------------------------------------------------ tools
 
     def begin(self) -> ToolResult:
-        """The briefing and the two opening sweeps (taken by the harness), with the start in front of both."""
         if self.photos:
             raise ToolError("begin() was already called")
-        pair = self._opening()
         parts = [self._briefing()]
         if self.aerial is not None:
             from .aerial import caption
             parts.append(caption(self.world))
-        scanned, found = self._scan_all(pair)
-        for p in pair:
-            self._mark_seen_close(p)
-        text = "\n\n".join([*parts, *(self._opening_caption(p) for p in pair), *scanned, self._state()])
-        images = (([self.aerial] if self.aerial is not None else []) + [self._file(p) for p in pair]
+        shots, scanned, found = self._opening()
+        text = "\n\n".join([*parts, *(self._opening_caption(p, label) for p, label in shots), *scanned,
+                             self._state()])
+        images = (([self.aerial] if self.aerial is not None else []) + [self._file(p) for p, _ in shots]
                   + [self._file(q) for q in found])
         return self._log("begin", {}, ToolResult(text, images))
 
@@ -870,24 +869,54 @@ class Session:
         before = [p for p in close if (target[0] - self._xy(p)[0]) * tx + (target[1] - self._xy(p)[1]) * ty >= 3.0]
         return min(before or close, key=lambda p: math.dist(self._xy(p), target))
 
-    def _opening(self) -> list[Photo]:
+    def _anchors(self) -> list[tuple[float, str]]:
+        name = self.world.stop.name.strip().lower()
+        out = [(st.along, f"{st.label}, another estimate of this stop's position") for st in self.world.starts[1:]]
+        out += [(o.along, f"across the road from {o.label}, the same-name stop of the other direction")
+                for o in self.world.others if o.label.split(" ", 1)[-1].strip().lower() == name]
+        out += [(o.along, f"across the road from {o.label}") for o in self.world.found if o.kind == "found_partner"]
+        lo, hi = self.world.limits
+        return [(a, label) for a, label in out if lo <= a <= hi]
+
+    def _opening(self) -> tuple[list[tuple[Photo, str]], list[str], list[Photo]]:
         start = self.world.starts[0].along
-        photos = []
+        shots: list[tuple[Photo, str]] = []
         for facing, at in (("ahead", start + SWEEP_STANDOFF_M), ("behind", start - SWEEP_STANDOFF_M)):
             options, _ = self._sweep_options(at, facing, None)
+            if options:
+                *_, f, pano, along, heading, camera, gain = options[0]
+                self._spend()
+                shots.append((self._shoot(pano, heading, SWEEP_FOV, 0.0, f"opening_{facing}", along=along),
+                              f"from the start, {'AHEAD' if facing == 'ahead' else 'BEHIND'}-RIGHT"))
+        if not shots:
+            raise ToolError("no panorama near the start")
+        scanned, found = self._scan_all([p for p, _ in shots])
+        for p, _ in shots:
+            self._mark_seen_close(p)
+        for at, label in self._anchors():
+            if len(shots) >= MAX_OPENINGS or abs(at - start) < SWEEP_TARGET_M:
+                continue
+            target = min(range(len(self.cells)), key=lambda i: abs(self.cells[i] - at))
+            if self.state[target] in ("seen_close", "hidden", "unscanned"):
+                continue
+            options, _ = self._sweep_options(at, None, None)
+            options = [o for o in options if o[0]]
             if not options:
                 continue
-            *_, f, pano, along, heading, camera, gain = options[0]
+            *_, f, pano, along, heading, camera, gain = max(options, key=lambda o: o[:4])
             self._spend()
-            photos.append(self._shoot(pano, heading, SWEEP_FOV, 0.0, f"opening_{facing}", along=along))
-        if not photos:
-            raise ToolError("no panorama near the start")
-        return photos
+            photo = self._shoot(pano, heading, SWEEP_FOV, 0.0, f"opening_{f}", along=along)
+            shots.append((photo, f"aimed at {_m(at)}: {label}"))
+            lines, more = self._scan_all([photo])
+            scanned += lines
+            found += more
+            self._mark_seen_close(photo)
+        return shots, scanned, found
 
-    def _opening_caption(self, p: Photo) -> str:
+    def _opening_caption(self, p: Photo, label: str) -> str:
         where = "AHEAD-RIGHT" if p.toward == "opening_ahead" else "BEHIND-RIGHT"
-        return (f"PHOTO {p.index}: opening sweep {where}, from the panorama at {_m(p.along)}, scan {p.date}. "
-                f"In view: {self._coverage(p)}.")
+        return (f"PHOTO {p.index}: opening sweep {label} ({where}, from the panorama at {_m(p.along)}), scan "
+                f"{p.date}. In view: {self._coverage(p)}.")
 
     def _shoot(self, pano: Panorama, heading: float, fov: float, pitch: float, toward: str, along: float,
                shot: int = 0, parent: int | None = None, source: str = "static", tiles: int = 0) -> Photo:
@@ -1197,8 +1226,9 @@ class Session:
         lines.append(f"Budget: {EXPLORE_IMAGES} wide images (the opening one included; 1 per sweep) for looking broadly, "
                      f"{MAX_TILES} tiles for close views (a zoom or look_from costs about 2-4 tiles), {MAX_CONFIRMS} "
                      f"confirmations (free).")
-        lines.append("Below: the two opening sweeps, taken for you from the start: AHEAD-RIGHT and BEHIND-RIGHT, "
-                     "so the sidewalk on both sides of the start is close in front of the cameras.")
+        lines.append("Below: the opening sweeps, taken for you: two from the start, AHEAD-RIGHT and BEHIND-RIGHT, "
+                     "and one aimed at each other likely position not yet seen close (another estimate of the "
+                     "position, the spot across the road from the same-name stop of the other direction).")
         return "\n".join(lines)
 
     def _path_text(self) -> str:

@@ -197,7 +197,7 @@ def test_an_osm_start_is_in_view_of_both_openings(tmp_path):
     s = make_session(tmp_path, world)
     s.begin()
     assert all(s._camera(p).column_of((330.0, -20.0)) is not None for p in s.photos[:2])
-    assert s.explore_used == 2
+    assert s.explore_used == 3 and s.photos[2].along == pytest.approx(-15, abs=6)
 
 
 def test_openings_stand_at_the_start_even_before_a_corner(tmp_path):
@@ -1026,3 +1026,47 @@ def test_an_osm_ring_already_seen_close_lets_the_search_out(tmp_path):
     inside = [st for a, st in zip(s.cells, s.state, strict=True) if abs(a) <= s.ring_m]
     assert all(st == "seen_close" for st in inside)
     s.sweep(at_m=s.ring_m + 40)
+
+
+def misplaced_osm_world(partner=True):
+    world = straight_world()
+    gtfs = world.starts[0]
+    lat, lon = FRAME.to_latlon(300.0, -4.0)
+    world.starts = [Placed("OSM bus stop", "osm_ref", lat, lon, 0.0, 4.0),
+                    Placed("GTFS", "gtfs", *FRAME.to_latlon(400.0, -5.0), 100.0, 5.0)]
+    if partner:
+        world.others = [Placed("f2 Test stop", "stop", *FRAME.to_latlon(426.0, 9.0), 126.0, -9.0, "f2")]
+    return world
+
+
+def test_openings_also_sweep_the_other_likely_positions(tmp_path):
+    s = scanning_session(tmp_path, FakeScanner())
+    s.__init__(misplaced_osm_world(), s.run_dir, s.image_cache, s.metadata, s.fetch_image, s.confirmer,
+               s.tile_source, scanner=s.scanner)
+    result = s.begin()
+    alongs = [p.along for p in s.photos if p.toward.startswith("opening")]
+    assert alongs[:2] == [0, 0] and 80 <= alongs[2] <= 90 and 105 <= alongs[3] <= 115
+    assert "aimed at +100 m: GTFS" in result.text and "across the road from f2 Test stop" in result.text
+    assert state_at(s, 100) == "seen_close" and state_at(s, 119) == "seen_close"
+    assert s.ring_m >= 141
+    s.sweep(at_m=135)
+
+
+def test_a_likely_position_already_seen_close_gets_no_opening_of_its_own(tmp_path):
+    s = scanning_session(tmp_path, FakeScanner())
+    world = misplaced_osm_world(partner=False)
+    world.starts[1] = Placed("GTFS", "gtfs", *FRAME.to_latlon(320.0, -5.0), 20.0, 5.0)
+    s.__init__(world, s.run_dir, s.image_cache, s.metadata, s.fetch_image, s.confirmer, s.tile_source,
+               scanner=s.scanner)
+    s.begin()
+    assert s.explore_used == 2
+
+
+def test_at_most_four_opening_photos(tmp_path):
+    s = scanning_session(tmp_path, FakeScanner())
+    world = misplaced_osm_world()
+    world.others += [Placed("f3 Test stop", "stop", *FRAME.to_latlon(150.0, 9.0), -150.0, -9.0, "f3")]
+    s.__init__(world, s.run_dir, s.image_cache, s.metadata, s.fetch_image, s.confirmer, s.tile_source,
+               scanner=s.scanner)
+    s.begin()
+    assert s.explore_used == 4

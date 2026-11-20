@@ -44,7 +44,7 @@ LOOKALIKE_FEATURES = {
 }
 # Not part of the verdict: whether another viewpoint is needed before the spot can be dismissed.
 ANGLE = {"could_be_stop_from_another_angle": "something that could be a stop seen badly from here: a sign panel "
-                                             "seen edge on or from behind, a glass or roofed structure, a bench, a "
+                                             "seen edge on, a glass or roofed structure, a bench, a "
                                              "pole with something on top, partly hidden by a tree, a car or a railing"}
 FEATURES = {**STOP_FEATURES, **BUS_PICTOGRAM, **DESIGN, **LOOKALIKE_FEATURES, **ANGLE}
 ANSWERS = ("yes", "no", "unsure")

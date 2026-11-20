@@ -13,9 +13,9 @@ other tools and no other source of information.
 - In poor light or when faded, a Cotral sign can look grey, black or washed-out blue instead of navy.
 - Cotral buses are large coaches: a stop is never on a narrow lane, a dirt track, a driveway or a footpath, only
   on a road a coach drives along.
-- Stop signs face the buses arriving. Seen from beside or behind, a stop sign is a pole with a thin dark edge or
-  a blank panel back at the top, not a "bare pole". Near the start, treat such poles as suspects: mark them and
-  look_from another panorama to see the face.
+- A Cotral stop sign has the same panel on both sides: from in front or from behind you see the same navy panel,
+  text and logo. Seen from beside, it is a pole with a thin dark edge at the top, not a "bare pole". Near the
+  start, treat such poles as suspects: mark them and look_from another panorama to see the panel.
 
 # Where it can be
 - Positions are metres along the bus's path, from the start (0 m): + ahead in the direction of travel,
@@ -41,8 +41,7 @@ and 60 tiles for close views (a zoom or look_from costs about 2-4). Marking, the
   straight ahead along the road (left edge) round to just behind straight right (right edge): the right-hand
   sidewalk runs from far ahead, near the vanishing point on the left, to beside the camera on the right. From a -
   position (BEHIND-RIGHT) it looks back along the road: from just ahead of straight right (left edge) round to
-  straight back (right edge), the sidewalk running from beside the camera on the left to far behind on the right;
-  there you see the BACKS of stop signs (they face the arriving buses): a thin dark rectangle on a pole.
+  straight back (right edge), the sidewalk running from beside the camera on the left to far behind on the right.
 - The search spreads out evenly on both sides of the start, like rings: a sweep standing more than 40 m farther out
   than the other side has been looked at is refused. Each sweep shows about 80 m outward from where it stands; the
   next one on that side stands near the far end of what the last one showed clearly.
@@ -51,7 +50,7 @@ and 60 tiles for close views (a zoom or look_from costs about 2-4). Marking, the
   photo: sweep from closer). It gives no points: finding things in the photo is your job.
 - zoom(photo, x, y, fov, what) is how you narrow in: a sharp, full-resolution close-up of one spot of a photo, from
   the same panorama. Point it at something you can actually SEE in the photo that could be a stop: a panel on a
-  pole (or its back: a thin dark rectangle), a shelter-like shape, a bench at the kerb, people waiting, road
+  pole (or its thin edge, seen from beside), a shelter-like shape, a bench at the kerb, people waiting, road
   markings. `what` says what it is, in a few words ("dark panel on a thin pole by the gate"); a zoom that names
   nothing stop-like is refused. Never zoom on an empty stretch, foliage, sky, a car, a shop front or a person
   just to check, and never on guessed points: if nothing stop-like is visible, sweep elsewhere. From far away a
@@ -59,9 +58,8 @@ and 60 tiles for close views (a zoom or look_from costs about 2-4). Marking, the
   zoom is judged at once by an independent confirmer; if what you zoomed on could be a stop seen badly, the
   harness also looks at it from another panorama. A stop it finds becomes a CONFIRMED candidate: submit it.
 - look_from(candidate) changes the viewpoint: the same kind of close-up of a candidate, from another panorama.
-  Use it when you can't see a candidate clearly from where you are: a sign seen edge on or from behind, half
-  hidden by a tree or a van, too far or blurry. Signs face the buses arriving, so by default it looks from before
-  the candidate in the direction of travel.
+  Use it when you can't see a candidate clearly from where you are: a sign seen edge on, half hidden by a tree
+  or a van, too far or blurry. By default it looks from before the candidate in the direction of travel.
 - confirm(candidate) asks the confirmer again about a candidate you marked yourself on a close view. Only a
   confirmed candidate can be submitted.
 - When you submit a stop, the harness photographs it and its surroundings with images kept back for that.
@@ -69,7 +67,7 @@ and 60 tiles for close views (a zoom or look_from costs about 2-4). Marking, the
 # How to work
 1. Call begin() first. THE START is the most accurate position we have, and the stop is usually close to it. The
    two opening sweeps have the sidewalk around it in front of both cameras: AHEAD-RIGHT from before the start
-   (sign faces) and BEHIND-RIGHT from after it (sign backs). Look hard at both, and zoom on anything stop-like in
+   and BEHIND-RIGHT from after it. Look hard at both, and zoom on anything stop-like in
    either before going anywhere else.
 2. Read the AERIAL MAP (when given): where the bus's path runs around the start, where it passes close to the start
    again later (a position far along the path can be right next to the start), its corners and junctions, and the

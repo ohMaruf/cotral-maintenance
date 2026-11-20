@@ -38,7 +38,7 @@ STOP_PHOTOS = 2  # kept back for photographing a found stop
 OPENING_OFFSETS_M = (35.0, 28.0, 21.0, 14.0)  # the two opening sweeps: ahead-right from this far before the start,
 # behind-right from this far after it, the farthest with a panorama and no corner in between. The stretch around the
 # start is in front of both cameras (0.12.0 photos converged on it from 11 m and missed a sign 4 m behind one of
-# them, f8520); signs face the arriving buses, so the first sees their faces.
+# them, f8520).
 OPENING_PANO_M = 10.0  # a panorama this close to the wanted point of the path
 BEND_DEG = 30.0  # a turn of the path this sharp is a corner: no view sees round it
 BEND_SPAN_M = 10.0
@@ -656,7 +656,7 @@ class Session:
 
     def _other_viewpoint(self, c: Candidate, target, used: set[str]) -> Panorama:
         """The best other panorama for a candidate: close to it, at least a few metres away, and before it in the
-        direction of travel (stop signs face the buses arriving), else after it."""
+        direction of travel, else after it."""
         close = [p for p in self.world.panoramas if p.pano_id not in used
                  and 5.0 <= math.dist(self._xy(p), target) <= LOOK_FROM_MAX_M]
         if not close:
@@ -981,8 +981,7 @@ class Session:
                      f"{MAX_TILES} tiles for close views (a zoom or look_from costs about 2-4 tiles), {MAX_CONFIRMS} "
                      f"confirmations (free).")
         lines.append("Below: the two opening sweeps, taken for you: AHEAD-RIGHT from before the start and "
-                     "BEHIND-RIGHT from after it, so the sidewalk around the start is in front of both cameras. Signs "
-                     "face the arriving buses: the first sees their faces, the second their backs.")
+                     "BEHIND-RIGHT from after it, so the sidewalk around the start is in front of both cameras.")
         return "\n".join(lines)
 
     def _path_text(self) -> str:

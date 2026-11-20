@@ -200,7 +200,7 @@ def explore_stop(ctx: ExploreContext, row: dict, shapes: dict, slots: tuple[int 
             "select e.stop_id, s.name, e.lat, e.lon from explorations e join stops s using (stop_id) "
             "where e.status = 'found' and e.lat is not null")])
         aerial = None
-        esri = EsriTiles(ctx.paths.cache / "aerial")
+        esri = EsriTiles(ctx.paths.cache / "street_map")
         try:
             aerial = draw_aerial(world, work / "aerial.jpg", esri)
         except Exception as error:  # imagery is a help, not a requirement: search without it

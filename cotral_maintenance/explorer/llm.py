@@ -171,7 +171,7 @@ def call(session: Session, name: str, args: dict, references: list[Path], draw_m
     if name == "begin":
         result = session.begin()
         return type(result)("REFERENCE (the first image): the Cotral bus stop sign. LOOK-ALIKES (the next images): "
-                            "blue road signs that are NOT bus stops. Then " + ("the aerial map and " if session.aerial
+                            "blue road signs that are NOT bus stops. Then " + ("the map and " if session.aerial
                                                                               else "") +
                             "the two opening photos.\n\n" + result.text,
                             references + result.images)
@@ -199,7 +199,7 @@ def _photo_parts(images: list[Path], session: Session) -> list[dict]:
     for path in images:
         index = next((p.index for p in session.photos if session._file(p) == path), None)
         if path == session.aerial:  # at full size: its labels are small
-            parts += [{"type": "text", "text": "AERIAL MAP:"}, image_part(path)]
+            parts += [{"type": "text", "text": "MAP:"}, image_part(path)]
             continue
         parts += [{"type": "text", "text": f"PHOTO {index}:" if index else f"{path.stem}:"},
                   image_part(path, None if index else REFERENCE_PX)]
@@ -389,7 +389,8 @@ SCAN_PROMPT = ("PHOTO: a street-level photo of a roadside. 1) Is a Cotral bus st
                "in it? It can be small, far away, blurry, partly hidden or seen at an angle; the panel is the same on "
                "both sides. 2) Where does something stand in front of the roadside, between the camera and where a "
                "sign pole would stand, big enough to hide a sign: a tree or its foliage, a hedge or bush, a parked "
-               "van, truck or bus, a wall or pillar, a kiosk, another sign? Reply with JSON only: "
+               "van, truck or bus, a kiosk, another sign or its pole? Only what stands between the camera and the kerb: a "
+               "wall, fence, hedge or building BEHIND the sidewalk hides nothing. Reply with JSON only: "
                '{"sign": true, "x": X, "y": Y, "cover": [[X_FROM, X_TO], ...]} with X, Y the centre of the sign and '
                "X_FROM, X_TO the left and right edges of each thing in front, on a 0-1000 grid of the photo (0,0 top "
                'left, 1000,1000 bottom right); "sign": false and no x, y when there is no sign; "cover": [] when '

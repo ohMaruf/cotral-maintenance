@@ -539,9 +539,14 @@ class Session:
         other = self.looked_out_to(-side)
         if abs(at_m) > other + self.balance_m:
             name, sign = ("behind" if side > 0 else "ahead"), -side
+            gap = min((i for i, a in enumerate(self.cells) if a * sign > 0
+                       and self.state[i] not in ("seen_close", "hidden", "unscanned")),
+                      key=lambda i: abs(self.cells[i]), default=None)
+            first = (f" Sweep at {_m(self.cells[gap])} first: the sidewalk there is "
+                     f"{self.state[gap].replace('_', ' ')}." if gap is not None else f" Sweep {name} first.")
             raise ToolError(f"the search spreads out evenly from the start: {name} it is seen close only out to "
                             f"{_m(sign * other)}, so no sweep aims farther out than {_m(side * (other + self.balance_m))} "
-                            f"here yet. Sweep {name} first.")
+                            f"here yet." + first)
 
     def _refuse_nothing_new(self, camera: Camera, at_m: float) -> None:
         shown = [i for i, p in enumerate(self._sidewalk) if camera.column_of(p) is not None

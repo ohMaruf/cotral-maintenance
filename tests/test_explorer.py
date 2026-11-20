@@ -769,11 +769,19 @@ def test_the_search_spreads_out_evenly(tmp_path):
     session = scanning_session(tmp_path, FakeScanner())
     session.begin()
     reach = session.looked_out_to(-1)
-    with pytest.raises(ToolError, match="evenly.*Sweep behind first"):
+    with pytest.raises(ToolError, match=r"evenly.*Sweep at -\d+ m first: the sidewalk there is not looked"):
         session.sweep(at_m=reach + 60)
     session.sweep(at_m=-40)
     assert session.looked_out_to(-1) > reach
     session.sweep(at_m=session.looked_out_to(-1) + 30)
+
+
+def test_a_refused_sweep_names_the_nearest_stretch_not_seen_close(tmp_path):
+    session = scanning_session(tmp_path, FakeScanner(cover_photos={2}))
+    session.begin()
+    gap = next(a for a, st in zip(session.cells, session.state, strict=True) if a > 0 and st == "blocked")
+    with pytest.raises(ToolError, match=re.escape(f"Sweep at {gap:+.0f} m first: the sidewalk there is blocked")):
+        session.sweep(at_m=-80)
 
 
 def test_a_side_with_nothing_left_to_see_doesnt_hold_the_other_back(tmp_path):
@@ -795,7 +803,7 @@ def solid_tile(z, x, y):
     return buf.getvalue()
 
 
-def test_the_aerial_map_is_shown_at_begin(tmp_path):
+def test_the_map_is_shown_at_begin(tmp_path):
     from PIL import Image
     from cotral_maintenance.explorer.aerial import SIZE, draw_aerial
     world = straight_world()
@@ -804,7 +812,7 @@ def test_the_aerial_map_is_shown_at_begin(tmp_path):
     s = Session(world, tmp_path / "run", tmp_path / "cache", FakeMetadata(), lambda *a: b"jpeg", FakeConfirmer(),
                 aerial=out)
     result = s.begin()
-    assert result.images[0] == out and len(result.images) == 3 and "AERIAL MAP" in result.text
+    assert result.images[0] == out and len(result.images) == 3 and "MAP (street map" in result.text
     assert s.record()["aerial"] is True
 
 

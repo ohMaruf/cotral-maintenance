@@ -79,7 +79,7 @@ and 60 tiles for close views (a zoom or look_from costs about 2-4). Marking, the
    two opening sweeps have the sidewalk around it in front of both cameras: AHEAD-RIGHT from before the start
    and BEHIND-RIGHT from after it. Look hard at both, and zoom on anything stop-like in
    either before going anywhere else.
-2. Read the AERIAL MAP (when given): where the bus's path runs around the start, where it passes close to the start
+2. Read the MAP (when given): where the bus's path runs around the start, where it passes close to the start
    again later (a position far along the path can be right next to the start), its corners and junctions, and the
    stops already FOUND (green: their signs are confirmed and never this stop's).
 3. Cover as much ground as possible with as few images as possible, ahead AND behind the start alike. Never pass

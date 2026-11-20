@@ -1,16 +1,3 @@
-"""The aerial map given to the explorer at begin(): existing imagery, only the route and keypoints drawn on it.
-
-Esri World Imagery (Vantor captures, 0.3-0.5 m per pixel, 2024-2025 around the first stops checked) at zoom 18,
-the 600 m square around the start, resized to SIZE px. Drawn on it: the bus's path (with arrows for the direction
-of travel and metre labels every 50 m on the right-hand side of travel, so the two passes of an out-and-back road
-are told apart), the start, OSM hints, other stops (GTFS positions) and other stops already FOUND in this run
-(confirmed positions, a few metres accurate). Google's satellite imagery is refused for EEA accounts; we draw
-nothing that already exists.
-
-Tiles are cached on disk: a stop's map costs about 40 tile requests the first time, nothing after.
-Imagery: Esri, Vantor, Earthstar Geographics. Check Esri's terms before a bulk run.
-"""
-
 import io
 import logging
 import math
@@ -25,19 +12,18 @@ from .world import Placed, World
 
 logger = logging.getLogger(__name__)
 
-TILE_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-ZOOM = 18
+TILE_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
+ZOOM = 17
 HALF_M = 300.0
 SIZE = 800  # px: 0.75 m per pixel
 LABEL_EVERY_M = 50
-ATTRIBUTION = "Imagery: Esri, Vantor, Earthstar Geographics"
+ROAD_LEVEL = 246
+GROUND = 70
 
 FetchTile = Callable[[int, int, int], bytes]  # z, x, y -> jpeg bytes
 
 
 class EsriTiles:
-    """World Imagery tiles, cached on disk by z/x/y."""
-
     def __init__(self, cache_dir: Path, timeout_s: float = 20.0) -> None:
         self.cache_dir = cache_dir
         self.timeout_s = timeout_s
@@ -83,6 +69,7 @@ def draw_aerial(world: World, out: Path, fetch: FetchTile) -> Path:
     left, top = x0 - tx0 * 256, y0 - ty0 * 256
     img = canvas.crop((int(left), int(top), int(left + 2 * half), int(top + 2 * half))).resize((SIZE, SIZE),
                                                                                                 Image.LANCZOS)
+    img = img.convert("L").point(lambda v: 255 if v > ROAD_LEVEL else GROUND).convert("RGB")
     scale = SIZE / (2 * half)
     d = ImageDraw.Draw(img, "RGBA")
 
@@ -126,7 +113,6 @@ def draw_aerial(world: World, out: Path, fetch: FetchTile) -> Path:
     for o in world.found:
         _stop_dot(d, px(o.lat, o.lon), (40, 220, 90), f"{o.ref} FOUND", small, (0, 110, 40))
     _label(d, (140, 14), f"{world.stop.stop_id}: 600 m x 600 m, north up", big, (0, 0, 0))
-    _label(d, (SIZE - 170, SIZE - 12), ATTRIBUTION, small, (60, 60, 60))
     out.parent.mkdir(parents=True, exist_ok=True)
     img.save(out, quality=88)
     return out
@@ -135,11 +121,11 @@ def draw_aerial(world: World, out: Path, fetch: FetchTile) -> Path:
 def caption(world: World) -> str:
     found = f" Green dots: other stops already FOUND (their signs are confirmed: never submit them)." \
         if world.found else ""
-    return ("AERIAL MAP (existing aerial imagery, north up, 600 m x 600 m around the start): the pink line is the bus's "
-            "path, the yellow arrows its direction of travel, the labels its positions in metres (each on the "
+    return ("MAP (street map, north up, 600 m x 600 m around the start): white lines are roads; the pink line is the "
+            "bus's path, the yellow arrows its direction of travel, the labels its positions in metres (each on the "
             "right-hand side of its pass); the yellow ring is the start, blue squares are OSM hints, orange dots other "
-            "stops (timetable positions)." + found + " Use it to plan where to look; the imagery can be a few metres "
-            "off the road and some years old.")
+            "stops (timetable positions)." + found + " Use it to plan where to look: where the path bends, where "
+            "roads join it, where it passes the start again.")
 
 
 def _stop_dot(d, xy, fill, text, font, colour) -> None:

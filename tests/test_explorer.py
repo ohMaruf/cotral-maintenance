@@ -1086,6 +1086,19 @@ def test_the_other_directions_osm_node_gets_an_opening_and_close_spots_share_one
     assert "in OpenStreetMap" in result.text and s.explore_used == 5
 
 
+def test_a_found_partner_replaces_its_osm_and_timetable_openings(tmp_path):
+    from cotral_maintenance.explorer.aerial import place_found
+    s = scanning_session(tmp_path, FakeScanner())
+    world = misplaced_osm_world()
+    world.hints = [Placed("OSM bus stop 'Test stop'", "bus_stop", *FRAME.to_latlon(360.0, 6.0), 60.0, -6.0, "f2")]
+    s.__init__(world, s.run_dir, s.image_cache, s.metadata, s.fetch_image, s.confirmer, s.tile_source,
+               scanner=s.scanner)
+    s.world.found = place_found(s.world, [("f2", "Test stop", *FRAME.to_latlon(420.0, 9.0))])
+    anchors = s._anchors()
+    assert [round(a) for a, _ in anchors] == [100, 120]
+    assert "(found)" in anchors[1][1]
+
+
 def test_a_confirmed_candidate_left_unsubmitted_is_submitted_when_the_search_ends(session):
     spot_and_confirm(session, fermata_or_bus_text="yes", cotral_logo="yes")
     assert session.candidates[0].status == "confirmed" and session.outcome is None

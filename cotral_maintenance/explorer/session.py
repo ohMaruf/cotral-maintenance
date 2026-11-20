@@ -887,12 +887,14 @@ class Session:
         ids = {o.ref for o in partners if o.ref}
         partner_osm = [h for h in self.world.hints
                        if (h.ref and h.ref in ids) or h.label.split("'", 1)[-1].rstrip("'").strip().lower() == name]
+        found = [o for o in self.world.found if o.kind == "found_partner"]
         out = [(st.along, f"{st.label}, another estimate of this stop's position") for st in self.world.starts[1:]]
-        out += [(h.along, f"across the road from {h.label}{' ' + h.ref if h.ref else ''}, the same-name stop of the "
-                          f"other direction in OpenStreetMap") for h in partner_osm]
-        out += [(o.along, f"across the road from {o.label}, the same-name stop of the other direction (timetable "
-                          f"position)") for o in partners]
-        out += [(o.along, f"across the road from {o.label}") for o in self.world.found if o.kind == "found_partner"]
+        out += [(o.along, f"across the road from {o.label}") for o in found]
+        if not found:
+            out += [(h.along, f"across the road from {h.label}{' ' + h.ref if h.ref else ''}, the same-name stop of "
+                              f"the other direction in OpenStreetMap") for h in partner_osm]
+            out += [(o.along, f"across the road from {o.label}, the same-name stop of the other direction "
+                              f"(timetable position)") for o in partners]
         lo, hi = self.world.limits
         kept: list[tuple[float, str]] = []
         for a, label in out:

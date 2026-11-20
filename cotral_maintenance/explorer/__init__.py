@@ -6,4 +6,4 @@ docs/explore-harness-versions.md. Every run records it (with the git commit and 
 prompt's hash), so a run can always be traced to the harness that produced it.
 """
 
-HARNESS_VERSION = "0.19.1"
+HARNESS_VERSION = "0.20.0"

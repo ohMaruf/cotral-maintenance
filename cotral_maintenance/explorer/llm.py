@@ -17,6 +17,7 @@ history; harness nudges are appended to the last tool result.
 import base64
 import io
 import json
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -382,3 +383,51 @@ class LlmConfirmer:
             except ConfirmerError as error:
                 problems.append(str(error))
         raise ConfirmerError("; ".join(problems))
+
+
+SCAN_PROMPT = ("PHOTO: a street-level photo. Is a Cotral bus stop sign like the REFERENCE anywhere in it? It can be "
+               "small, far away, blurry, partly hidden or seen at an angle; the panel is the same on both sides. Reply "
+               'with JSON only: {"sign": true, "x": X, "y": Y} with X, Y the centre of the sign on a 0-1000 grid of the '
+               'photo (0,0 top left, 1000,1000 bottom right), or {"sign": false}.')
+
+
+class LlmScanner:
+    def __init__(self, client: ChatClient, reference: Path, log: Callable[[dict], None], slot: int | None = None,
+                 attempts: int = 2) -> None:
+        self.client = client
+        self.log = log
+        self.slot = slot
+        self.attempts = attempts
+        self.reference = image_part(reference)
+        self.calls = 0
+
+    def __call__(self, piece: Path) -> tuple[float, float] | None:
+        self.calls += 1
+        messages = [{"role": "user", "content": [
+            {"type": "text", "text": "REFERENCE: the Cotral bus stop sign."}, self.reference,
+            {"type": "text", "text": SCAN_PROMPT}, image_part(piece)]}]
+        for attempt in range(1, self.attempts + 1):
+            status, data, seconds = self.client.complete(messages, [], self.slot, seed=attempt)
+            self.log({"scan": self.calls, "attempt": attempt, "piece": piece.name, "status": status,
+                      "seconds": round(seconds, 1), "reply": data if status == 200 else str(data)[:1000]})
+            if status != 200:
+                continue
+            answer = parse_scan(data["choices"][0]["message"].get("content") or "")
+            if answer is not None:
+                return answer or None
+        return None
+
+
+def parse_scan(text: str) -> tuple[float, float] | tuple[()] | None:
+    m = re.search(r"\{.*\}", text, re.DOTALL)
+    if not m:
+        return None
+    try:
+        j = json.loads(m.group(0))
+    except json.JSONDecodeError:
+        return None
+    if j.get("sign") is False:
+        return ()
+    if j.get("sign") is True and all(isinstance(j.get(k), (int, float)) for k in ("x", "y")):
+        return float(min(max(j["x"], 0), GRID)), float(min(max(j["y"], 0), GRID))
+    return None

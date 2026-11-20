@@ -27,8 +27,8 @@ from ..caches import BudgetExhausted, MetadataCache, UsageLedger
 from ..explorer import HARNESS_VERSION
 from ..explorer.aerial import EsriTiles, draw_aerial, place_found
 from ..explorer.drawing import draw_map
-from ..explorer.llm import ChatClient, Explorer, LlmConfirmer
-from ..explorer.session import MAX_IMAGES, MAX_TILES, Session
+from ..explorer.llm import ChatClient, Explorer, LlmConfirmer, LlmScanner
+from ..explorer.session import MAX_IMAGES, MAX_SCAN_TILES, MAX_TILES, Session
 from ..explorer.tileviews import TileViews
 from ..explorer.world import build_world
 from ..models import Stop, View
@@ -93,7 +93,7 @@ def explore(ctx: ExploreContext, stop_ids: list[str], on_done: Callable[[str, st
         if ctx.stop_event.is_set() or budget_out.is_set():
             return "skipped"
         try:
-            reservation = ctx.ledger.reserve(ctx.key_id, {"static": MAX_IMAGES, "tiles": MAX_TILES})
+            reservation = ctx.ledger.reserve(ctx.key_id, {"static": MAX_IMAGES, "tiles": MAX_TILES + MAX_SCAN_TILES})
         except BudgetExhausted as error:
             if not budget_out.is_set():
                 logger.warning("Google budget: %s. No more stops are started; re-run next month (or raise the cap).",
@@ -150,6 +150,8 @@ def progress_line(stop_id: str, entry: dict) -> None:
         logger.warning("%s turn %d: %s", stop_id, entry["turn"], entry["error"][:200])
     elif "confirm" in entry:
         logger.info("%s confirmer: %s on %s", stop_id, entry.get("status"), entry.get("photo"))
+    elif "scan" in entry:
+        logger.info("%s scan: %s on %s", stop_id, entry.get("status"), entry.get("piece"))
 
 
 def explore_stop(ctx: ExploreContext, row: dict, shapes: dict, slots: tuple[int | None, int | None]
@@ -180,6 +182,7 @@ def explore_stop(ctx: ExploreContext, row: dict, shapes: dict, slots: tuple[int 
     client = ChatClient(spec.server.url, spec.model, spec.dialect, spec.sampling, spec.template, spec.max_tokens,
                         request=spec.request)
     confirmer = LlmConfirmer(client, ctx.paths.reference_sign, ctx.paths.lookalikes, log, confirmer_slot)
+    scanner = LlmScanner(client, ctx.paths.reference_sign, log, confirmer_slot)
     base = {"stop_id": stop_id, "explorer": explorer_description(spec),
             "harness": ctx.harness, "started_at": started_at}
     session = None
@@ -209,7 +212,7 @@ def explore_stop(ctx: ExploreContext, row: dict, shapes: dict, slots: tuple[int 
             return sv.get_image(pano_id, heading, View("agent", pitch=pitch, fov=fov, size=f"{width}x{height}"))
 
         session = Session(world, work, ctx.paths.cache / "streetview_images", ctx.metadata, fetch, confirmer, tiles,
-                          {k: v for k, v in ctx.harness.items() if k != "git"}, aerial=aerial)
+                          {k: v for k, v in ctx.harness.items() if k != "git"}, aerial=aerial, scanner=scanner)
         agent = Explorer(client, PROMPT.read_text(), [ctx.paths.reference_sign, *ctx.paths.lookalikes], draw_map,
                          explorer_slot, should_stop=ctx.stop_event.is_set)
         ended, turns = agent.run(session, log)

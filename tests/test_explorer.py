@@ -797,3 +797,64 @@ def test_a_found_partner_across_the_road_is_a_hint(session):
     assert "PARTNER STOP FOUND: f2" in text and "f3" not in text.split("PARTNER")[1].split("\n")[0]
     near = max(range(len(session.cells)), key=lambda i: session.prior[i])
     assert session.cells[near] == pytest.approx(-40, abs=6)  # the likeliest cell is across from the partner
+
+
+class ScanTiles(FakeTiles):
+    def tiles(self, pano_id, heading, pitch, fov, width, height):
+        return {(pano_id, round(heading), i) for i in range(5)}
+
+    def render(self, pano_id, heading, pitch, fov, width, height):
+        import io
+
+        from PIL import Image
+        self.rendered.append((pano_id, heading, pitch, fov, width, height))
+        buffer = io.BytesIO()
+        Image.new("RGB", (width, height), "grey").save(buffer, format="JPEG")
+        return buffer.getvalue()
+
+
+class FakeScanner:
+    def __init__(self, hits=None):
+        self.hits = hits or {}
+        self.seen = []
+
+    def __call__(self, piece):
+        from PIL import Image
+        self.seen.append((piece.name, Image.open(piece).size))
+        return self.hits.get(len(self.seen))
+
+
+def scanning_session(tmp_path, scanner, confirmer=None) -> Session:
+    s = make_session(tmp_path, confirmer=confirmer)
+    s.tile_source = ScanTiles()
+    s.scanner = scanner
+    return s
+
+
+def test_every_wide_photo_is_scanned_in_pieces_and_a_miss_says_so(tmp_path):
+    scanner = FakeScanner()
+    s = scanning_session(tmp_path, scanner)
+    result = s.begin()
+    assert len(s.scans) == 2 and [scan["photo"] for scan in s.scans] == [1, 2]
+    assert all(w <= 1000 for _, (w, _) in scanner.seen) and len(scanner.seen) == sum(len(x["pieces"]) for x in s.scans)
+    assert result.text.count("saw no stop sign") == 2 and len(s.photos) == 2
+
+
+def test_a_scan_hit_becomes_a_zoom_judged_by_the_confirmer(tmp_path):
+    scanner = FakeScanner({1: (500.0, 500.0)})
+    s = scanning_session(tmp_path, scanner, FakeConfirmer(fermata_or_bus_text="yes", cotral_logo="yes"))
+    result = s.begin()
+    zoom = s.photos[2]
+    hit_bearing = s.scans[0]["pieces"][0]["hit"][0]
+    assert zoom.toward == "zoom" and zoom.parent == 1 and s.scans[0]["zooms"] == [3]
+    assert abs(angle_diff(zoom.heading, hit_bearing)) <= 1.5
+    assert "possible stop sign" in result.text and s.candidates[0].status == "confirmed"
+    assert s._file(zoom) in result.images
+
+
+def test_scan_tiles_are_capped(tmp_path, monkeypatch):
+    from cotral_maintenance.explorer import session as module
+    monkeypatch.setattr(module, "MAX_SCAN_TILES", 7)
+    s = scanning_session(tmp_path, FakeScanner())
+    result = s.begin()
+    assert len(s.scans) == 1 and "scan tiles are used up" in result.text and len(s.scan_tiles) == 5

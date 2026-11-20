@@ -48,6 +48,9 @@ and 60 tiles for close views (a zoom or look_from costs about 2-4). Marking, the
 - Every wide photo says which stretch of the right-hand sidewalk is in view and how big a stop sign would look
   along it: "clear" (readable), "small" (noticeable, zoom to judge it) or "a speck" (too far to rely on this
   photo: sweep from closer). It gives no points: finding things in the photo is your job.
+- After every wide photo (the openings and each sweep) the harness scans its right-hand sidewalk 5-80 m away at 4x
+  resolution. A possible stop sign it sees is zoomed on and judged by the confirmer, like your zooms, and a SCAN
+  line says what it found. The scan can miss a sign seen edge on or hidden: keep looking at the photos yourself.
 - zoom(photo, x, y, fov, what) is how you narrow in: a sharp, full-resolution close-up of one spot of a photo, from
   the same panorama. Point it at something you can actually SEE in the photo that could be a stop: a panel on a
   pole (or its thin edge, seen from beside), a shelter-like shape, a bench at the kerb, people waiting, road

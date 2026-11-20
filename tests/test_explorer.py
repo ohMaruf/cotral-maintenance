@@ -5,7 +5,7 @@ import pytest
 
 from cotral_maintenance.explorer.confirmer import FEATURES, Checklist, ConfirmerError, parse, verdict
 from cotral_maintenance.explorer.geometry import Camera, PathFrame, angle_diff, compass, triangulate
-from cotral_maintenance.explorer.session import (GRID, EXPLORE_IMAGES, IMAGE_SIZE, MAX_CONFIRMS, MAX_IMAGES,
+from cotral_maintenance.explorer.session import (GRID, plate_matches, EXPLORE_IMAGES, IMAGE_SIZE, MAX_CONFIRMS, MAX_IMAGES,
                                                  MAX_TILES, STOP_PHOTOS, SWEEP_FOV, ZOOM_SIZE, Session,
                                                  ToolError)
 from cotral_maintenance.explorer.world import Panorama, Placed, World, _visible_start_shift, shared_stretches
@@ -659,3 +659,12 @@ def test_captions_say_what_stretch_is_in_view_but_give_no_points(session):
     near, far = (float(v) for v in re.search(r"from ([+-]\d+) m \(\d+ m away\) to ([+-]\d+) m", caption).groups())
     assert near == pytest.approx(session.photos[0].along, abs=3) and far > 30  # from beside the camera, far ahead
     assert "clear from" in caption and "small from" in caption and "a speck from" in caption
+
+
+def test_a_plate_matches_its_stop_id_however_it_is_written():
+    # f2164, 0.14.0: read as "f.2164" and "N.f 2164", refused 28 times by a substring test
+    for read in ("f2164", "f.2164", "N.f 2164", "N. f 2164", "F 2164"):
+        assert plate_matches(read, "f2164")
+    for read in ("N.f 11164", "21640", "", "f 2165"):
+        assert not plate_matches(read, "f2164")
+    assert plate_matches("f 77", "f00077")

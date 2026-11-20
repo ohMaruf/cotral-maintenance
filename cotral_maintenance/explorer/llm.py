@@ -231,7 +231,8 @@ class Explorer:
                 log({"turn": turn, "seconds": round(seconds, 1), "error": f"HTTP {status}: {str(data)[:500]}"})
                 if status == 0 and invalid >= MAX_INVALID:
                     return f"server unreachable: {str(data)[:200]}", turn
-                if "context" in str(data).lower() and "exceed" in str(data).lower():
+                text = str(data).lower()  # llama-server: "exceeds the available context"; vLLM: "maximum context length"
+                if "context" in text and ("exceed" in text or "maximum context length" in text):
                     return "context full", turn
                 if invalid >= MAX_INVALID:
                     return "invalid replies", turn

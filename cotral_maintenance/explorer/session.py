@@ -20,6 +20,7 @@ metadata lookups are free and not counted.
 
 import json
 import math
+import re
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -366,7 +367,7 @@ class Session:
         target = self.world.frame.to_xy(c.lat, c.lon)
         for o in self.world.others:
             if math.dist(target, self.world.frame.to_xy(o.lat, o.lon)) <= NEARBY_STOP_M \
-                    and self.world.stop.stop_id.lower() not in c.plate_text.lower():
+                    and not plate_matches(c.plate_text, self.world.stop.stop_id):
                 raise ToolError(f"candidate {candidate} is within {NEARBY_STOP_M:.0f} m of another stop ({o.label});"
                                 f" accepted only if its plate reads {self.world.stop.stop_id}")
         stop_photos = self._photograph_stop(c)
@@ -1103,6 +1104,13 @@ def _frange(lo: float, hi: float, step: float):
     while v <= hi + 1e-9:
         yield v
         v += step
+
+
+def plate_matches(plate_text: str, stop_id: str) -> bool:
+    """Whether a plate as read ("N.f 2164", "f.2164", "F 2164") carries this stop's id ("f2164"): its number, as a
+    whole number on the plate. A plain substring test refused f2164 28 times over a dot and a space (0.14.0)."""
+    number = re.sub(r"\D", "", stop_id).lstrip("0")
+    return bool(number) and number in (n.lstrip("0") for n in re.findall(r"\d+", plate_text))
 
 
 def _m(v: float) -> str:

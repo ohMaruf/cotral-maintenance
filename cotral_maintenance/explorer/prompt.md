@@ -36,21 +36,28 @@ Two budgets: 20 wide images for looking broadly (the two opening ones and the ha
 and 60 tiles for close views (a zoom or look_from costs about 2-4). Marking, the map and other scans are free.
 - POINTS on photos (zoom, mark_*) are x, y on a 0-1000 grid over the photo: (0, 0) top left, (1000, 1000)
   bottom right, (500, 500) the centre, whatever the photo's size.
-- sweep(from_m) is how you look broadly: one wide photo (fov 110) from the panorama nearest from_m, looking AWAY
-  from the start along the route, so every sweep shows new ground. From a + position (AHEAD-RIGHT) it looks from
-  straight ahead along the road (left edge) round to just behind straight right (right edge): the right-hand
-  sidewalk runs from far ahead, near the vanishing point on the left, to beside the camera on the right. From a -
-  position (BEHIND-RIGHT) it looks back along the road: from just ahead of straight right (left edge) round to
-  straight back (right edge), the sidewalk running from beside the camera on the left to far behind on the right.
-- The search spreads out evenly on both sides of the start, like rings: a sweep standing more than 40 m farther out
-  than the other side has been looked at is refused. Each sweep shows about 80 m outward from where it stands; the
-  next one on that side stands near the far end of what the last one showed clearly.
+- sweep(at_m) is how you look broadly: one wide photo (fov 110) of the right-hand sidewalk around at_m, from a
+  panorama about 15 m before it, so that stretch is close and in front of the camera. It looks away from the start
+  (AHEAD-RIGHT for a + position, BEHIND-RIGHT for a - one), or back towards the start when the stretch is BLOCKED
+  from that side. AHEAD-RIGHT looks from straight ahead along the road (left edge) round to just behind straight
+  right (right edge): the right-hand sidewalk runs from far ahead, near the vanishing point on the left, to beside
+  the camera on the right. BEHIND-RIGHT looks back along the road: from just ahead of straight right (left edge)
+  round to straight back (right edge), the sidewalk running from beside the camera on the left to far behind on
+  the right.
+- Only sidewalk seen CLOSE (within about 30 m of a camera) counts as looked at. Farther away a stop sign is a few
+  pixels, easily lost against a tree or in blur: "glimpsed" sidewalk still has to be swept close.
+- Something in front of the sidewalk (a tree, a parked van, a wall, another sign's pole) can hide a sign. The scan
+  says where; that stretch is BLOCKED from one side, and a sweep aimed at it looks from the other side.
+- The search spreads out evenly on both sides of the start, like rings: a sweep aimed more than 40 m farther out
+  than the other side has been seen close is refused. Each sweep shows about 30 m closely; aim the next one on that
+  side near the end of what is seen close.
 - Every wide photo says which stretch of the right-hand sidewalk is in view and how big a stop sign would look
   along it: "clear" (readable), "small" (noticeable, zoom to judge it) or "a speck" (too far to rely on this
   photo: sweep from closer). It gives no points: finding things in the photo is your job.
-- After every wide photo (the openings and each sweep) the harness scans its right-hand sidewalk 5-80 m away at 4x
+- After every wide photo (the openings and each sweep) the harness scans its right-hand sidewalk 5-40 m away at 4x
   resolution. A possible stop sign it sees is zoomed on and judged by the confirmer, like your zooms, and a SCAN
-  line says what it found. The scan can miss a sign seen edge on or hidden: keep looking at the photos yourself.
+  line says what it found and what stands in front of the sidewalk. Finding nothing does not clear a stretch: the
+  scan misses signs that are far, hidden or seen edge on. Keep looking at the photos yourself.
 - zoom(photo, x, y, fov, what) is how you narrow in: a sharp, full-resolution close-up of one spot of a photo, from
   the same panorama. Point it at something you can actually SEE in the photo that could be a stop: a panel on a
   pole (or its thin edge, seen from beside), a shelter-like shape, a bench at the kerb, people waiting, road
@@ -78,7 +85,7 @@ and 60 tiles for close views (a zoom or look_from costs about 2-4). Marking, the
 3. Cover as much ground as possible with as few images as possible, ahead AND behind the start alike. Never pass
    a corner on the CORNERS list without examining it.
 4. After every sweep, look at it carefully and zoom on anything that could be a stop, however small. What each
-   sweep shows of the sidewalk is bookkept automatically (seen close, or glimpsed further away).
+   sweep shows of the sidewalk is bookkept automatically (seen close, blocked from one side, or only glimpsed).
 5. When a sweep shows something that may be the stop, zoom on it: when in doubt, zoom. The harness judges every
    zoom and settles it; when it reports a CONFIRMED candidate, submit_found it.
 6. A candidate seen from two different panoramas (mark_candidate with same_as on a look_from photo) gets a

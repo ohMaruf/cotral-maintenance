@@ -6,7 +6,7 @@ import pytest
 from cotral_maintenance.explorer.confirmer import FEATURES, Checklist, ConfirmerError, parse, verdict
 from cotral_maintenance.explorer.geometry import Camera, PathFrame, angle_diff, compass, triangulate
 from cotral_maintenance.explorer.session import (GRID, plate_matches, names_a_stop_like_thing, EXPLORE_IMAGES, IMAGE_SIZE, MAX_CONFIRMS, MAX_IMAGES,
-                                                 MAX_TILES, STOP_PHOTOS, SWEEP_FOV, ZOOM_SIZE, Session,
+                                                 MAX_TILES, STOP_PHOTOS, SWEEP_FOV, ZOOM_SIZE, ScanReply, Session,
                                                  ToolError)
 from cotral_maintenance.explorer.world import Panorama, Placed, World, _visible_start_shift, shared_stretches
 from cotral_maintenance.models import Stop
@@ -35,6 +35,10 @@ class FakeConfirmer:
         answers = self.answers if len(self.seen) == 1 or self.then is None else self.then
         return Checklist({**NO, **answers}, note="a sign")
 
+
+
+def state_at(session, along: float) -> str:
+    return min(zip(session.cells, session.state, strict=True), key=lambda c: abs(c[0] - along))[1]
 
 
 def at(session, photo: int, x: float, y: float) -> tuple[float, float]:
@@ -168,11 +172,11 @@ def test_begin_takes_two_sweeps_with_the_start_in_front_of_both(session):
     assert len(result.images) == 2 and len(session.photos) == 2
     before, after = session.photos
     assert (before.toward, after.toward) == ("opening_before", "opening_after")
-    assert before.along == pytest.approx(-35, abs=6) and after.along == pytest.approx(35, abs=6)
+    assert before.along == pytest.approx(-21, abs=6) and after.along == pytest.approx(21, abs=6)
     assert before.heading == pytest.approx(90 + 50) and after.heading == pytest.approx(90 + 130)  # ahead / behind-right
     # f8520, 0.12.0: photos converging on the start from 11 m missed a sign 4 m behind one camera. Now the whole
     # stretch around the start is in view of both
-    for a in (-25, -15, 0, 15, 25):
+    for a in (-15, -5, 0, 5, 15):
         point = session.world.path.sidewalk(a)
         assert all(session._camera(p).column_of(point) is not None for p in (before, after))
     assert all(p.fov == SWEEP_FOV for p in (before, after))
@@ -232,21 +236,22 @@ def test_the_budget_leaves_room_for_the_stop_photos():
 def test_a_sweep_can_face_behind(session):
     session.begin()
     session.balance_m = math.inf
-    session.sweep(from_m=-100, facing="behind")
+    session.sweep(at_m=-100, facing="behind")
     photo = session.photos[-1]
     assert photo.toward == "sweep_behind" and photo.heading == pytest.approx(90 + 130)
     with pytest.raises(ToolError, match="facing"):
-        session.sweep(from_m=-100, facing="up")
+        session.sweep(at_m=-100, facing="up")
 
 
 def test_a_sweep_counts_as_seen_close_only_where_a_sign_is_readable(session):
     session.begin()
     session.balance_m = math.inf
-    session.sweep(from_m=-100, facing="ahead")
-    states = {round(a): s for a, s in zip(session.cells, session.state, strict=True)}
-    assert states[-98] == "seen_close" and states[-94] == "seen_close"  # beside and just ahead
-    assert states[-70] == "not_looked"  # 30 m ahead: a sign is a few pixels
-    assert states[-114] == "not_looked"  # behind: not in an ahead sweep
+    session.sweep(at_m=-100, facing="ahead")
+    c = session.photos[-1].along
+    assert c == pytest.approx(-115, abs=6)
+    assert state_at(session, c + 2) == "seen_close" and state_at(session, c + 6) == "seen_close"
+    assert state_at(session, c + 30) == "not_looked"
+    assert state_at(session, c - 14) == "not_looked"
 
 
 def test_zoom_costs_an_image_and_aims_at_the_clicked_pixel(session):
@@ -267,10 +272,10 @@ def test_zoom_costs_an_image_and_aims_at_the_clicked_pixel(session):
 def test_cached_images_are_not_billed_again(tmp_path):
     first = make_session(tmp_path)
     first.begin()
-    first.sweep(from_m=50)
+    first.sweep(at_m=30)
     again = make_session(tmp_path)  # the same stop explored again, with the same image cache
     again.begin()
-    again.sweep(from_m=50)
+    again.sweep(at_m=30)
     assert len(again.photos) == 3 and again.fetched == [] and again.billed == 0
     assert again.explore_used == 3  # the budget counts every image, billed or not
 
@@ -282,19 +287,41 @@ def fill_images(session, leave: int = 0) -> None:
             if session.explore_used >= EXPLORE_IMAGES - leave:
                 return
             try:
-                session.sweep(from_m=a, facing=facing)
+                session.sweep(at_m=a, facing=facing)
             except ToolError:
                 pass
     assert session.explore_used == EXPLORE_IMAGES - leave
 
 
-def test_a_sweep_that_would_show_nothing_new_is_refused(session):
+def test_a_sweep_that_would_show_nothing_new_is_refused(tmp_path):
     # f306, 0.14.0: sweeps repeating the opening photos, "this is the same view as photo 1"
+    session = scanning_session(tmp_path, FakeScanner())
+    session.begin()
+    assert state_at(session, -15) == state_at(session, 0) == state_at(session, 15) == "seen_close"
+    with pytest.raises(ToolError, match="nothing new.*photos 1, 2"):
+        session.sweep(at_m=0)
+    assert session.explore_used == 2 and len(session.photos) == 2  # no image spent
+
+
+def test_scanned_sidewalk_counts_as_seen_close_only_within_30_m(tmp_path):
+    session = scanning_session(tmp_path, FakeScanner())
     session.begin()
     before = session.photos[0]
-    with pytest.raises(ToolError, match="nothing new.*photos 1"):
-        session.sweep(from_m=before.along, facing="ahead")
-    assert session.explore_used == 2 and len(session.photos) == 2  # no image spent
+    assert state_at(session, before.along + 25) == "seen_close"
+    assert state_at(session, before.along + 45) == "not_looked"
+    assert 20 <= session.looked_out_to(1) <= 35
+
+
+def test_sidewalk_behind_something_is_blocked_and_the_next_sweep_looks_from_the_other_side(tmp_path):
+    session = scanning_session(tmp_path, FakeScanner(cover_photos={3}))
+    session.begin()
+    result = session.sweep(at_m=40)
+    assert session.photos[2].toward == "sweep_ahead" and "could hide a sign pole" in result.text
+    assert state_at(session, 40) == "blocked" and "BLOCKED from one side" in result.text
+    session.sweep(at_m=40)
+    again = session.photos[-1]
+    assert again.toward == "sweep_behind" and again.along == pytest.approx(55, abs=6)
+    assert state_at(session, 40) == "seen_close"
 
 
 def test_the_state_names_no_most_likely_stretch(session):
@@ -305,7 +332,8 @@ def spot_and_confirm(session, **answers):
     """A sweep, then a zoom on something: every zoom is judged by the confirmer at once."""
     session.confirmer = FakeConfirmer(**answers)
     session.begin()
-    session.sweep(from_m=40)
+    session.balance_m = math.inf
+    session.sweep(at_m=55)
     return session.zoom(session.photos[-1].index, *at(session, session.photos[-1].index, 520, 330))
 
 
@@ -360,7 +388,7 @@ def test_the_second_viewpoint_can_confirm_it(session):
     session.tile_source = FakeTiles()
     session.confirmer = FakeConfirmer(could_be_stop_from_another_angle="yes", then={"shelter": "yes"})
     session.begin()
-    session.sweep(from_m=40)
+    session.sweep(at_m=40)
     result = session.zoom(session.photos[-1].index, *at(session, session.photos[-1].index, 520, 330))
     c = session.candidates[0]
     assert c.status == "confirmed" and c.evidence == "shelter_only" and c.confirm_photo == session.photos[-1].index
@@ -448,7 +476,7 @@ def test_submit_found_ends_the_search_and_photographs_the_stop(session):
     assert session.outcome["close_up"] == session.photos[3].file
     assert len(session.photos) <= MAX_IMAGES
     with pytest.raises(ToolError, match="over"):
-        session.sweep(from_m=0)
+        session.sweep(at_m=0)
 
 
 def test_the_stop_photos_are_kept_back_when_the_explorer_runs_out(session):
@@ -485,7 +513,7 @@ def test_the_explorer_stopping_is_not_found(session):
 def test_invalid_arguments_are_explained(session):
     session.begin()
     with pytest.raises(ToolError, match="outside the search limits"):
-        session.sweep(from_m=900)
+        session.sweep(at_m=900)
     with pytest.raises(ToolError, match="no photo"):
         session.zoom(99, 10, 10)
     with pytest.raises(ToolError, match="kind"):
@@ -495,7 +523,7 @@ def test_invalid_arguments_are_explained(session):
 def test_a_sweep_from_the_return_pass_looks_at_its_own_right_hand_side(tmp_path):
     s = make_session(tmp_path, out_and_back_world())
     s.balance_m = math.inf
-    s.sweep(from_m=300.0)  # 300 m along = x 150 on the way back, heading west
+    s.sweep(at_m=315.0)
     photo = s.photos[-1]
     assert photo.along == pytest.approx(300.0, abs=2) and photo.heading == pytest.approx(270 + 50)
 
@@ -549,9 +577,10 @@ def test_look_from_a_position_already_used_is_refused(session):
 def test_a_sweep_glimpses_the_sidewalk_where_a_sign_would_be_a_few_pixels(session):
     session.begin()
     session.balance_m = math.inf
-    session.sweep(from_m=-100, facing="ahead")
-    states = {round(a): s for a, s in zip(session.cells, session.state, strict=True)}
-    assert states[-94] == "seen_close" and states[-78] == "glimpsed" and states[-50] == "not_looked"
+    session.sweep(at_m=-100, facing="ahead")
+    c = session.photos[-1].along
+    assert state_at(session, c + 6) == "seen_close" and state_at(session, c + 22) == "glimpsed"
+    assert state_at(session, c + 50) == "not_looked"
 
 
 def test_the_state_suggests_no_sweeps(session):
@@ -614,7 +643,8 @@ def test_the_corners_of_the_path_are_found(tmp_path):
 def test_nothing_round_a_corner_is_seen(tmp_path):
     s = make_session(tmp_path, corner_world())
     s.begin()
-    s.sweep(from_m=55)  # 45 m before the corner, looking ahead: too far for the harness to complete the corner
+    s.balance_m = math.inf
+    s.sweep(at_m=70)
     states = {round(a): st for a, st in zip(s.cells, s.state, strict=True)}
     assert states[60] == "seen_close" and states[120] == "not_looked"  # round the corner: not even glimpsed
 
@@ -623,7 +653,8 @@ def test_a_sweep_facing_a_corner_makes_the_harness_look_round_it(tmp_path):
     s = make_session(tmp_path, corner_world())
     s.begin()
     assert "CORNERS NOT YET EXAMINED" in s._state() and "+100 m (right turn 90°" in s._state()
-    result = s.sweep(from_m=80)  # 20 m before the corner, looking ahead
+    s.balance_m = math.inf
+    result = s.sweep(at_m=95)
     after, before = s.photos[-2:]
     assert len(result.images) == 3 and "CORNER +100 m" in result.text
     assert after.toward == "sweep_behind" and after.along == pytest.approx(106, abs=6)  # past it, looking back
@@ -721,25 +752,28 @@ def test_a_zoom_must_name_the_stop_like_thing_it_is_aimed_at(session):
     assert "on 'dark panel on a pole'" in result.text
 
 
-def test_a_sweep_looks_away_from_the_start(session):
-    # looking back from behind the start covers new ground; 0.16.0 NVFP4 stood at -46 m and looked forward
+def test_a_sweep_looks_at_its_spot_from_before_it_away_from_the_start(session):
     session.begin()
-    session.sweep(from_m=-40)
+    session.sweep(at_m=-40)
     behind = session.photos[-1]
     assert behind.toward == "sweep_behind" and behind.heading == pytest.approx(90 + 130)
-    session.sweep(from_m=40)
-    assert session.photos[-1].toward == "sweep_ahead"
+    assert behind.along == pytest.approx(-25, abs=6)
+    session.sweep(at_m=17)
+    ahead = session.photos[-1]
+    assert ahead.toward == "sweep_ahead" and ahead.along == pytest.approx(2, abs=6)
+    assert session._camera(ahead).column_of(session.world.path.sidewalk(17)) is not None
 
 
-def test_the_search_spreads_out_evenly(session):
+def test_the_search_spreads_out_evenly(tmp_path):
     # f306, 0.16.0: ahead out to +436 m before one sweep behind found the stop at -44 m
+    session = scanning_session(tmp_path, FakeScanner())
     session.begin()
     reach = session.looked_out_to(-1)
     with pytest.raises(ToolError, match="evenly.*Sweep behind first"):
-        session.sweep(from_m=reach + 60)
-    session.sweep(from_m=-40)  # behind: now it reaches farther
+        session.sweep(at_m=reach + 60)
+    session.sweep(at_m=-40)
     assert session.looked_out_to(-1) > reach
-    session.sweep(from_m=session.looked_out_to(-1) + 30)  # allowed now
+    session.sweep(at_m=session.looked_out_to(-1) + 30)
 
 
 def test_a_side_with_nothing_left_to_see_doesnt_hold_the_other_back(tmp_path):
@@ -748,7 +782,7 @@ def test_a_side_with_nothing_left_to_see_doesnt_hold_the_other_back(tmp_path):
     s = make_session(tmp_path, world)
     s.begin()
     assert s.looked_out_to(-1) == math.inf
-    s.sweep(from_m=120)
+    s.sweep(at_m=120)
 
 
 # ---- the aerial map and the stops already found
@@ -814,14 +848,17 @@ class ScanTiles(FakeTiles):
 
 
 class FakeScanner:
-    def __init__(self, hits=None):
+
+    def __init__(self, hits=None, cover_photos=()):
         self.hits = hits or {}
+        self.cover_photos = cover_photos
         self.seen = []
 
     def __call__(self, piece):
         from PIL import Image
         self.seen.append((piece.name, Image.open(piece).size))
-        return self.hits.get(len(self.seen))
+        covered = int(piece.name.split("_")[0]) in self.cover_photos
+        return ScanReply(self.hits.get(len(self.seen)), [(0.0, 1000.0)] if covered else [])
 
 
 def scanning_session(tmp_path, scanner, confirmer=None) -> Session:
@@ -837,7 +874,8 @@ def test_every_wide_photo_is_scanned_in_pieces_and_a_miss_says_so(tmp_path):
     result = s.begin()
     assert len(s.scans) == 2 and [scan["photo"] for scan in s.scans] == [1, 2]
     assert all(w <= 1000 for _, (w, _) in scanner.seen) and len(scanner.seen) == sum(len(x["pieces"]) for x in s.scans)
-    assert result.text.count("saw no stop sign") == 2 and len(s.photos) == 2
+    assert result.text.count("no stop sign found") == 2 and "does not clear it" in result.text
+    assert len(s.photos) == 2
 
 
 def test_a_scan_hit_becomes_a_zoom_judged_by_the_confirmer(tmp_path):
@@ -886,7 +924,7 @@ class PlateConfirmer(FakeConfirmer):
 def test_a_misread_plate_is_said_to_be_a_misreading(session):
     session.confirmer = PlateConfirmer("N.f 9", fermata_or_bus_text="yes", cotral_logo="yes")
     session.begin()
-    session.sweep(from_m=40)
+    session.sweep(at_m=40)
     result = session.zoom(session.photos[-1].index, *at(session, session.photos[-1].index, 520, 330))
     assert "no stop near here has that id" in result.text and "1 digit from this stop's id f1" in result.text
 
@@ -896,7 +934,16 @@ def test_a_plate_with_this_stops_id_or_a_neighbours_is_named(tmp_path):
     s = make_session(tmp_path, straight_world([Placed("f7 Other", "stop", lat, lon, -10.0, -10.0, "f7")]),
                      PlateConfirmer("f 1", fermata_or_bus_text="yes", cotral_logo="yes"))
     s.begin()
-    s.sweep(from_m=40)
+    s.sweep(at_m=40)
     assert "reads this stop's id, f1" in s.zoom(s.photos[-1].index, 500, 500).text
     s.confirmer.plate = "N.f 7"
     assert "reads f7 Other's id" in s.zoom(s.photos[-1].index, 400, 500).text
+
+
+def test_a_scan_reply_carries_the_sign_and_what_stands_in_front():
+    from cotral_maintenance.explorer.llm import parse_scan
+    assert parse_scan('{"sign": false, "cover": [[100, 300], [700, 650]]}') == ScanReply(None, [(100.0, 300.0), (700.0, 650.0)])
+    assert parse_scan('```json\n{"sign": true, "x": 400, "y": 1200, "cover": []}\n```') == ScanReply((400.0, 1000.0), [])
+    assert parse_scan('{"sign": false}') == ScanReply(None, [])
+    assert parse_scan('{"sign": false, "cover": [[1, "a"], 5]}') == ScanReply(None, [])
+    assert parse_scan('{"sign": true}') is None and parse_scan("no") is None

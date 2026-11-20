@@ -37,10 +37,7 @@ from .world import CELL_M, Panorama, World, find_panoramas, shared_stretches
 
 MAX_IMAGES = 22  # billed Static API images per stop, the stop photos included (10,000 free a month: see quota.py)
 STOP_PHOTOS = 2  # kept back for photographing a found stop
-OPENING_OFFSETS_M = (35.0, 28.0, 21.0, 14.0)  # the two opening sweeps: ahead-right from this far before the start,
-# behind-right from this far after it, the farthest with a panorama and no corner in between. The stretch around the
-# start is in front of both cameras (0.12.0 photos converged on it from 11 m and missed a sign 4 m behind one of
-# them, f8520).
+OPENING_OFFSETS_M = (21.0, 28.0, 14.0, 35.0)
 OPENING_PANO_M = 10.0  # a panorama this close to the wanted point of the path
 BEND_DEG = 30.0  # a turn of the path this sharp is a corner: no view sees round it
 BEND_SPAN_M = 10.0
@@ -58,7 +55,10 @@ SECOND_VIEW_FOV = 30.0
 BALANCE_M = 40.0
 LOOKED_SHARE = 0.7  # a side counts as looked at out to where this share of its sidewalk has been seen
 MAX_CALLS = 100
-SCAN_RANGE_M = (5.0, 80.0)
+SCAN_RANGE_M = (5.0, 40.0)
+CLOSE_M = 30.0
+SWEEP_STANDOFF_M = 15.0
+SWEEP_TARGET_M = 15.0
 SCAN_OFFSETS_M = (3.0, 8.0, 14.0)
 SCAN_TOP_M = 4.0
 SCAN_MARGIN_PX = 12
@@ -82,12 +82,12 @@ STOP_CONTEXT_FOV = (50.0, 60.0)  # the found stop: from the confirming panorama,
 STOP_PHOTO_BACK_M = 12.0  # the second stop photo: from about this far before the stop, looking at it
 SIGN_M = 0.6  # width of a stop sign panel
 SIGN_HEIGHT_M = 2.2  # height of a stop sign panel's centre above the sidewalk
-READABLE_PX = 12.0  # a sign this wide in a sweep counts as seen close
+READABLE_PX = 12.0
 SPOT_PX = 5.0  # ... this wide, as glimpsed: enough to notice and zoom on, not to judge
 NEARBY_STOP_M = 15.0
 FOUND_OTHER_M = 8.0  # a candidate this close to another stop's confirmed sign is that sign
 BEARING_SPAN_M = 8.0  # direction of travel averaged over this much path each way
-STATES = ("not_looked", "glimpsed", "surveyed_clear", "seen_close", "hidden", "unscanned")
+STATES = ("not_looked", "glimpsed", "seen_close", "blocked", "hidden", "unscanned")
 # Where the stop is, by distance from the start, per start source (rings: up to 10 m, 25, 50, 100, 400).
 # Measured on the 504 verified stops (osm_match.py): OSM matched, and GTFS where OSM has no match.
 SPREAD = {
@@ -98,14 +98,22 @@ SPREAD = {
 HINT_WEIGHT = {"bus_stop": 0.3, "platform": 0.3, "shelter": 0.3, "stop_position": 0.2, "bus_station": 0.1,
                "found_partner": 0.4}  # the same-name stop of the other direction, found across the road
 HINT_SIGMA_M = 8.0
-SEEN_FACTOR = {"seen_close": 0.1, "surveyed_clear": 0.4, "glimpsed": 0.6}  # likelihood left after each
+SEEN_FACTOR = {"seen_close": 0.1, "blocked": 0.5, "hidden": 0.5, "glimpsed": 0.8}
 CANDIDATE_KINDS = ("sign", "shelter", "pole_with_panel", "bench", "road_marking", "people_waiting")
 # Points on photos are given on a 0-1000 grid over the image, whatever its size: the scale Qwen-VL models are
 # trained to point in (Qwen3.8 located a sign within 3 px this way), and easier than pixels for any model.
 GRID = 1000
 
 FetchImage = Callable[[str, float, float, float, int, int], bytes]  # pano, heading, fov, pitch, width, height
-Scanner = Callable[[Path], tuple[float, float] | None]
+
+
+@dataclass
+class ScanReply:
+    sign: tuple[float, float] | None = None
+    cover: list[tuple[float, float]] = field(default_factory=list)
+
+
+Scanner = Callable[[Path], ScanReply]
 
 
 class TileSource(Protocol):
@@ -151,6 +159,8 @@ class Photo:
     billed: bool = True  # False when it came from the cache
     source: str = "static"  # "static" (Street View Static API) or "tiles" (Map Tiles)
     tiles: int = 0  # tiles paid for this view (a tile is paid once per stop)
+    scanned: bool = False
+    cover: list[tuple[float, float]] = field(default_factory=list)
 
 
 @dataclass
@@ -201,6 +211,7 @@ class Session:
         cells = world.cells()
         self.cells = cells
         self.state = ["not_looked" if world.scanned(a) else "unscanned" for a in cells]
+        self.sides: list[dict[int, bool]] = [{} for _ in cells]
         self._sidewalk = [world.path.sidewalk(a) for a in cells]
         self.bends = self._find_bends()
         self.corners_done: set[float] = set()
@@ -231,27 +242,28 @@ class Session:
             from .aerial import caption
             parts.append(caption(self.world))
         scanned, found = self._scan_all(pair)
+        for p in pair:
+            self._mark_seen_close(p)
         text = "\n\n".join([*parts, *(self._opening_caption(p) for p in pair), *scanned, self._state()])
         images = (([self.aerial] if self.aerial is not None else []) + [self._file(p) for p in pair]
                   + [self._file(q) for q in found])
         return self._log("begin", {}, ToolResult(text, images))
 
-    def sweep(self, from_m: float, facing: str | None = None, scan: str | None = None) -> ToolResult:
-        """A wide photo looking AWAY from the start along the route: ahead from a + position, back from a - one, so
-        every sweep shows new ground. (`facing` is only for tests and experiments; the explorer can't choose it.)"""
-        facing = facing or ("behind" if from_m < 0 else "ahead")
-        args = {"from_m": from_m, "facing": facing, "scan": scan}
+    def sweep(self, at_m: float, facing: str | None = None, scan: str | None = None) -> ToolResult:
+        args = {"at_m": at_m, "facing": facing, "scan": scan}
         self._count_call()
-        if facing not in SWEEP_TURNS:
+        if facing is not None and facing not in SWEEP_TURNS:
             raise ToolError(f"facing must be one of {', '.join(SWEEP_TURNS)}")
-        photo = self._sweep(from_m, facing, scan)
-        lines = [self._sweep_caption(photo)]
+        photo = self._sweep(at_m, facing, scan)
+        lines = [self._sweep_caption(photo, at_m)]
         corner, extra = self._complete_corner(photo)
         if extra:
             lines.append(f"CORNER {_m(corner)}: this sweep faces a corner, and no view sees round one, so the harness "
                          f"also looked at it from both sides:")
             lines += [self._sweep_caption(e) for e in extra]
         scanned, found = self._scan_all([photo, *extra])
+        for p in (photo, *extra):
+            self._mark_seen_close(p)
         text = "\n".join([*lines, *scanned]) + "\n\n" + self._state()
         return self._log("sweep", args, ToolResult(text, [self._file(q) for q in [photo, *extra, *found]]))
 
@@ -482,56 +494,67 @@ class Session:
             return self.world.path.bearing(along)
         return compass(b[0] - a[0], b[1] - a[1])
 
-    def _sweep(self, from_m: float, facing: str, scan: str | None) -> Photo:
+    def _sweep(self, at_m: float, facing: str | None, scan: str | None) -> Photo:
         self._spend()
-        pano = self._nearest_pano(from_m, scan)
-        along = self.world.path.along_near(self._xy(pano), from_m, 30.0)  # on the pass that was asked for
-        heading = (self._travel_bearing(along) + SWEEP_TURNS[facing]) % 360
-        self._refuse_if_unbalanced(along)
-        self._refuse_if_nothing_new(Camera(self._xy(pano), heading, SWEEP_FOV, 0.0, *IMAGE_SIZE), along, facing)
+        lo, hi = self.world.limits
+        if not lo - 20 <= at_m <= hi + 20:
+            raise ToolError(f"{_m(at_m)} is outside the search limits ({_m(lo)} to {_m(hi)})")
+        self._refuse_if_unbalanced(at_m)
+        outward = "behind" if at_m < 0 else "ahead"
+        order = [facing] if facing else [outward, "behind" if outward == "ahead" else "ahead"]
+        options, error = [], None
+        target = min(range(len(self.cells)), key=lambda i: abs(self.cells[i] - at_m))
+        for f in order:
+            stand = at_m - (1 if f == "ahead" else -1) * SWEEP_STANDOFF_M
+            try:
+                pano = self._nearest_pano(stand, scan)
+            except ToolError as e:
+                error = error or e
+                continue
+            along = self.world.path.along_near(self._xy(pano), stand, 30.0)
+            heading = (self._travel_bearing(along) + SWEEP_TURNS[f]) % 360
+            camera = Camera(self._xy(pano), heading, SWEEP_FOV, 0.0, *IMAGE_SIZE)
+            gain = self._gain(camera, along)
+            near = sum(1 for i in gain if abs(self.cells[i] - at_m) <= SWEEP_TARGET_M)
+            options.append((target in gain, bool(gain), near > 0, -len(options), f, pano, along, heading, camera))
+        if not options:
+            raise error
+        _, total, _, _, f, pano, along, heading, camera = max(options, key=lambda o: o[:4])
+        if not total:
+            self._refuse_nothing_new(camera, at_m)
         self.sweeps += 1
-        photo = self._shoot(pano, heading, SWEEP_FOV, 0.0, f"sweep_{facing}", along=along, shot=self.sweeps)
-        self._mark_seen_close(photo)
-        return photo
+        return self._shoot(pano, heading, SWEEP_FOV, 0.0, f"sweep_{f}", along=along, shot=self.sweeps)
 
     def looked_out_to(self, side: int) -> float:
-        """How far from the start (metres along the path) one side (+1 ahead, -1 behind) has been looked at: the
-        farthest distance within which LOOKED_SHARE of its sidewalk is seen close or glimpsed (unscanned and hidden
-        count as done: nothing more can be seen there). inf when the side is done to its limit."""
         cells = sorted((abs(a), st) for a, st in zip(self.cells, self.state, strict=True) if a * side > 0)
         reach, looked = 0.0, 0
         for n, (d, st) in enumerate(cells, 1):
-            looked += st != "not_looked"
+            looked += st in ("seen_close", "hidden", "unscanned")
             if looked / n >= LOOKED_SHARE:
                 reach = d
         return math.inf if cells and reach >= cells[-1][0] - CELL_M else reach
 
-    def _refuse_if_unbalanced(self, along: float) -> None:
-        side = 1 if along >= 0 else -1
+    def _refuse_if_unbalanced(self, at_m: float) -> None:
+        side = 1 if at_m >= 0 else -1
         other = self.looked_out_to(-side)
-        if abs(along) > other + self.balance_m:
+        if abs(at_m) > other + self.balance_m:
             name, sign = ("behind" if side > 0 else "ahead"), -side
-            raise ToolError(f"the search spreads out evenly from the start: {name} it is looked at only out to "
-                            f"{_m(sign * other)}, so no sweep stands farther out than {_m(side * (other + self.balance_m))} "
+            raise ToolError(f"the search spreads out evenly from the start: {name} it is seen close only out to "
+                            f"{_m(sign * other)}, so no sweep aims farther out than {_m(side * (other + self.balance_m))} "
                             f"here yet. Sweep {name} first.")
 
-    def _refuse_if_nothing_new(self, camera: Camera, along: float, facing: str) -> None:
-        """A sweep that would show no sidewalk not already seen close or glimpsed is refused before it is taken: it
-        costs an image and a turn for nothing (f306, 0.14.0: two sweeps repeated the opening photos, the model wrote
-        "this is the same view as photo 1"). Its stretch is named, and the wide photos that already show it."""
-        if self._seen_by(camera, along):
-            return
+    def _refuse_nothing_new(self, camera: Camera, at_m: float) -> None:
         shown = [i for i, p in enumerate(self._sidewalk) if camera.column_of(p) is not None
-                 and math.dist(p, camera.position) <= 80 and abs(self.cells[i] - along) <= 120]
+                 and math.dist(p, camera.position) <= CLOSE_M and abs(self.cells[i] - at_m) <= 60]
         if not shown:
-            raise ToolError(f"a sweep {facing} from {_m(along)} would show no right-hand sidewalk within 80 m")
+            raise ToolError(f"a sweep at {_m(at_m)} would show no right-hand sidewalk within {CLOSE_M:.0f} m")
         lo, hi = sorted((self.cells[shown[0]], self.cells[shown[-1]]))
         mid = self._sidewalk[shown[len(shown) // 2]]
         earlier = [q.index for q in self.photos if q.fov == SWEEP_FOV and self._camera(q).column_of(mid) is not None]
-        raise ToolError(f"a sweep {facing} from {_m(along)} would show nothing new: the sidewalk from {_m(lo)} to "
-                        f"{_m(hi)} is already seen close or glimpsed" + (f" (photos {', '.join(map(str, earlier[-3:]))})"
-                                                                         if earlier else "") +
-                        ". Zoom on something in those photos, or sweep where the sidewalk is not looked at yet.")
+        raise ToolError(f"a sweep at {_m(at_m)} would show nothing new: the sidewalk from {_m(lo)} to {_m(hi)} is "
+                        f"already seen close from every side it can be" +
+                        (f" (photos {', '.join(map(str, earlier[-3:]))})" if earlier else "") +
+                        ". Zoom on something in those photos, or sweep where the sidewalk is not seen close yet.")
 
     def _heard(self, checklist) -> str:
         said = f"\"{checklist.note}\""
@@ -606,27 +629,37 @@ class Session:
             file = folder / f"{photo.index:02d}_{len(pieces) + 1}.jpg"
             image.crop((left, 0, right, strip.height)).save(file, quality=92)
             answer = self.scanner(file)
-            piece = {"file": str(file.relative_to(self.run_dir)), "left": left, "width": right - left, "hit": None}
-            if answer is not None:
-                px = left + answer[0] / GRID * (right - left)
-                py = answer[1] / GRID * strip.height
+            piece = {"file": str(file.relative_to(self.run_dir)), "left": left, "width": right - left, "hit": None,
+                     "cover": []}
+            if answer.sign is not None:
+                px = left + answer.sign[0] / GRID * (right - left)
+                py = answer.sign[1] / GRID * strip.height
                 piece["hit"] = [strip.bearing_of(px), strip.elevation_of(py)]
                 hits.append(piece["hit"])
+            for x0, x1 in answer.cover:
+                b0 = strip.bearing_of(left + min(x0, x1) / GRID * (right - left))
+                b1 = strip.bearing_of(left + max(x0, x1) / GRID * (right - left))
+                piece["cover"].append([b0, angle_diff(b1, b0) % 360])
+            photo.cover += [tuple(c) for c in piece["cover"]]
             pieces.append(piece)
             if right >= strip.width:
                 break
             left = right - SCAN_OVERLAP_PX
+        photo.scanned = True
         record = {"photo": photo.index, "heading": strip.heading, "pitch": strip.pitch, "fov": strip.fov,
                   "width": strip.width, "height": strip.height, "tiles": len(new), "pieces": pieces, "zooms": []}
         self.scans.append(record)
+        covered = [i for i, close, _, hid in self._views(camera, photo.along, True, photo.cover) if close and hid]
+        blocked = (f" Something in front of the roadside could hide a sign pole at {', '.join(self._stretches(covered))}"
+                   f": from this side that sidewalk is blocked." if covered else "")
         kept: list[list[float]] = []
         for h in hits:
             if len(kept) < SCAN_HITS and all(abs(angle_diff(h[0], k[0])) > SCAN_SAME_DEG for k in kept):
                 kept.append(h)
         if not kept:
-            return (f"SCAN of photo {photo.index}: the harness looked at its sidewalk {SCAN_RANGE_M[0]:.0f}-"
-                    f"{SCAN_RANGE_M[1]:.0f} m away at 4x resolution and saw no stop sign there (a scan can miss a sign "
-                    f"hidden or seen edge on)."), []
+            return (f"SCAN of photo {photo.index}: no stop sign found in its sidewalk {SCAN_RANGE_M[0]:.0f}-"
+                    f"{SCAN_RANGE_M[1]:.0f} m away at 4x resolution. That does not clear it: the scan misses signs "
+                    f"beyond about {CLOSE_M:.0f} m, hidden, or seen edge on." + blocked), []
         lines, shown = [], []
         for bearing, elevation in kept:
             x = camera.width / 2 + camera.focal_px * math.tan(math.radians(angle_diff(bearing, camera.heading)))
@@ -645,6 +678,8 @@ class Session:
                          f"possible stop sign {where}. PHOTO {z.index}: a zoom on it, {self._narrow_note(z)}.\n"
                          + self._examine(z, views))
             shown += views
+        if blocked:
+            lines.append(f"SCAN of photo {photo.index}:" + blocked)
         return "\n".join(lines), shown
 
     def _narrow(self, pano: Panorama, heading: float, pitch: float, fov: float, toward: str, along: float,
@@ -768,7 +803,6 @@ class Session:
             heading = (compass(b[0] - a[0], b[1] - a[1]) + SWEEP_TURNS[facing]) % 360
             self.sweeps += 1
             shot = self._shoot(pano, heading, SWEEP_FOV, 0.0, f"sweep_{facing}", along=along, shot=self.sweeps)
-            self._mark_seen_close(shot)
             done.add((pano.pano_id, shot.toward))
             shots.append(shot)
         return corner, shots
@@ -838,9 +872,7 @@ class Session:
         for pano, along, facing, toward in chosen:
             self._spend()
             heading = (self._travel_bearing(along) + SWEEP_TURNS[facing]) % 360
-            photo = self._shoot(pano, heading, SWEEP_FOV, 0.0, toward, along=along)
-            self._mark_seen_close(photo)
-            photos.append(photo)
+            photos.append(self._shoot(pano, heading, SWEEP_FOV, 0.0, toward, along=along))
         return photos
 
     def _opening_caption(self, p: Photo) -> str:
@@ -931,33 +963,64 @@ class Session:
             near = [i for i, a in enumerate(self.cells) if abs(a - x) <= CORNER_M and self.state[i] != "unscanned"]
             if not near:
                 continue
-            done = sum(1 for i in near if self.state[i] in ("seen_close", "surveyed_clear")) / len(near)
+            done = sum(1 for i in near if self.state[i] in ("seen_close", "hidden")) / len(near)
             if done < 0.7:
                 out.append((x, d, sum(lik[i] for i in near) / total))
         return sorted(out, key=lambda t: -t[2])
 
     def _mark_seen_close(self, photo: Photo) -> None:
-        """Sidewalk where a stop sign would be at least READABLE_PX wide in this photo is seen close; at least
-        SPOT_PX wide, glimpsed (the explorer still has to notice it and zoom)."""
-        for i, state in self._seen_by(self._camera(photo), photo.along).items():
-            self.state[i] = state
+        for i, close, side, covered in self._views(self._camera(photo), photo.along, photo.scanned, photo.cover):
+            if self.state[i] in ("unscanned", "hidden", "seen_close"):
+                continue
+            if not close:
+                if self.state[i] == "not_looked":
+                    self.state[i] = "glimpsed"
+                continue
+            seen = self.sides[i]
+            seen[side] = seen.get(side, True) and covered
+            self.state[i] = ("seen_close" if not all(seen.values()) else "hidden" if len(seen) > 1 else "blocked")
 
-    def _seen_by(self, camera: Camera, along: float) -> dict[int, str]:
-        """The cells a photo from `along` would improve, and the state each would get. Nothing round a corner: the
-        sidewalk past a bend is hidden by what stands on the corner."""
-        out = {}
+    def _gain(self, camera: Camera, along: float) -> list[int]:
+        scanned = self.scanner is not None and self.tile_source is not None
+        out = []
+        for i, close, side, _ in self._views(camera, along, scanned, []):
+            st = self.state[i]
+            if st in ("unscanned", "hidden", "seen_close"):
+                continue
+            if (close and (st != "blocked" or side not in self.sides[i])) or st == "not_looked":
+                out.append(i)
+        return out
+
+    def _views(self, camera: Camera, along: float, scanned: bool,
+               cover: list[tuple[float, float]]) -> list[tuple[int, bool, int, bool]]:
+        facing = 1 if abs(angle_diff(camera.heading, self._travel_bearing(along))) < 90 else -1
+        out = []
         for i, p in enumerate(self._sidewalk):
-            now = self.state[i]
-            if now in ("unscanned", "hidden", "seen_close") or camera.column_of(p) is None:
+            if camera.column_of(p) is None:
                 continue
             bend = self._bend_between(along, self.cells[i])
             if bend is not None and abs(self.cells[i] - bend) > 4.0:
                 continue
-            px = camera.pixels_across(SIGN_M, math.dist(p, camera.position))
-            if px >= READABLE_PX:
-                out[i] = "seen_close"
-            elif px >= SPOT_PX and now == "not_looked":
-                out[i] = "glimpsed"
+            d = math.dist(p, camera.position)
+            px = camera.pixels_across(SIGN_M, d)
+            if px < SPOT_PX:
+                continue
+            close = px >= READABLE_PX or (scanned and d <= CLOSE_M)
+            side = facing if abs(self.cells[i] - along) < 2.0 else (1 if self.cells[i] > along else -1)
+            bearing = compass(p[0] - camera.position[0], p[1] - camera.position[1])
+            covered = any((bearing - b0) % 360 <= width for b0, width in cover)
+            out.append((i, close, side, covered))
+        return out
+
+    def _stretches(self, cells: list[int]) -> list[str]:
+        out, run = [], []
+        for i in sorted(cells):
+            if run and i != run[-1] + 1:
+                out.append(f"{_m(self.cells[run[0]] - CELL_M / 2)} to {_m(self.cells[run[-1]] + CELL_M / 2)}")
+                run = []
+            run.append(i)
+        if run:
+            out.append(f"{_m(self.cells[run[0]] - CELL_M / 2)} to {_m(self.cells[run[-1]] + CELL_M / 2)}")
         return out
 
     def _prior(self) -> list[float]:
@@ -1194,9 +1257,10 @@ class Session:
                 parts.append(f"{size} from {_m(stretch[0])} to {_m(stretch[-1])}")
         return text + "; a sign there would look " + ", ".join(parts)
 
-    def _sweep_caption(self, p: Photo) -> str:
+    def _sweep_caption(self, p: Photo, at_m: float | None = None) -> str:
         where = "AHEAD-RIGHT" if p.toward == "sweep_ahead" else "BEHIND-RIGHT"
-        return (f"PHOTO {p.index}: sweep {p.shot} {where} from the panorama at {_m(p.along)} ({abs(p.offset):.0f} m "
+        aim = f" at {_m(at_m)}" if at_m is not None else ""
+        return (f"PHOTO {p.index}: sweep {p.shot}{aim}, {where} from the panorama at {_m(p.along)} ({abs(p.offset):.0f} m "
                 f"{_side(p.offset)} of the centre line), scan {p.date}. In view: {self._coverage(p)}.")
 
     def _state(self) -> str:
@@ -1205,10 +1269,15 @@ class Session:
         lines = [f"STATE: {EXPLORE_IMAGES - self.explore_used}/{EXPLORE_IMAGES} images, "
                  f"{MAX_TILES - len(self.tiles_paid)}/{MAX_TILES} tiles, {MAX_CONFIRMS - self.confirms}/{MAX_CONFIRMS} "
                  f"confirmations left."]
-        for state in ("seen_close", "surveyed_clear", "glimpsed", "hidden", "not_looked", "unscanned"):
+        for state, label in (("seen_close", "seen close"),
+                             ("blocked", "BLOCKED from one side (something in front could hide a sign: sweep there, "
+                                         "the harness looks from the other side)"),
+                             ("hidden", "hidden from both sides"),
+                             ("glimpsed", "glimpsed (only from far: a sign there is easily missed)"),
+                             ("not_looked", "not looked"), ("unscanned", "unscanned")):
             ranges = self._ranges(state)
             if ranges:
-                lines.append(f"- {state.replace('_', ' ')}: {', '.join(ranges)}")
+                lines.append(f"- {label}: {', '.join(ranges)}")
         corners = self._unexamined_corners()
         if corners and self.outcome is None:
             lines.append("- CORNERS NOT YET EXAMINED: " + "; ".join(

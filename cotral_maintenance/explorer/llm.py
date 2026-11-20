@@ -27,7 +27,7 @@ import requests
 from PIL import Image
 
 from .confirmer import ANSWERS, FEATURES, Checklist, ConfirmerError, instructions, parse
-from .session import GRID, Session, ToolError
+from .session import GRID, ScanReply, Session, ToolError
 
 MAX_TURNS = 45  # successes took 3-13 turns (one 43) in test-nvfp4-5; failures ran to 50+ turns and overflowed a
                 # 49k context (f9388). 45 turns at ~900 tokens each stay under it.
@@ -110,10 +110,10 @@ POINT = (f"x, y: a point on the photo on a 0-{GRID} grid (0,0 top left, {GRID},{
 TOOLS = [
     fn("begin", "Start the search. Returns the briefing, the reference Cotral sign, the look-alikes, the two opening "
        "photos and the state. Call it once, first.", {}, []),
-    fn("sweep", "Costs 1 image. One wide photo (fov 110) from the panorama nearest from_m metres along the path, "
-       "looking AWAY from the start along the route: ahead (and right) from a + position, back (and right) from a - "
-       "position. The search spreads out evenly: a sweep more than 40 m farther out than the other side has been "
-       "looked at is refused.", {"from_m": NUM}, ["from_m"]),
+    fn("sweep", "Costs 1 image. One wide photo (fov 110) of the right-hand sidewalk around at_m metres along the "
+       "path, from a panorama about 15 m before it, looking at it: away from the start, or back towards it when the "
+       "stretch is BLOCKED from that side. The search spreads out evenly: a sweep aimed more than 40 m farther out "
+       "than the other side has been seen close is refused.", {"at_m": NUM}, ["at_m"]),
     fn("zoom", f"Costs about 2-4 tiles. A sharp close-up centred on a point of a photo, from the same panorama. "
        f"{POINT}. fov 5-20 degrees (10 is a good start). what: the stop-like thing you SEE at that point, in a few "
        f"words (e.g. 'dark panel on a thin pole by the gate', 'shelter roof behind the parked van'). The harness judges "
@@ -176,7 +176,7 @@ def call(session: Session, name: str, args: dict, references: list[Path], draw_m
                             "the two opening photos.\n\n" + result.text,
                             references + result.images)
     if name == "sweep":
-        return session.sweep(num("from_m"))
+        return session.sweep(num("at_m"))
     if name == "zoom":
         return session.zoom(whole("photo"), num("x"), num("y"), num("fov", 10.0), what=str(args.get("what") or ""))
     if name == "look_from":
@@ -385,10 +385,15 @@ class LlmConfirmer:
         raise ConfirmerError("; ".join(problems))
 
 
-SCAN_PROMPT = ("PHOTO: a street-level photo. Is a Cotral bus stop sign like the REFERENCE anywhere in it? It can be "
-               "small, far away, blurry, partly hidden or seen at an angle; the panel is the same on both sides. Reply "
-               'with JSON only: {"sign": true, "x": X, "y": Y} with X, Y the centre of the sign on a 0-1000 grid of the '
-               'photo (0,0 top left, 1000,1000 bottom right), or {"sign": false}.')
+SCAN_PROMPT = ("PHOTO: a street-level photo of a roadside. 1) Is a Cotral bus stop sign like the REFERENCE anywhere "
+               "in it? It can be small, far away, blurry, partly hidden or seen at an angle; the panel is the same on "
+               "both sides. 2) Where does something stand in front of the roadside, between the camera and where a "
+               "sign pole would stand, big enough to hide a sign: a tree or its foliage, a hedge or bush, a parked "
+               "van, truck or bus, a wall or pillar, a kiosk, another sign? Reply with JSON only: "
+               '{"sign": true, "x": X, "y": Y, "cover": [[X_FROM, X_TO], ...]} with X, Y the centre of the sign and '
+               "X_FROM, X_TO the left and right edges of each thing in front, on a 0-1000 grid of the photo (0,0 top "
+               'left, 1000,1000 bottom right); "sign": false and no x, y when there is no sign; "cover": [] when '
+               "nothing could hide one.")
 
 
 class LlmScanner:
@@ -401,7 +406,7 @@ class LlmScanner:
         self.reference = image_part(reference)
         self.calls = 0
 
-    def __call__(self, piece: Path) -> tuple[float, float] | None:
+    def __call__(self, piece: Path) -> ScanReply:
         self.calls += 1
         messages = [{"role": "user", "content": [
             {"type": "text", "text": "REFERENCE: the Cotral bus stop sign."}, self.reference,
@@ -414,11 +419,11 @@ class LlmScanner:
                 continue
             answer = parse_scan(data["choices"][0]["message"].get("content") or "")
             if answer is not None:
-                return answer or None
-        return None
+                return answer
+        return ScanReply()
 
 
-def parse_scan(text: str) -> tuple[float, float] | tuple[()] | None:
+def parse_scan(text: str) -> ScanReply | None:
     m = re.search(r"\{.*\}", text, re.DOTALL)
     if not m:
         return None
@@ -426,8 +431,20 @@ def parse_scan(text: str) -> tuple[float, float] | tuple[()] | None:
         j = json.loads(m.group(0))
     except json.JSONDecodeError:
         return None
+    if not isinstance(j, dict):
+        return None
+    cover = [(_on_grid(c[0]), _on_grid(c[1])) for c in j.get("cover") or []
+             if isinstance(c, (list, tuple)) and len(c) == 2 and all(_is_num(v) for v in c)]
     if j.get("sign") is False:
-        return ()
-    if j.get("sign") is True and all(isinstance(j.get(k), (int, float)) for k in ("x", "y")):
-        return float(min(max(j["x"], 0), GRID)), float(min(max(j["y"], 0), GRID))
+        return ScanReply(None, cover)
+    if j.get("sign") is True and all(_is_num(j.get(k)) for k in ("x", "y")):
+        return ScanReply((_on_grid(j["x"]), _on_grid(j["y"])), cover)
     return None
+
+
+def _is_num(v) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def _on_grid(v: float) -> float:
+    return float(min(max(v, 0), GRID))

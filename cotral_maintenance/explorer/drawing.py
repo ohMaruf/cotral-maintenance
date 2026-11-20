@@ -15,7 +15,7 @@ from .session import Session
 
 SIZE = 900
 MARGIN = 40
-STATE_COLOUR = {"not_looked": (200, 200, 200), "glimpsed": (190, 220, 245), "surveyed_clear": (120, 190, 255),
+STATE_COLOUR = {"not_looked": (200, 200, 200), "glimpsed": (190, 220, 245), "blocked": (240, 200, 60),
                 "seen_close": (40, 170, 90),
                 "hidden": (240, 150, 40), "unscanned": (90, 90, 90)}
 CONE_M = 25.0
@@ -68,7 +68,7 @@ def draw_map(session: Session, out: Path) -> Path:
     bar = 50 * scale
     d.line([(MARGIN, SIZE - 20), (MARGIN + bar, SIZE - 20)], fill=(0, 0, 0), width=3)
     d.text((MARGIN, SIZE - 15), "50 m", fill=(0, 0, 0))
-    legend = ("sidewalk: grey not looked, pale blue glimpsed, blue surveyed clear, green seen close, orange hidden, dark unscanned | "
+    legend = ("sidewalk: grey not looked, pale blue glimpsed, yellow blocked from one side, green seen close, orange hidden, dark unscanned | "
               "red rings: starting positions, purple: OSM hints, black: other stops | squares: photos")
     d.text((10, SIZE + 10), legend, fill=(0, 0, 0))
     out.parent.mkdir(parents=True, exist_ok=True)

@@ -30,6 +30,13 @@ logger = logging.getLogger(__name__)
 EXIT_OK, EXIT_ERROR, EXIT_INTERRUPTED = 0, 1, 130
 
 
+def _positive(text: str) -> int:
+    n = int(text)
+    if n < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return n
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cotral", description="Cotral bus stop maintenance pipeline.")
     parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
@@ -63,7 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--profile", default=None, help=f"model profile (default: $COTRAL_PROFILE or {DEFAULT_PROFILE})")
     run.add_argument("--phases", default="ingest,explore,score",
                      help="comma-separated subset of ingest,explore,score (default: all)")
-    run.add_argument("--chunk", type=int, default=50, help="stops explored before swapping to the scorer (default 50)")
+    run.add_argument("--chunk", type=_positive, default=50, help="stops explored before swapping to the scorer (default 50)")
     run.add_argument("--force", action="append", default=[], choices=["ingest", "explore", "score"],
                      help="redo this phase (and the later ones) for the selected stops; explore is billed")
     run.add_argument("--cap", action="append", default=[], metavar="API=N",

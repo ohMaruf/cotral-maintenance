@@ -148,8 +148,9 @@ def run_pipeline(req: RunRequest, paths: Paths) -> dict:
         scorer = make_scorer(req.profile.scorer, paths) if "score" in req.phases else None
 
         budget_left = True
-        for start in range(0, len(targets), max(req.chunk, 1)):
-            chunk = targets[start:start + req.chunk]
+        step = max(req.chunk, 1)
+        for start in range(0, len(targets), step):
+            chunk = targets[start:start + step]
             ingested = {r["stop_id"] for r in run.query("SELECT stop_id FROM starts")}
             to_explore = [i for i in run.pending("explore", chunk) if i in ingested]
             if ctx and budget_left and to_explore:

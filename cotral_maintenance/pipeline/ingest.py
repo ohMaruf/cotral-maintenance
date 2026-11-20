@@ -70,9 +70,12 @@ def ingest(run: RunStore, stop_ids: list[str], all_stops: list[Stop], osm: OsmSt
         fetched = _fetch_places(need_places, places_cache, make_places, ledger, key)
     corrected = {row.stop_id: row for row in build_dataset(all_stops, places_cache)} if need_places else {}
 
-    counts = {"osm": 0, "places": 0, "gtfs": 0, "places_fetched": fetched}
+    counts = {"osm": 0, "places": 0, "gtfs": 0, "places_fetched": fetched, "waiting_for_places": 0}
     for s in stops:
         m = matches[s.stop_id]
+        if m is None and make_places is not None and not places_cache.has(s.stop_id):
+            counts["waiting_for_places"] += 1
+            continue
         row: dict = {"stop_id": s.stop_id}
         if m is not None:
             f = m.feature
@@ -91,6 +94,9 @@ def ingest(run: RunStore, stop_ids: list[str], all_stops: list[Stop], osm: OsmSt
                 row |= {"source": "gtfs", "lat": s.lat, "lon": s.lon}
         run.put_start(row)
         counts[row["source"]] += 1
+    if counts["waiting_for_places"]:
+        logger.warning("%d stops have no Places answer yet (budget or errors): not ingested, retried next run",
+                       counts["waiting_for_places"])
     return counts
 
 

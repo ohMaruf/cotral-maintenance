@@ -18,7 +18,7 @@ from ..osm_match import OsmMatch, match_osm
 from ..osm_store import OsmStore, bbox_around
 from ..roadpath import LocalFrame, RoadGraph, match
 from ..routes import Service, clip
-from ..stops import Stop
+from ..stops import Stop, is_cotral_stop
 from .geometry import PathFrame, angle_diff
 
 logger = logging.getLogger(__name__)
@@ -136,7 +136,7 @@ def _build_world(stop: Stop, services: list[Service], shapes: dict[str, list[tup
     gtfs_s, _, _ = probe.locate((0.0, 0.0))
 
     # The start: OSM when an object can be tied to the stop (the most accurate source), else Places, else GTFS.
-    osm = match_osm(stop, store, all_stops.values())
+    osm = match_osm(stop, store, [s for s in all_stops.values() if is_cotral_stop(s)])
     start_ll = (osm.feature.lat, osm.feature.lon) if osm else places or (stop.lat, stop.lon)
     start_s, _, _ = probe.locate(frame.to_xy(*start_ll))
     path = PathFrame(probe.points, start_s + start_shift)
@@ -146,7 +146,7 @@ def _build_world(stop: Stop, services: list[Service], shapes: dict[str, list[tup
         if before is None:
             along, offset, _ = path.locate(xy)
         else:  # previous stop: search only the path before the stop; next stop: only after
-            along, offset = _locate_part(path, xy, gtfs_s - start_s, before)
+            along, offset = _locate_part(path, xy, gtfs_s - start_s - start_shift, before)
         return Placed(label, kind, lat, lon, along, offset, ref)
 
     starts = [place(_osm_label(osm), f"osm_{osm.how}", osm.feature.lat, osm.feature.lon, osm.feature.ref)] if osm else []

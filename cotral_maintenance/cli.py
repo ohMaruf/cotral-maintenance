@@ -70,6 +70,8 @@ def build_parser() -> argparse.ArgumentParser:
                      help="monthly cap of billed requests per API key: static, tiles, places "
                           "(default: Google's free tiers 1000, 10000, 5000)")
     run.add_argument("--allow-new-gtfs", action="store_true", help="accept a GTFS feed that changed since the run began")
+    run.add_argument("--max-turns", type=int, default=None, metavar="N",
+                     help="end each stop's search after N explorer turns (default 45), for quick tests")
     run.add_argument("--allow-mixed", action="store_true",
                      help="add scores of this code's version to a run scored by another (ingest and explore "
                           "always mix)")
@@ -196,7 +198,7 @@ def cmd_run(args, paths: Paths) -> int:
         raise ValueError(f"unknown phases: {', '.join(sorted(unknown))}")
     req = RunRequest(run_id=args.run_id, profile=load_profile(paths, args.profile), stops=select(args, paths),
                      phases=phases, chunk=args.chunk, force=tuple(args.force), caps=parse_caps(args.cap),
-                     allow_new_gtfs=args.allow_new_gtfs, allow_mixed=args.allow_mixed)
+                     allow_new_gtfs=args.allow_new_gtfs, allow_mixed=args.allow_mixed, max_turns=args.max_turns)
     counts = run_pipeline(req, paths)
     print(json.dumps(counts, indent=1))
     return EXIT_OK

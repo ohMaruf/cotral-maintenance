@@ -220,6 +220,7 @@ class Explorer:
     draw_map: Callable
     slot: int | None = None
     should_stop: Callable[[], bool] = lambda: False
+    max_turns: int = MAX_TURNS
 
     def run(self, session: Session, log: Callable[[dict], None]) -> tuple[str, int]:
         """The loop. Returns why it ended and the number of turns."""
@@ -229,7 +230,7 @@ class Explorer:
         invalid = repeats = stalled = 0
         last_failure = None
         turn = 0
-        for turn in range(1, MAX_TURNS + 1):
+        for turn in range(1, self.max_turns + 1):
             if session.outcome is not None:
                 return "outcome", turn - 1
             if self.should_stop():

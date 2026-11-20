@@ -53,6 +53,7 @@ class RunRequest:
     caps: dict[str, int] = field(default_factory=dict)
     allow_new_gtfs: bool = False
     allow_mixed: bool = False
+    max_turns: int | None = None
 
 
 class MixedVersions(ValueError):
@@ -104,7 +105,7 @@ def run_pipeline(req: RunRequest, paths: Paths) -> dict:
     code = V.pipeline()
     seq = run.begin_invocation(host_info(), {"run_id": req.run_id, "profile": req.profile.name,
                                              "phases": list(req.phases), "chunk": req.chunk, "force": list(req.force),
-                                             "allow_mixed": req.allow_mixed,
+                                             "allow_mixed": req.allow_mixed, "max_turns": req.max_turns,
                                              "stops": None if req.stops is None else len(req.stops)}, code["git"],
                                {"package": code["package"]})
     servers = Servers(req.profile, paths, run.logs_dir)
@@ -141,7 +142,8 @@ def run_pipeline(req: RunRequest, paths: Paths) -> dict:
         if "explore" in req.phases:
             lookup_client = StreetViewClient(google.api_key, 20.0, google.referrer)
             metadata = open_metadata_cache(paths.cache, lookup_client.get_metadata)
-        ctx = ExploreContext(run, paths, google, kid, req.profile.explorer, all_stops, osm, metadata, ledger) \
+        ctx = ExploreContext(run, paths, google, kid, req.profile.explorer, all_stops, osm, metadata, ledger,
+                             max_turns=req.max_turns) \
             if metadata else None
         scorer = make_scorer(req.profile.scorer, paths) if "score" in req.phases else None
 

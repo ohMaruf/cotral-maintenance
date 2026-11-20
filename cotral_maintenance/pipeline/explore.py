@@ -57,6 +57,7 @@ class ExploreContext:
     metadata: MetadataCache
     ledger: UsageLedger
     stop_event: threading.Event = field(default_factory=threading.Event)
+    max_turns: int | None = None
 
     @property
     def harness(self) -> dict:
@@ -215,6 +216,8 @@ def explore_stop(ctx: ExploreContext, row: dict, shapes: dict, slots: tuple[int 
                           {k: v for k, v in ctx.harness.items() if k != "git"}, aerial=aerial, scanner=scanner)
         agent = Explorer(client, PROMPT.read_text(), [ctx.paths.reference_sign, *ctx.paths.lookalikes], draw_map,
                          explorer_slot, should_stop=ctx.stop_event.is_set)
+        if ctx.max_turns:
+            agent.max_turns = ctx.max_turns
         ended, turns = agent.run(session, log)
         billed = session.billed_requests()
         if ended == "interrupted":

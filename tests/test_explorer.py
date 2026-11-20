@@ -749,3 +749,39 @@ def test_a_side_with_nothing_left_to_see_doesnt_hold_the_other_back(tmp_path):
     s.begin()
     assert s.looked_out_to(-1) == math.inf
     s.sweep(from_m=120)
+
+
+# ---- the aerial map and the stops already found
+
+def solid_tile(z, x, y):
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (256, 256), (60, 120, 60)).save(buf, format="JPEG")
+    return buf.getvalue()
+
+
+def test_the_aerial_map_is_shown_at_begin(tmp_path):
+    from PIL import Image
+    from cotral_maintenance.explorer.aerial import SIZE, draw_aerial
+    world = straight_world()
+    out = draw_aerial(world, tmp_path / "aerial.jpg", solid_tile)
+    assert Image.open(out).size == (SIZE, SIZE)
+    s = Session(world, tmp_path / "run", tmp_path / "cache", FakeMetadata(), lambda *a: b"jpeg", FakeConfirmer(),
+                aerial=out)
+    result = s.begin()
+    assert result.images[0] == out and len(result.images) == 3 and "AERIAL MAP" in result.text
+    assert s.record()["aerial"] is True
+
+
+def test_a_stop_already_found_is_placed_and_its_sign_is_never_submitted(session):
+    from cotral_maintenance.explorer.aerial import place_found
+    spot_and_confirm(session, fermata_or_bus_text="yes")
+    c = session.candidates[0]
+    far = FRAME.to_latlon(600.0, 600.0)  # off the map: left out
+    session.world.found = place_found(session.world, [("f9", "Found stop", c.lat, c.lon), ("f8", "Far", *far),
+                                                      ("f1", "this stop", c.lat, c.lon)])
+    assert [o.ref for o in session.world.found] == ["f9"]
+    with pytest.raises(ToolError, match="confirmed sign of f9"):
+        session.submit_found(1)
+    assert "already FOUND" in session._briefing()

@@ -72,6 +72,7 @@ class World:
     panoramas: list[Panorama] = field(default_factory=list)
     previous: Placed | None = None
     next: Placed | None = None
+    found: list[Placed] = field(default_factory=list)  # other stops already found in this run: confirmed signs
 
     def cells(self) -> list[float]:
         """Centres of the 4 m cells of the right-hand sidewalk, between the limits."""

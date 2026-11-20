@@ -170,7 +170,9 @@ def call(session: Session, name: str, args: dict, references: list[Path], draw_m
     if name == "begin":
         result = session.begin()
         return type(result)("REFERENCE (the first image): the Cotral bus stop sign. LOOK-ALIKES (the next images): "
-                            "blue road signs that are NOT bus stops. Then the two opening photos.\n\n" + result.text,
+                            "blue road signs that are NOT bus stops. Then " + ("the aerial map and " if session.aerial
+                                                                              else "") +
+                            "the two opening photos.\n\n" + result.text,
                             references + result.images)
     if name == "sweep":
         return session.sweep(num("from_m"))
@@ -195,6 +197,9 @@ def _photo_parts(images: list[Path], session: Session) -> list[dict]:
     parts = []
     for path in images:
         index = next((p.index for p in session.photos if session._file(p) == path), None)
+        if path == session.aerial:  # at full size: its labels are small
+            parts += [{"type": "text", "text": "AERIAL MAP:"}, image_part(path)]
+            continue
         parts += [{"type": "text", "text": f"PHOTO {index}:" if index else f"{path.stem}:"},
                   image_part(path, None if index else REFERENCE_PX)]
     return parts

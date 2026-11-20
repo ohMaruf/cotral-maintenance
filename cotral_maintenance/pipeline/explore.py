@@ -25,6 +25,7 @@ from pathlib import Path
 from ..errors import ApiError
 from ..caches import BudgetExhausted, MetadataCache, UsageLedger
 from ..explorer import HARNESS_VERSION
+from ..explorer.aerial import EsriTiles, draw_aerial, place_found
 from ..explorer.drawing import draw_map
 from ..explorer.llm import ChatClient, Explorer, LlmConfirmer
 from ..explorer.session import MAX_IMAGES, MAX_TILES, Session
@@ -192,11 +193,23 @@ def explore_stop(ctx: ExploreContext, row: dict, shapes: dict, slots: tuple[int 
             return _store_without_search(ctx, base, "no_imagery", "no Street View from 2024 on along the path", t0,
                                          transcript), {"static": 0, "tiles": 0}
 
+        world.found = place_found(world, [(r["stop_id"], r["name"], r["lat"], r["lon"]) for r in ctx.run.query(
+            "select e.stop_id, s.name, e.lat, e.lon from explorations e join stops s using (stop_id) "
+            "where e.status = 'found' and e.lat is not null")])
+        aerial = None
+        esri = EsriTiles(ctx.paths.cache / "aerial")
+        try:
+            aerial = draw_aerial(world, work / "aerial.jpg", esri)
+        except Exception as error:  # imagery is a help, not a requirement: search without it
+            logger.warning("%s: no aerial map (%s)", stop_id, error)
+        finally:
+            esri.close()
+
         def fetch(pano_id: str, heading: float, fov: float, pitch: float, width: int, height: int) -> bytes:
             return sv.get_image(pano_id, heading, View("agent", pitch=pitch, fov=fov, size=f"{width}x{height}"))
 
         session = Session(world, work, ctx.paths.cache / "streetview_images", ctx.metadata, fetch, confirmer, tiles,
-                          {k: v for k, v in ctx.harness.items() if k != "git"})
+                          {k: v for k, v in ctx.harness.items() if k != "git"}, aerial=aerial)
         agent = Explorer(client, PROMPT.read_text(), [ctx.paths.reference_sign, *ctx.paths.lookalikes], draw_map,
                          explorer_slot, should_stop=ctx.stop_event.is_set)
         ended, turns = agent.run(session, log)

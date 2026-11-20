@@ -73,6 +73,7 @@ SIGN_HEIGHT_M = 2.2  # height of a stop sign panel's centre above the sidewalk
 READABLE_PX = 12.0  # a sign this wide in a sweep counts as seen close
 SPOT_PX = 5.0  # ... this wide, as glimpsed: enough to notice and zoom on, not to judge
 NEARBY_STOP_M = 15.0
+FOUND_OTHER_M = 8.0  # a candidate this close to another stop's confirmed sign is that sign
 BEARING_SPAN_M = 8.0  # direction of travel averaged over this much path each way
 STATES = ("not_looked", "glimpsed", "surveyed_clear", "seen_close", "hidden", "unscanned")
 # Where the stop is, by distance from the start, per start source (rings: up to 10 m, 25, 50, 100, 400).
@@ -157,7 +158,8 @@ class Candidate:
 class Session:
     def __init__(self, world: World, run_dir: Path, image_cache: Path, metadata: MetadataCache,
                  fetch_image: FetchImage, confirmer: Confirmer | None = None,
-                 tiles: TileSource | None = None, harness: dict | None = None) -> None:
+                 tiles: TileSource | None = None, harness: dict | None = None,
+                 aerial: Path | None = None) -> None:
         self.world = world
         self.run_dir = run_dir
         self.image_cache = image_cache
@@ -165,6 +167,7 @@ class Session:
         self.fetch_image = fetch_image
         self.confirmer = confirmer
         self.tile_source = tiles
+        self.aerial = aerial  # the aerial map (aerial.py), shown at begin(); None when it couldn't be drawn
         self.harness = {"version": HARNESS_VERSION, **(harness or {})}
         self.tiles_paid: set[tuple] = set()
         self.photos: list[Photo] = []
@@ -204,8 +207,13 @@ class Session:
         if self.photos:
             raise ToolError("begin() was already called")
         pair = self._opening()
-        text = "\n\n".join([self._briefing(), *(self._opening_caption(p) for p in pair), self._state()])
-        return self._log("begin", {}, ToolResult(text, [self._file(p) for p in pair]))
+        parts = [self._briefing()]
+        if self.aerial is not None:
+            from .aerial import caption
+            parts.append(caption(self.world))
+        text = "\n\n".join([*parts, *(self._opening_caption(p) for p in pair), self._state()])
+        images = ([self.aerial] if self.aerial is not None else []) + [self._file(p) for p in pair]
+        return self._log("begin", {}, ToolResult(text, images))
 
     def sweep(self, from_m: float, facing: str | None = None, scan: str | None = None) -> ToolResult:
         """A wide photo looking AWAY from the start along the route: ahead from a + position, back from a - one, so
@@ -383,6 +391,10 @@ class Session:
         # A sign next to another stop (often the same name, the other direction or a shared pole) is accepted unless
         # its plate reads the other stop's id: a plate is often unreadable, and that doesn't mean the stop isn't found
         # (f2164, 0.14.0). The outcome names the neighbour, for review.
+        for o in self.world.found:  # another stop's confirmed sign, a few metres accurate: never this stop's
+            if math.dist(target, self.world.frame.to_xy(o.lat, o.lon)) <= FOUND_OTHER_M:
+                raise ToolError(f"candidate {candidate} is {math.dist(target, self.world.frame.to_xy(o.lat, o.lon)):.0f}"
+                                f" m from the confirmed sign of {o.label}: it is that stop's sign, not this one's")
         near = [o for o in self.world.others if math.dist(target, self.world.frame.to_xy(o.lat, o.lon)) <= NEARBY_STOP_M]
         for o in near:
             if o.ref and plate_matches(c.plate_text, o.ref) and not plate_matches(c.plate_text, self.world.stop.stop_id):
@@ -953,6 +965,10 @@ class Session:
             for h in w.hints) or "none") + ".")
         lines.append("Other stops nearby (NOT this stop; don't submit a sign of theirs): " + ("; ".join(
             f"{o.label} at {_m(o.along)}, {_side(o.offset)}" for o in w.others) or "none") + ".")
+        if w.found:
+            lines.append("Other stops already FOUND (their signs are confirmed, a few metres accurate; a sign there is "
+                         "theirs): " + "; ".join(f"{o.label} at {_m(o.along)}, {abs(o.offset):.0f} m {_side(o.offset)}"
+                                                 for o in w.found) + ".")
         lines.append("Panoramas: " + self._panorama_text())
         lines.append(f"Budget: {EXPLORE_IMAGES} wide images (the opening one included; 1 per sweep) for looking broadly, "
                      f"{MAX_TILES} tiles for close views (a zoom or look_from costs about 2-4 tiles), {MAX_CONFIRMS} "
@@ -1095,7 +1111,8 @@ class Session:
 
     def _log(self, tool: str, args: dict, result: ToolResult) -> ToolResult:
         self.events.append({"seq": len(self.events) + 1, "at": utc_now(), "tool": tool, "args": args,
-                            "result": result.text, "photos": [str(p.relative_to(self.run_dir)) for p in result.images],
+                            "result": result.text, "photos": [str(p.relative_to(self.run_dir)) if p.is_relative_to(self.run_dir) else p.name
+                                                       for p in result.images],
                             "photos_used": len(self.photos), "budget_used": self.explore_used, "error": None})
         self.save()
         return result
@@ -1125,7 +1142,8 @@ class Session:
                                 "confirms": self.confirms, "billed": self.billed}},
             "path": [list(w.latlon(p)) for p in w.path.points], "start_s": w.path.start_s,
             "starts": [asdict(s) for s in w.starts], "hints": [asdict(h) for h in w.hints],
-            "others": [asdict(o) for o in w.others],
+            "others": [asdict(o) for o in w.others], "found_others": [asdict(o) for o in w.found],
+            "aerial": self.aerial is not None,
             "previous": asdict(w.previous) if w.previous else None, "next": asdict(w.next) if w.next else None,
             "shared": [asdict(s) for s in self.shared],
             "panoramas": [asdict(p) for p in w.panoramas],

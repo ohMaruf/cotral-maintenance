@@ -71,15 +71,18 @@ and 60 tiles for close views (a zoom or look_from costs about 2-4). Marking, the
    two opening sweeps have the sidewalk around it in front of both cameras: AHEAD-RIGHT from before the start
    (sign faces) and BEHIND-RIGHT from after it (sign backs). Look hard at both, and zoom on anything stop-like in
    either before going anywhere else.
-2. Cover as much ground as possible with as few images as possible, ahead AND behind the start alike. Never pass
+2. Read the AERIAL MAP (when given): where the bus's path runs around the start, where it passes close to the start
+   again later (a position far along the path can be right next to the start), its corners and junctions, and the
+   stops already FOUND (green: their signs are confirmed and never this stop's).
+3. Cover as much ground as possible with as few images as possible, ahead AND behind the start alike. Never pass
    a corner on the CORNERS list without examining it.
-3. After every sweep, look at it carefully and zoom on anything that could be a stop, however small. What each
+4. After every sweep, look at it carefully and zoom on anything that could be a stop, however small. What each
    sweep shows of the sidewalk is bookkept automatically (seen close, or glimpsed further away).
-4. When a sweep shows something that may be the stop, zoom on it: when in doubt, zoom. The harness judges every
+5. When a sweep shows something that may be the stop, zoom on it: when in doubt, zoom. The harness judges every
    zoom and settles it; when it reports a CONFIRMED candidate, submit_found it.
-5. A candidate seen from two different panoramas (mark_candidate with same_as on a look_from photo) gets a
+6. A candidate seen from two different panoramas (mark_candidate with same_as on a look_from photo) gets a
    triangulated, more accurate position. Do it if the tiles allow, then submit_found.
-6. There is no giving up: keep searching until you submit a confirmed stop. When the wide images are used up,
+7. There is no giving up: keep searching until you submit a confirmed stop. When the wide images are used up,
    zoom, look_from, mark and confirm what is left. When nothing is left to look with, the search ends by itself.
    confirm() judges a close view the confirmer has not answered on yet: asking again about the same photo gets
    the same answer, so take a new close view instead.

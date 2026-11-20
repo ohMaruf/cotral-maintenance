@@ -433,12 +433,17 @@ def test_the_stop_photos_are_kept_back_when_the_explorer_runs_out(session):
     assert len(session.photos) == MAX_IMAGES
 
 
-def test_a_sign_next_to_another_stop_needs_its_plate(session):
+def test_a_sign_next_to_another_stop_is_refused_only_when_its_plate_reads_the_other_id(session):
+    # f2164, 0.14.0: an unreadable plate doesn't mean the stop wasn't found
     spot_and_confirm(session, fermata_or_bus_text="yes")
     c = session.candidates[0]
     session.world.others.append(Placed("f2 Other stop", "stop", c.lat, c.lon, c.along, c.offset, "f2"))
-    with pytest.raises(ToolError, match="another stop"):
+    c.plate_text = "N.f 2"
+    with pytest.raises(ToolError, match="sign of f2"):
         session.submit_found(1)
+    c.plate_text = ""
+    session.submit_found(1)
+    assert session.outcome["near_other_stop"] == "f2 Other stop" and session.outcome["plate_matches"] is False
 
 
 def test_the_explorer_stopping_is_not_found(session):

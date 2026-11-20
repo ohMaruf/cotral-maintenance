@@ -365,17 +365,22 @@ class Session:
         if c.status != "confirmed":
             raise ToolError(f"candidate {candidate} is {c.status}, not confirmed; confirm it first")
         target = self.world.frame.to_xy(c.lat, c.lon)
-        for o in self.world.others:
-            if math.dist(target, self.world.frame.to_xy(o.lat, o.lon)) <= NEARBY_STOP_M \
-                    and not plate_matches(c.plate_text, self.world.stop.stop_id):
-                raise ToolError(f"candidate {candidate} is within {NEARBY_STOP_M:.0f} m of another stop ({o.label});"
-                                f" accepted only if its plate reads {self.world.stop.stop_id}")
+        # A sign next to another stop (often the same name, the other direction or a shared pole) is accepted unless
+        # its plate reads the other stop's id: a plate is often unreadable, and that doesn't mean the stop isn't found
+        # (f2164, 0.14.0). The outcome names the neighbour, for review.
+        near = [o for o in self.world.others if math.dist(target, self.world.frame.to_xy(o.lat, o.lon)) <= NEARBY_STOP_M]
+        for o in near:
+            if o.ref and plate_matches(c.plate_text, o.ref) and not plate_matches(c.plate_text, self.world.stop.stop_id):
+                raise ToolError(f"candidate {candidate}'s plate reads {c.plate_text!r}: the sign of {o.label}, not of "
+                                f"this stop")
         stop_photos = self._photograph_stop(c)
         self.outcome = {"status": "found", "candidate": c.index, "lat": c.lat, "lon": c.lon,
                         "position_basis": c.basis, "evidence": c.evidence, "plate_text": c.plate_text,
                         "scan_date": self._photo(c.views[0][0]).date,
                         "close_up": self._photo(c.confirm_photo).file if c.confirm_photo else None,
-                        "stop_photos": [p.file for p in stop_photos]}
+                        "stop_photos": [p.file for p in stop_photos],
+                        "near_other_stop": near[0].label if near else None,
+                        "plate_matches": plate_matches(c.plate_text, self.world.stop.stop_id)}
         text = f"Submitted. The search is over: found. The harness took {len(stop_photos)} photos of the stop."
         return self._log("submit_found", args, ToolResult(text, [self._file(p) for p in stop_photos], done=True))
 

@@ -3,7 +3,6 @@ import { CategoryKind } from '../../core/api/api.types';
 import { formatScore } from '../lib/format';
 import { fraction, severityColor } from '../lib/severity';
 
-/** Compact bar plus number for one model's value. Missing values render a dash. */
 @Component({
   selector: 'app-score-bar',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -14,10 +13,10 @@ import { fraction, severityColor } from '../lib/severity';
 export class ScoreBar {
   readonly value = input<number | undefined>();
   readonly kind = input.required<CategoryKind>();
-  /** Model name, used for the accessible label. */
   readonly label = input<string>('');
   readonly evidence = input<string | undefined>();
 
+  protected readonly missing = computed(() => this.value() === undefined);
   protected readonly text = computed(() => formatScore(this.value()));
   protected readonly width = computed(() => {
     const v = this.value();

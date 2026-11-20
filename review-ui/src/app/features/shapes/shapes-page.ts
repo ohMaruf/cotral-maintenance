@@ -1,3 +1,4 @@
+import { RaterField } from '../../shared/rater-field/rater-field';
 import { rxResource } from '@angular/core/rxjs-interop';
 import {
   ChangeDetectionStrategy,
@@ -46,7 +47,7 @@ import {
 @Component({
   selector: 'app-shapes-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Badge, GeoMap, RouterLink, StateMessage],
+  imports: [Badge, RaterField, GeoMap, RouterLink, StateMessage],
   providers: [ShapeVerdictStore],
   templateUrl: './shapes-page.html',
   styleUrl: './shapes-page.scss',

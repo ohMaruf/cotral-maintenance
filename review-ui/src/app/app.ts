@@ -1,6 +1,8 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { RaterService } from './core/services/rater.service';
+import { ThemeService } from './core/services/theme.service';
+
+const LABELS = { light: 'Light', dark: 'Dark', system: 'System' };
 
 @Component({
   selector: 'app-root',
@@ -10,5 +12,6 @@ import { RaterService } from './core/services/rater.service';
   styleUrl: './app.scss',
 })
 export class App {
-  protected readonly rater = inject(RaterService);
+  protected readonly theme = inject(ThemeService);
+  protected readonly themeLabel = computed(() => LABELS[this.theme.choice()]);
 }

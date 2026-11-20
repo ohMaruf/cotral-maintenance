@@ -21,12 +21,11 @@ export const ESRI_TILES =
 export const OSM_TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const MAX_ZOOM = 21;
 
-/** Leaflet layer for one declarative layer; exported for tests. */
 export function createLeafletLayer(layer: MapLayer, onClick: (id: string) => void): L.Layer {
   let created: L.Layer;
   switch (layer.type) {
     case 'marker': {
-      const size = layer.size ?? 22;
+      const size = layer.size ?? 20;
       const el = document.createElement('div');
       el.className = `geo-marker ${layer.className}`;
       el.textContent = layer.text;
@@ -68,7 +67,6 @@ export function createLeafletLayer(layer: MapLayer, onClick: (id: string) => voi
       break;
   }
   if (layer.tooltip) {
-    // An element, not a string: Leaflet would parse a string as HTML.
     const text = document.createElement('span');
     text.textContent = layer.tooltip;
     created.bindTooltip(text);
@@ -77,11 +75,6 @@ export function createLeafletLayer(layer: MapLayer, onClick: (id: string) => voi
   return created;
 }
 
-/**
- * Leaflet map with the Esri satellite (default) and OpenStreetMap basemaps, a layers
- * control and a metric scale. Owns the map lifecycle; callers pass what to draw.
- * The host element needs a height.
- */
 @Component({
   selector: 'app-geo-map',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -91,12 +84,10 @@ export function createLeafletLayer(layer: MapLayer, onClick: (id: string) => voi
 })
 export class GeoMap {
   readonly layers = input<MapLayer[]>([]);
-  /** Points to fit in view whenever this value changes; null leaves the view alone. */
   readonly bounds = input<LatLon[] | null>(null);
   readonly fitPadding = input(40);
   readonly fitMaxZoom = input(19);
   readonly label = input('Map');
-  /** Id of an interactive layer that was clicked. */
   readonly layerClick = output<string>();
 
   private readonly container = viewChild.required<ElementRef<HTMLElement>>('container');
@@ -144,7 +135,7 @@ export class GeoMap {
     satellite.addTo(map);
     L.control.layers({ 'Satellite (Esri)': satellite, 'Streets (OSM)': streets }).addTo(map);
     L.control.scale({ imperial: false }).addTo(map);
-    map.setView([41.9, 12.5], 5); // a view is required before layers are added
+    map.setView([41.9, 12.5], 5);
     this.group = L.layerGroup().addTo(map);
     this.map = map;
     if (typeof ResizeObserver !== 'undefined') {

@@ -1,6 +1,10 @@
 <span class="wrap" role="img" [attr.aria-label]="aria()">
-  <span class="track" aria-hidden="true">
-    <span class="fill" [style.width.%]="width()" [style.background]="color()"></span>
-  </span>
-  <span class="num" aria-hidden="true">{{ text() }}</span>
+  @if (missing()) {
+    <span class="num none" aria-hidden="true">—</span>
+  } @else {
+    <span class="num" aria-hidden="true">{{ text() }}</span>
+    <span class="strip" aria-hidden="true">
+      <span class="fill" [style.width.%]="width()" [style.background]="color()"></span>
+    </span>
+  }
 </span>

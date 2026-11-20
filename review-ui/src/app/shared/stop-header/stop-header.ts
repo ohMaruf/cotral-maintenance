@@ -10,7 +10,6 @@ import { formatCoordinates, formatImageryDate, mapsUrl } from '../lib/format';
 })
 export class StopHeader {
   readonly stop = input.required<StopSummary>();
-  /** Heading level the name is rendered with. */
   readonly level = input<2 | 3>(2);
 
   protected readonly date = computed(() => formatImageryDate(this.stop().imagery_date));

@@ -1,0 +1,174 @@
+@use 'sass:string';
+
+$light: (
+  'bg': #f4f5f6,
+  'surface': #ffffff,
+  'surface-2': #eceef0,
+  'border': #dadde1,
+  'border-strong': #a9afb6,
+  'text': #1c2228,
+  'text-muted': #4b5560,
+  'text-faint': #5f6a75,
+  'accent': #1f4f7a,
+  'accent-hover': #163b5c,
+  'accent-contrast': #ffffff,
+  'accent-bg': #e2eaf2,
+  'danger': #a3301f,
+  'danger-bg': #f6e3df,
+  'ok': #36663f,
+  'ok-bg': #e1ece3,
+  'warn': #8f6212,
+  'warn-bg': #f5ead0,
+  'overlay': rgb(14 18 22 / 80%),
+  'viewer-bg': #12161a,
+  'viewer-text': #e6e9ec,
+  'sev-0': #4d7c56,
+  'sev-1': #858a3a,
+  'sev-2': #b5842b,
+  'sev-3': #b3562a,
+  'sev-4': #9b3224,
+  'pin-gtfs': #c4432e,
+  'pin-places': #6d4b94,
+  'pin-verified': #2f7d4a,
+  'pin-estimate': #2b72b8,
+  'pin-neighbour': #8b959f,
+  'pin-camera': #2a3138,
+  'pin-current': #e57b00,
+  'pin-fg': #ffffff,
+  'pin-fg-dark': #1c2228,
+  'pin-ring': #ffffff,
+  'pin-halo': rgb(0 0 0 / 55%),
+  'pin-feature-bg': #e9ecef,
+  'pin-feature-fg': #1c2228,
+  'cand-spotted': #d6a82e,
+  'cand-awaiting': #d9822b,
+  'cand-confirmed': #2f7d4a,
+  'cand-rejected': #7d8790,
+);
+
+$dark: (
+  'bg': #121518,
+  'surface': #1a1e22,
+  'surface-2': #232830,
+  'border': #2d333a,
+  'border-strong': #555d66,
+  'text': #e2e5e8,
+  'text-muted': #a4adb5,
+  'text-faint': #8c969f,
+  'accent': #8fb6dc,
+  'accent-hover': #b0cdea,
+  'accent-contrast': #0e1a27,
+  'accent-bg': #1f2f40,
+  'danger': #f0937f,
+  'danger-bg': #3a2420,
+  'ok': #86b890,
+  'ok-bg': #1f3024,
+  'warn': #d9aa55,
+  'warn-bg': #372d17,
+  'overlay': rgb(0 0 0 / 80%),
+  'viewer-bg': #0b0d0f,
+  'viewer-text': #e2e5e8,
+  'sev-0': #7fb08a,
+  'sev-1': #b0b35c,
+  'sev-2': #d9a94e,
+  'sev-3': #e08956,
+  'sev-4': #e4705e,
+  'pin-gtfs': #c4432e,
+  'pin-places': #6d4b94,
+  'pin-verified': #2f7d4a,
+  'pin-estimate': #2b72b8,
+  'pin-neighbour': #8b959f,
+  'pin-camera': #2a3138,
+  'pin-current': #e57b00,
+  'pin-fg': #ffffff,
+  'pin-fg-dark': #1c2228,
+  'pin-ring': #ffffff,
+  'pin-halo': rgb(0 0 0 / 55%),
+  'pin-feature-bg': #4a535c,
+  'pin-feature-fg': #eef0f2,
+  'cand-spotted': #d6a82e,
+  'cand-awaiting': #d9822b,
+  'cand-confirmed': #2f7d4a,
+  'cand-rejected': #7d8790,
+);
+
+@mixin emit($palette) {
+  @each $name, $value in $palette {
+    @if string.index($name, 'sev-') ==
+      1 or
+      string.index($name, 'pin-') ==
+      1 or
+      string.index($name, 'cand-') ==
+      1
+    {
+      --#{$name}: #{$value};
+    } @else {
+      --color-#{$name}: #{$value};
+    }
+  }
+}
+
+@mixin theme-properties {
+  :root {
+    color-scheme: light;
+    @include emit($light);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      color-scheme: dark;
+      @include emit($dark);
+    }
+  }
+
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+    @include emit($dark);
+  }
+}
+
+$color-bg: var(--color-bg);
+$color-surface: var(--color-surface);
+$color-surface-2: var(--color-surface-2);
+$color-border: var(--color-border);
+$color-border-strong: var(--color-border-strong);
+$color-text: var(--color-text);
+$color-text-muted: var(--color-text-muted);
+$color-text-faint: var(--color-text-faint);
+$color-accent: var(--color-accent);
+$color-accent-hover: var(--color-accent-hover);
+$color-accent-contrast: var(--color-accent-contrast);
+$color-accent-bg: var(--color-accent-bg);
+$color-danger: var(--color-danger);
+$color-danger-bg: var(--color-danger-bg);
+$color-ok: var(--color-ok);
+$color-ok-bg: var(--color-ok-bg);
+$color-warn: var(--color-warn);
+$color-warn-bg: var(--color-warn-bg);
+$color-overlay: var(--color-overlay);
+$color-viewer-bg: var(--color-viewer-bg);
+$color-viewer-text: var(--color-viewer-text);
+
+$sev-0: var(--sev-0);
+$sev-1: var(--sev-1);
+$sev-2: var(--sev-2);
+$sev-3: var(--sev-3);
+$sev-4: var(--sev-4);
+
+$pin-gtfs: var(--pin-gtfs);
+$pin-places: var(--pin-places);
+$pin-verified: var(--pin-verified);
+$pin-estimate: var(--pin-estimate);
+$pin-neighbour: var(--pin-neighbour);
+$pin-camera: var(--pin-camera);
+$pin-current: var(--pin-current);
+$pin-fg: var(--pin-fg);
+$pin-fg-dark: var(--pin-fg-dark);
+$pin-ring: var(--pin-ring);
+$pin-halo: var(--pin-halo);
+$pin-feature-bg: var(--pin-feature-bg);
+$pin-feature-fg: var(--pin-feature-fg);
+$cand-spotted: var(--cand-spotted);
+$cand-awaiting: var(--cand-awaiting);
+$cand-confirmed: var(--cand-confirmed);
+$cand-rejected: var(--cand-rejected);

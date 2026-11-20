@@ -1,17 +1,23 @@
+@use 'theme' as *;
+
+.title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $space-1 $space-2;
+}
+
 .name {
-  font-size: var(--text-lg);
-  line-height: 1.25;
+  font-size: $text-lg;
+  font-weight: $weight-medium;
+  line-height: $leading-snug;
 }
 
 .meta {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
-  margin-top: var(--space-1);
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-}
-
-.id {
-  color: var(--color-text);
+  gap: $space-1 $space-3;
+  margin-top: $space-1;
+  color: $color-text-muted;
+  font-size: $text-sm;
 }

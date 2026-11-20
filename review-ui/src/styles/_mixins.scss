@@ -1,0 +1,180 @@
+@use 'variables' as *;
+@use 'colors' as *;
+
+@mixin focus-ring {
+  outline: 2px solid $color-accent;
+  outline-offset: 2px;
+}
+
+@mixin tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@mixin visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@mixin section-label {
+  color: $color-text-muted;
+  font-size: $text-sm;
+  font-weight: $weight-regular;
+}
+
+@mixin kbd {
+  display: inline-block;
+  min-width: 1.5em;
+  padding: 0 $space-1;
+  border: $border-width solid $color-border-strong;
+  border-radius: $radius-sm;
+  background: $color-surface;
+  color: $color-text-muted;
+  font-family: $font-mono;
+  font-size: $text-xs;
+  line-height: $leading-normal;
+  text-align: center;
+}
+
+@mixin stop-plate {
+  display: inline-block;
+  padding: 1px $space-1;
+  border-radius: $radius-sm;
+  background: $color-accent;
+  color: $color-accent-contrast;
+  font-family: $font-mono;
+  font-size: $text-sm;
+  font-weight: $weight-medium;
+  line-height: $leading-snug;
+  letter-spacing: 0;
+  white-space: nowrap;
+  @include tabular;
+}
+
+@mixin button($variant: plain) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: $space-2;
+  min-height: $control-height;
+  padding: $space-1 $space-3;
+  border: $border-width solid transparent;
+  border-radius: $radius-sm;
+  font-family: $font-sans;
+  font-size: $text-md;
+  font-weight: $weight-medium;
+  line-height: $leading-snug;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color $duration-fast $easing-standard;
+
+  @if $variant == primary {
+    background: $color-accent;
+    border-color: $color-accent;
+    color: $color-accent-contrast;
+
+    &:hover:not(:disabled) {
+      background: $color-accent-hover;
+      border-color: $color-accent-hover;
+    }
+  } @else if $variant == quiet {
+    background: transparent;
+    color: $color-text-muted;
+
+    &:hover:not(:disabled) {
+      background: $color-surface-2;
+      color: $color-text;
+    }
+  } @else {
+    background: $color-surface;
+    border-color: $color-border-strong;
+    color: $color-text;
+
+    &:hover:not(:disabled) {
+      background: $color-surface-2;
+    }
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+@mixin field {
+  min-height: $control-height;
+  padding: $space-1 $space-2;
+  border: $border-width solid $color-border-strong;
+  border-radius: $radius-sm;
+  background: $color-surface;
+  color: $color-text;
+  font-family: $font-sans;
+  font-size: $text-md;
+  font-weight: $weight-regular;
+  line-height: $leading-snug;
+
+  &::placeholder {
+    color: $color-text-faint;
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+    outline-offset: 0;
+    border-color: $color-accent;
+  }
+
+  &:disabled {
+    background: $color-surface-2;
+    color: $color-text-faint;
+  }
+}
+
+@mixin data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: $text-md;
+  @include tabular;
+
+  th,
+  td {
+    padding: $space-1 $space-3;
+    border-bottom: $border-width solid $color-border;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th {
+    position: sticky;
+    top: 0;
+    z-index: $z-base;
+    border-bottom-color: $color-border-strong;
+    background: $color-bg;
+    color: $color-text-muted;
+    font-weight: $weight-medium;
+    white-space: nowrap;
+  }
+
+  th.num,
+  td.num {
+    text-align: right;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  tbody tr:hover td {
+    background: $color-surface-2;
+  }
+}

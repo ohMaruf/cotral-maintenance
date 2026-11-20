@@ -1,10 +1,5 @@
 import { Routes, UrlMatcher } from '@angular/router';
 
-/**
- * Matches `/prefix` and `/prefix/:param` with ONE route, so the page instance (and
- * what it has loaded) survives moving between the two, e.g. the redirect from
- * `/explore` to the first run.
- */
 export function optionalParam(prefix: string, param: string): UrlMatcher {
   return (segments) => {
     if (segments.length === 0 || segments.length > 2 || segments[0].path !== prefix) return null;

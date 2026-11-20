@@ -20,7 +20,7 @@ describe('severity', () => {
   });
 
   it('uses a neutral colour for probabilities', () => {
-    expect(severityColor(0.9, 'probability')).toBe('var(--prob)');
-    expect(severityColor(0.1, 'probability')).toBe('var(--prob)');
+    expect(severityColor(0.9, 'probability')).toBe('var(--color-text-muted)');
+    expect(severityColor(0.1, 'probability')).toBe('var(--color-text-muted)');
   });
 });

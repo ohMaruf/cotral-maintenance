@@ -1,6 +1,8 @@
+@use 'theme' as *;
+
 .grid {
   display: grid;
-  gap: var(--space-2);
+  gap: $space-1;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -12,22 +14,21 @@
 
 .sm {
   grid-template-columns: repeat(4, 3.5rem);
-  gap: var(--space-1);
 }
 
 .thumb {
   display: block;
   width: 100%;
   padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-2);
+  border: 0;
+  border-radius: $radius-sm;
+  background: $color-surface-2;
   overflow: hidden;
   cursor: zoom-in;
   aspect-ratio: 1;
 
   &:hover {
-    border-color: var(--color-accent);
+    opacity: 0.9;
   }
 
   img {
@@ -37,12 +38,8 @@
   }
 }
 
-.sm .thumb {
-  border-radius: var(--radius-sm);
-}
-
 .none {
   grid-column: 1 / -1;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
+  color: $color-text-faint;
+  font-size: $text-sm;
 }

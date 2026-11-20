@@ -8,6 +8,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { Category, Model, StopDetail, StopSummary } from '../../core/api/api.types';
+import { RaterField } from '../../shared/rater-field/rater-field';
 import { ShortcutService } from '../../core/services/shortcut.service';
 import { modelsDisagree } from '../../shared/lib/disagreement';
 import { formatScore } from '../../shared/lib/format';
@@ -67,7 +68,7 @@ function describe(label: string, a: Agreement): string {
 @Component({
   selector: 'app-versus-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PhotoGrid, ScoreBar, StateMessage, StopHeader],
+  imports: [PhotoGrid, RaterField, ScoreBar, StateMessage, StopHeader],
   providers: [VersusStore],
   templateUrl: './versus-page.html',
   styleUrl: './versus-page.scss',

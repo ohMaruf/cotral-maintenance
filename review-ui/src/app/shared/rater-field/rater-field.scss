@@ -1,0 +1,15 @@
+@use 'theme' as *;
+
+:host {
+  display: inline-flex;
+  align-items: center;
+  gap: $space-2;
+}
+
+label {
+  @include section-label;
+}
+
+input {
+  width: 11rem;
+}

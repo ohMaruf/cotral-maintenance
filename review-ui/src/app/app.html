@@ -7,18 +7,14 @@
     <a routerLink="/explore" routerLinkActive="active" ariaCurrentWhenActive="page">Explore</a>
     <a routerLink="/shapes" routerLinkActive="active" ariaCurrentWhenActive="page">Shapes</a>
   </nav>
-  <div class="rater">
-    <label for="rater-name">Rater</label>
-    <input
-      id="rater-name"
-      type="text"
-      autocomplete="off"
-      placeholder="optional name"
-      maxlength="60"
-      [value]="rater.name()"
-      (input)="rater.set($any($event.target).value)"
-    />
-  </div>
+  <button
+    type="button"
+    class="theme"
+    [attr.aria-label]="'Theme: ' + themeLabel() + '. Activate to change.'"
+    (click)="theme.cycle()"
+  >
+    {{ themeLabel() }}
+  </button>
 </header>
 <main>
   <router-outlet />

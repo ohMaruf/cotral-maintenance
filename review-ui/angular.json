@@ -42,7 +42,7 @@
               "browser": ""
             },
             "stylePreprocessorOptions": {
-              "includePaths": ["src"]
+              "includePaths": ["src/styles"]
             }
           },
           "configurations": {

@@ -159,10 +159,6 @@ def explore_stop(ctx: ExploreContext, row: dict, shapes: dict, slots: tuple[int 
                  ) -> tuple[str, dict[str, int]]:
     """Explore one stop and store the result. Returns (status, billed requests)."""
     stop_id = row["stop_id"]
-    stop = ctx.all_stops.get(stop_id) or Stop(stop_id, row["name"], row["gtfs_lat"], row["gtfs_lon"])
-    services = [Service(s["shape_id"], s["trips"], tuple(s["previous"]), tuple(s["next"])) for s in row["services"]]
-    start = ctx.run.start(stop_id) or {}
-    places = (start["lat"], start["lon"]) if start.get("source") == "places" else None
     work = ctx.run.root / "work" / stop_id
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
@@ -186,34 +182,11 @@ def explore_stop(ctx: ExploreContext, row: dict, shapes: dict, slots: tuple[int 
     scanner = LlmScanner(client, ctx.paths.reference_sign, log, confirmer_slot)
     base = {"stop_id": stop_id, "explorer": explorer_description(spec),
             "harness": ctx.harness, "started_at": started_at}
-    session = None
     try:
-        try:
-            world = build_world(stop, services, shapes, ctx.all_stops, places, ctx.osm, ctx.metadata)
-        except ValueError as error:  # no usable shape: the stop can't be placed on a path
-            return _store_without_search(ctx, base, "error", f"world: {error}", t0, transcript), {"static": 0,
-                                                                                                    "tiles": 0}
-        if not world.panoramas:
-            return _store_without_search(ctx, base, "no_imagery", "no Street View from 2024 on along the path", t0,
-                                         transcript), {"static": 0, "tiles": 0}
-
-        world.found = place_found(world, [(r["stop_id"], r["name"], r["lat"], r["lon"]) for r in ctx.run.query(
-            "select e.stop_id, s.name, e.lat, e.lon from explorations e join stops s using (stop_id) "
-            "where e.status = 'found' and e.lat is not null")])
-        aerial = None
-        esri = EsriTiles(ctx.paths.cache / "street_map")
-        try:
-            aerial = draw_aerial(world, work / "aerial.jpg", esri)
-        except Exception as error:  # imagery is a help, not a requirement: search without it
-            logger.warning("%s: no aerial map (%s)", stop_id, error)
-        finally:
-            esri.close()
-
-        def fetch(pano_id: str, heading: float, fov: float, pitch: float, width: int, height: int) -> bytes:
-            return sv.get_image(pano_id, heading, View("agent", pitch=pitch, fov=fov, size=f"{width}x{height}"))
-
-        session = Session(world, work, ctx.paths.cache / "streetview_images", ctx.metadata, fetch, confirmer, tiles,
-                          {k: v for k, v in ctx.harness.items() if k != "git"}, aerial=aerial, scanner=scanner)
+        made = make_session(ctx, row, shapes, work, sv, tiles, confirmer, scanner)
+        if isinstance(made, tuple):
+            return _store_without_search(ctx, base, *made, t0, transcript), {"static": 0, "tiles": 0}
+        session = made
         agent = Explorer(client, PROMPT.read_text(), [ctx.paths.reference_sign, *ctx.paths.lookalikes], draw_map,
                          explorer_slot, should_stop=ctx.stop_event.is_set)
         if ctx.max_turns:
@@ -234,6 +207,38 @@ def explore_stop(ctx: ExploreContext, row: dict, shapes: dict, slots: tuple[int 
         sv.close()
         tiles_client.close()
         shutil.rmtree(work, ignore_errors=True)
+
+
+def make_session(ctx: ExploreContext, row: dict, shapes: dict, work: Path, sv: StreetViewClient, tiles: TileViews,
+                 confirmer, scanner) -> Session | tuple[str, str]:
+    stop_id = row["stop_id"]
+    stop = ctx.all_stops.get(stop_id) or Stop(stop_id, row["name"], row["gtfs_lat"], row["gtfs_lon"])
+    services = [Service(s["shape_id"], s["trips"], tuple(s["previous"]), tuple(s["next"])) for s in row["services"]]
+    start = ctx.run.start(stop_id) or {}
+    places = (start["lat"], start["lon"]) if start.get("source") == "places" else None
+    try:
+        world = build_world(stop, services, shapes, ctx.all_stops, places, ctx.osm, ctx.metadata)
+    except ValueError as error:
+        return "error", f"world: {error}"
+    if not world.panoramas:
+        return "no_imagery", "no Street View from 2024 on along the path"
+    world.found = place_found(world, [(r["stop_id"], r["name"], r["lat"], r["lon"]) for r in ctx.run.query(
+        "select e.stop_id, s.name, e.lat, e.lon from explorations e join stops s using (stop_id) "
+        "where e.status = 'found' and e.lat is not null and e.stop_id != ?", (stop_id,))])
+    aerial = None
+    esri = EsriTiles(ctx.paths.cache / "street_map")
+    try:
+        aerial = draw_aerial(world, work / "aerial.jpg", esri)
+    except Exception as error:
+        logger.warning("%s: no aerial map (%s)", stop_id, error)
+    finally:
+        esri.close()
+
+    def fetch(pano_id: str, heading: float, fov: float, pitch: float, width: int, height: int) -> bytes:
+        return sv.get_image(pano_id, heading, View("agent", pitch=pitch, fov=fov, size=f"{width}x{height}"))
+
+    return Session(world, work, ctx.paths.cache / "streetview_images", ctx.metadata, fetch, confirmer, tiles,
+                   {k: v for k, v in ctx.harness.items() if k != "git"}, aerial=aerial, scanner=scanner)
 
 
 def _store_without_search(ctx: ExploreContext, base: dict, status: str, reason: str, t0: float,

@@ -50,8 +50,6 @@ SECOND_VIEW_SPAN_M = 3.0  # an automatic second view frames the first view's sig
 SECOND_VIEW_RANGE = (0.6, 1.6)  # ... from this much to this much of the estimated distance: a single view's distance
                                 # was 10 m short at f4156 (0.11.1), and its second view missed the sign
 SECOND_VIEW_FOV = 30.0
-# The search spreads out evenly from the start: a sweep standing more than this much farther out than the other side
-# has been looked at is refused (0.16.0 NVFP4 swept ahead out to +436 m before one sweep behind found f306 at -44 m).
 RING_START_M = {"osm": 25.0, "places": 50.0, "gtfs": 50.0}
 RING_STEP_M = 25.0
 RING_EVERY = 2
@@ -61,7 +59,7 @@ SCAN_RANGE_M = (5.0, 40.0)
 CLOSE_M = 30.0
 SWEEP_STANDOFF_M = 15.0
 SWEEP_TARGET_M = 15.0
-SCAN_OFFSETS_M = (-3.0, 3.0, 8.0, 14.0)
+SCAN_OFFSETS_M = (-3.0, 0.0, 3.0, 8.0, 14.0)
 SCAN_TOP_M = 4.0
 SCAN_MARGIN_PX = 12
 SCAN_SCALE = 3.9
@@ -115,7 +113,7 @@ class ScanReply:
     cover: list[tuple[float, float]] = field(default_factory=list)
 
 
-Scanner = Callable[[Path], ScanReply]
+Scanner = Callable[[Path], ScanReply | None]
 
 
 class TileSource(Protocol):
@@ -161,7 +159,7 @@ class Photo:
     billed: bool = True  # False when it came from the cache
     source: str = "static"  # "static" (Street View Static API) or "tiles" (Map Tiles)
     tiles: int = 0  # tiles paid for this view (a tile is paid once per stop)
-    scanned: bool = False
+    strip: tuple[float, float] | None = None
     cover: list[tuple[float, float]] = field(default_factory=list)
 
 
@@ -508,7 +506,7 @@ class Session:
         options, error = self._sweep_options(at_m, facing, scan)
         if not options:
             raise error
-        _, total, _, _, f, pano, along, heading, camera = max(options, key=lambda o: o[:4])
+        _, total, _, _, f, pano, along, heading, camera, _ = max(options, key=lambda o: o[:4])
         if not total:
             self._refuse_nothing_new(camera, at_m)
         self.sweeps += 1
@@ -530,9 +528,10 @@ class Session:
             along = self.world.path.along_near(self._xy(pano), stand, 30.0)
             heading = (self._travel_bearing(along) + SWEEP_TURNS[f]) % 360
             camera = Camera(self._xy(pano), heading, SWEEP_FOV, 0.0, *IMAGE_SIZE)
-            gain = self._gain(camera, along)
+            gain = self._gain(camera, along, pano.pano_id)
             near = sum(1 for i in gain if abs(self.cells[i] - at_m) <= SWEEP_TARGET_M)
-            options.append((target in gain, bool(gain), near > 0, -len(options), f, pano, along, heading, camera))
+            options.append((target in gain, bool(gain), near > 0, -len(options), f, pano, along, heading, camera,
+                            gain))
         return options, error
 
     @property
@@ -549,12 +548,13 @@ class Session:
         if abs(at_m - start) <= self.ring_m:
             return
         lo, hi = self.world.limits
-        a = max(lo, start - self.ring_m)
-        while a <= min(hi, start + self.ring_m):
+        lo, hi = max(lo, start - self.ring_m), min(hi, start + self.ring_m)
+        a = lo
+        while a <= hi:
             options, _ = self._sweep_options(a, None, None)
-            if any(o[1] for o in options):
+            if any(lo <= self.cells[i] <= hi for o in options for i in o[-1]):
                 raise ToolError(f"{_m(at_m)} is outside the search ring: {self._ring_text()}. Sweep inside it, "
-                                f"from {_m(start - self.ring_m)} to {_m(start + self.ring_m)}.")
+                                f"from {_m(lo)} to {_m(hi)}.")
             a += RING_PROBE_M
 
     def _refuse_nothing_new(self, camera: Camera, at_m: float) -> None:
@@ -610,23 +610,33 @@ class Session:
         return (max(min(xs) - SCAN_MARGIN_PX, 0.0), max(min(ys) - SCAN_MARGIN_PX, 0.0),
                 min(max(xs) + SCAN_MARGIN_PX, float(camera.width)), min(max(ys) + SCAN_MARGIN_PX, float(camera.height)))
 
-    def _scan(self, photo: Photo) -> tuple[str, list[Photo]]:
+    def _scan_plan(self, pano_id: str, camera: Camera, along: float):
         if self.scanner is None or self.tile_source is None:
-            return "", []
-        camera = self._camera(photo)
-        box = self._scan_box(camera, photo.along)
+            return None
+        box = self._scan_box(camera, along)
         if box is None:
-            return "", []
+            return None
         x0, y0, x1, y1 = box
         b0 = camera.bearing_of(x0)
         fov = angle_diff(camera.bearing_of(x1), b0)
         strip = Camera(camera.position, (b0 + fov / 2) % 360, fov,
                        (camera.elevation_of(y0) + camera.elevation_of(y1)) / 2,
                        int((x1 - x0) * SCAN_SCALE), int((y1 - y0) * SCAN_SCALE))
-        view = (photo.pano_id, strip.heading, strip.pitch, strip.fov, strip.width, strip.height)
+        view = (pano_id, strip.heading, strip.pitch, strip.fov, strip.width, strip.height)
         new = self.tile_source.tiles(*view) - self.scan_tiles - self.tiles_paid
         if len(self.scan_tiles) + len(new) > MAX_SCAN_TILES:
-            return f"SCAN of photo {photo.index}: not done, the scan tiles are used up.", []
+            return "used_up"
+        return strip, view, new
+
+    def _scan(self, photo: Photo) -> tuple[str, list[Photo]]:
+        camera = self._camera(photo)
+        plan = self._scan_plan(photo.pano_id, camera, photo.along)
+        if plan is None:
+            return "", []
+        if plan == "used_up":
+            return (f"SCAN of photo {photo.index}: not done, the scan tiles are used up; only sidewalk where a sign "
+                    f"would look clear in the photo itself counts as seen close."), []
+        strip, view, new = plan
         self.scan_tiles |= new
         key = f"s_{photo.pano_id}_{strip.heading:.1f}_{strip.fov:.1f}_{strip.pitch:.1f}_{strip.width}x{strip.height}.jpg"
         cached = self.image_cache / key
@@ -637,6 +647,7 @@ class Session:
         folder.mkdir(exist_ok=True)
         image = Image.open(cached)
         pieces, hits = [], []
+        failed = 0
         left = 0
         while True:
             right = min(left + SCAN_PIECE_PX, strip.width)
@@ -644,7 +655,10 @@ class Session:
             image.crop((left, 0, right, strip.height)).save(file, quality=92)
             answer = self.scanner(file)
             piece = {"file": str(file.relative_to(self.run_dir)), "left": left, "width": right - left, "hit": None,
-                     "cover": []}
+                     "cover": [], "failed": answer is None}
+            if answer is None:
+                failed += 1
+                answer = ScanReply()
             if answer.sign is not None:
                 px = left + answer.sign[0] / GRID * (right - left)
                 py = answer.sign[1] / GRID * strip.height
@@ -659,13 +673,18 @@ class Session:
             if right >= strip.width:
                 break
             left = right - SCAN_OVERLAP_PX
-        photo.scanned = True
+        if not failed:
+            photo.strip = (strip.bearing_of(0.0), strip.fov)
         record = {"photo": photo.index, "heading": strip.heading, "pitch": strip.pitch, "fov": strip.fov,
                   "width": strip.width, "height": strip.height, "tiles": len(new), "pieces": pieces, "zooms": []}
         self.scans.append(record)
-        covered = [i for i, close, _, hid in self._views(camera, photo.along, True, photo.cover) if close and hid]
+        covered = [i for i, close, _, hid in self._views(camera, photo.along, (strip.bearing_of(0.0), strip.fov),
+                                                         photo.cover) if close and hid]
         blocked = (f" Something in front of the roadside could hide a sign pole at {', '.join(self._stretches(covered))}"
                    f": from this side that sidewalk is blocked." if covered else "")
+        if failed:
+            blocked += (f" The scan got no answer on {failed} of {len(pieces)} pieces: this photo counts as seen close "
+                        f"only where a sign would look clear in the photo itself.")
         kept: list[list[float]] = []
         for h in hits:
             if len(kept) < SCAN_HITS and all(abs(angle_diff(h[0], k[0])) > SCAN_SAME_DEG for k in kept):
@@ -854,8 +873,6 @@ class Session:
         return min(before or close, key=lambda p: math.dist(self._xy(p), target))
 
     def _opening(self) -> list[Photo]:
-        """Two wide sweeps taken for the explorer: ahead-right from before the start and behind-right from after it,
-        each from the farthest of OPENING_OFFSETS_M with a panorama and no corner between it and the start."""
         start = self.world.starts[0].along
         lo, hi = self.world.limits
         chosen: list[tuple[Panorama, float, str, str]] = []
@@ -983,7 +1000,7 @@ class Session:
         return sorted(out, key=lambda t: -t[2])
 
     def _mark_seen_close(self, photo: Photo) -> None:
-        for i, close, side, covered in self._views(self._camera(photo), photo.along, photo.scanned, photo.cover):
+        for i, close, side, covered in self._views(self._camera(photo), photo.along, photo.strip, photo.cover):
             if self.state[i] in ("unscanned", "hidden", "seen_close"):
                 continue
             if not close:
@@ -994,10 +1011,11 @@ class Session:
             seen[side] = seen.get(side, True) and covered
             self.state[i] = ("seen_close" if not all(seen.values()) else "hidden" if len(seen) > 1 else "blocked")
 
-    def _gain(self, camera: Camera, along: float) -> list[int]:
-        scanned = self.scanner is not None and self.tile_source is not None
+    def _gain(self, camera: Camera, along: float, pano_id: str) -> list[int]:
+        plan = self._scan_plan(pano_id, camera, along)
+        strip = (plan[0].bearing_of(0.0), plan[0].fov) if isinstance(plan, tuple) else None
         out = []
-        for i, close, side, _ in self._views(camera, along, scanned, []):
+        for i, close, side, _ in self._views(camera, along, strip, []):
             st = self.state[i]
             if st in ("unscanned", "hidden", "seen_close"):
                 continue
@@ -1005,7 +1023,7 @@ class Session:
                 out.append(i)
         return out
 
-    def _views(self, camera: Camera, along: float, scanned: bool,
+    def _views(self, camera: Camera, along: float, strip: tuple[float, float] | None,
                cover: list[tuple[float, float]]) -> list[tuple[int, bool, int, bool]]:
         facing = 1 if abs(angle_diff(camera.heading, self._travel_bearing(along))) < 90 else -1
         out = []
@@ -1017,11 +1035,12 @@ class Session:
                 continue
             d = math.dist(p, camera.position)
             px = camera.pixels_across(SIGN_M, d)
-            if px < SPOT_PX:
-                continue
-            close = px >= READABLE_PX or (scanned and d <= CLOSE_M)
-            side = facing if abs(self.cells[i] - along) < 2.0 else (1 if self.cells[i] > along else -1)
             bearing = compass(p[0] - camera.position[0], p[1] - camera.position[1])
+            scanned = strip is not None and (bearing - strip[0]) % 360 <= strip[1] and d <= CLOSE_M
+            close = px >= READABLE_PX or scanned
+            if not close and px < SPOT_PX:
+                continue
+            side = facing if abs(self.cells[i] - along) < 2.0 else (1 if self.cells[i] > along else -1)
             covered = any((bearing - b0) % 360 <= width for b0, width in cover)
             out.append((i, close, side, covered))
         return out
@@ -1297,7 +1316,8 @@ class Session:
             ranges = self._ranges(state)
             if ranges:
                 lines.append(f"- {label}: {', '.join(ranges)}")
-        corners = self._unexamined_corners()
+        corners = [c for c in self._unexamined_corners()
+                   if abs(c[0] - self.world.starts[0].along) <= self.ring_m + SWEEP_STANDOFF_M]
         if corners and self.outcome is None:
             lines.append("- CORNERS NOT YET EXAMINED: " + "; ".join(
                              f"{_m(x)} ({'right' if d > 0 else 'left'} turn {abs(d):.0f}°, {share:.0%})"
@@ -1376,11 +1396,14 @@ class Session:
             "path": [list(w.latlon(p)) for p in w.path.points], "start_s": w.path.start_s,
             "starts": [asdict(s) for s in w.starts], "hints": [asdict(h) for h in w.hints],
             "others": [asdict(o) for o in w.others], "found_others": [asdict(o) for o in w.found],
-            "aerial": self.aerial is not None,
+            "aerial": (str(self.aerial.relative_to(self.run_dir)) if self.aerial is not None
+                       and self.aerial.is_relative_to(self.run_dir) else self.aerial is not None),
+            "ring": {"start_m": self.ring_start_m, "aimed": self.aimed, "ring_m": self.ring_m},
             "previous": asdict(w.previous) if w.previous else None, "next": asdict(w.next) if w.next else None,
             "shared": [asdict(s) for s in self.shared],
             "panoramas": [asdict(p) for p in w.panoramas],
-            "cells": [{"along": a, "state": s} for a, s in zip(self.cells, self.state, strict=True)],
+            "cells": [{"along": a, "state": s, "sides": {str(k): v for k, v in sides.items()}}
+                      for a, s, sides in zip(self.cells, self.state, self.sides, strict=True)],
             "photos": [asdict(p) for p in self.photos], "candidates": [asdict(c) for c in self.candidates],
             "scans": self.scans, "scan_tiles": len(self.scan_tiles),
             "events": self.events, "outcome": self.outcome,

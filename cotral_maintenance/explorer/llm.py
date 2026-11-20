@@ -407,7 +407,7 @@ class LlmScanner:
         self.reference = image_part(reference)
         self.calls = 0
 
-    def __call__(self, piece: Path) -> ScanReply:
+    def __call__(self, piece: Path) -> ScanReply | None:
         self.calls += 1
         messages = [{"role": "user", "content": [
             {"type": "text", "text": "REFERENCE: the Cotral bus stop sign."}, self.reference,
@@ -421,30 +421,56 @@ class LlmScanner:
             answer = parse_scan(data["choices"][0]["message"].get("content") or "")
             if answer is not None:
                 return answer
-        return ScanReply()
+        return None
 
 
 def parse_scan(text: str) -> ScanReply | None:
-    m = re.search(r"\{.*\}", text, re.DOTALL)
-    if not m:
+    decoder = json.JSONDecoder()
+    for start in (i for i, ch in enumerate(text) if ch == "{"):
+        try:
+            j, _ = decoder.raw_decode(text, start)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(j, dict) and isinstance(j.get("sign"), bool):
+            break
+    else:
         return None
-    try:
-        j = json.loads(m.group(0))
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(j, dict):
-        return None
-    cover = [(_on_grid(c[0]), _on_grid(c[1])) for c in j.get("cover") or []
-             if isinstance(c, (list, tuple)) and len(c) == 2 and all(_is_num(v) for v in c)]
-    if j.get("sign") is False:
+    cover = _cover(j.get("cover"))
+    if j["sign"] is False:
         return ScanReply(None, cover)
-    if j.get("sign") is True and all(_is_num(j.get(k)) for k in ("x", "y")):
-        return ScanReply((_on_grid(j["x"]), _on_grid(j["y"])), cover)
+    x, y = _number(j.get("x")), _number(j.get("y"))
+    if x is None or y is None:
+        return None
+    return ScanReply((_on_grid(x), _on_grid(y)), cover)
+
+
+def _cover(value) -> list[tuple[float, float]]:
+    if not isinstance(value, list):
+        return []
+    if len(value) == 2 and all(_number(v) is not None for v in value):
+        value = [value]
+    out = []
+    for c in value:
+        if isinstance(c, dict):
+            c = [c.get("x_from", c.get("from")), c.get("x_to", c.get("to"))]
+        if isinstance(c, (list, tuple)) and len(c) >= 2:
+            a, b = _number(c[0]), _number(c[1])
+            if a is not None and b is not None:
+                out.append((_on_grid(min(a, b)), _on_grid(max(a, b))))
+    return out
+
+
+def _number(v) -> float | None:
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    if isinstance(v, str):
+        try:
+            return float(v)
+        except ValueError:
+            return None
     return None
-
-
-def _is_num(v) -> bool:
-    return isinstance(v, (int, float)) and not isinstance(v, bool)
 
 
 def _on_grid(v: float) -> float:

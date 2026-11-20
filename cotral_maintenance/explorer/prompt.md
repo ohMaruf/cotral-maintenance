@@ -46,7 +46,7 @@ and 60 tiles for close views (a zoom or look_from costs about 2-4). Marking, the
   the right.
 - Only sidewalk seen CLOSE (within about 30 m of a camera) counts as looked at. Farther away a stop sign is a few
   pixels, easily lost against a tree or in blur: "glimpsed" sidewalk still has to be swept close.
-- Something in front of the sidewalk (a tree, a parked van, a wall, another sign's pole) can hide a sign. The scan
+- Something between the camera and the kerb (a tree, a parked van, another sign's pole) can hide a sign. The scan
   says where; that stretch is BLOCKED from one side, and a sweep aimed at it looks from the other side.
 - The SEARCH RING: sweeps aim within a distance of the start that starts at 25 m (OpenStreetMap start) or 50 m
   (others) and widens by 25 m every 2 sweeps, ahead and behind alike. Inside it, look wherever you judge best: both

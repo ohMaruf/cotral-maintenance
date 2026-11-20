@@ -651,8 +651,9 @@ def test_nothing_round_a_corner_is_seen(tmp_path):
 def test_a_sweep_facing_a_corner_makes_the_harness_look_round_it(tmp_path):
     s = make_session(tmp_path, corner_world())
     s.begin()
+    assert "CORNERS NOT YET EXAMINED" not in s._state()
+    s.ring_start_m = 100.0
     assert "CORNERS NOT YET EXAMINED" in s._state() and "+100 m (right turn 90°" in s._state()
-    s.ring_start_m = math.inf
     result = s.sweep(at_m=95)
     after, before = s.photos[-2:]
     assert len(result.images) == 3 and "CORNER +100 m" in result.text
@@ -953,7 +954,12 @@ def test_a_plate_with_this_stops_id_or_a_neighbours_is_named(tmp_path):
 
 def test_a_scan_reply_carries_the_sign_and_what_stands_in_front():
     from cotral_maintenance.explorer.llm import parse_scan
-    assert parse_scan('{"sign": false, "cover": [[100, 300], [700, 650]]}') == ScanReply(None, [(100.0, 300.0), (700.0, 650.0)])
+    assert parse_scan('{"sign": false, "cover": [[100, 300], [700, 650]]}') == ScanReply(None, [(100.0, 300.0), (650.0, 700.0)])
+    assert parse_scan('{"sign": false, "cover": 1}') == parse_scan('{"sign": false, "cover": true}') == ScanReply()
+    assert parse_scan('{"sign": false, "cover": [100, 300]}').cover == [(100.0, 300.0)]
+    assert parse_scan('{"sign": false, "cover": [{"x_from": 10, "x_to": 20}]}').cover == [(10.0, 20.0)]
+    assert parse_scan('{"sign": false, "cover": [[100, 300, "tree"], ["5", "9"]]}').cover == [(100.0, 300.0), (5.0, 9.0)]
+    assert parse_scan('```json\n{"sign": false}\n```\nNote: {"maybe": 1}') == ScanReply()
     assert parse_scan('```json\n{"sign": true, "x": 400, "y": 1200, "cover": []}\n```') == ScanReply((400.0, 1000.0), [])
     assert parse_scan('{"sign": false}') == ScanReply(None, [])
     assert parse_scan('{"sign": false, "cover": [[1, "a"], 5]}') == ScanReply(None, [])
@@ -980,3 +986,43 @@ def test_the_scan_covers_a_sign_a_little_left_of_the_route_line(tmp_path):
     x0, _, x1, _ = s._scan_box(camera, before.along)
     sign = s.world.path.point(before.along + 30, -2.0)
     assert x0 <= camera.column_of(sign) <= x1
+
+
+def test_without_scan_tiles_the_same_sweep_is_not_taken_again(tmp_path, monkeypatch):
+    from cotral_maintenance.explorer import session as module
+    monkeypatch.setattr(module, "MAX_SCAN_TILES", 10)
+    s = scanning_session(tmp_path, FakeScanner())
+    s.begin()
+    s.sweep(at_m=40)
+    s.sweep(at_m=40)
+    assert [p.toward for p in s.photos[2:]] == ["sweep_ahead", "sweep_behind"]
+    with pytest.raises(ToolError, match="nothing new"):
+        s.sweep(at_m=40)
+    assert len(s.photos) == 4
+
+
+class FailingScanner(FakeScanner):
+    def __call__(self, piece):
+        super().__call__(piece)
+        return None
+
+
+def test_a_scan_without_answers_gives_no_close_credit(tmp_path):
+    s = scanning_session(tmp_path, FailingScanner())
+    result = s.begin()
+    assert "no answer on" in result.text and all(p.strip is None for p in s.photos[:2])
+    before = s.photos[0]
+    assert state_at(s, before.along + 25) != "seen_close"
+
+
+def test_an_osm_ring_already_seen_close_lets_the_search_out(tmp_path):
+    s = scanning_session(tmp_path, FakeScanner())
+    s.__init__(osm_start_world(), s.run_dir, s.image_cache, s.metadata, s.fetch_image, s.confirmer, s.tile_source,
+               scanner=s.scanner)
+    s.begin()
+    s.sweep(at_m=-25)
+    s.sweep(at_m=25)
+    s.ring_start_m = 0.0
+    inside = [st for a, st in zip(s.cells, s.state, strict=True) if abs(a) <= s.ring_m]
+    assert all(st == "seen_close" for st in inside)
+    s.sweep(at_m=s.ring_m + 40)

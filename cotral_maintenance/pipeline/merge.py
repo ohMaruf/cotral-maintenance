@@ -1,14 +1,18 @@
 import json
+import re
 import shutil
 from pathlib import Path
 
+from ..errors import CotralMaintenanceError
 from ..runstore import DB_NAME, RunStore, media_path
 
+SHA = re.compile(r"\b[0-9a-f]{64}\b")
+RANK = {"found": 3, "not_found": 2, "no_imagery": 2, "error": 1}
 STOP_TABLES = ("starts", "explorations", "photos", "transcripts", "scores")
 WITH_INVOCATION = ("starts", "explorations", "scores")
 
 
-class MergeError(Exception):
+class MergeError(CotralMaintenanceError):
     pass
 
 
@@ -41,12 +45,13 @@ def _merge(target: Path, sources: list[Path]) -> dict:
                 if gtfs is not None and digest[0] != gtfs:
                     raise MergeError(f"{source.name} was made from another GTFS feed")
                 gtfs = digest[0]
-            found = {r[0] for r in c.execute(f"SELECT stop_id FROM {s}.explorations WHERE status = 'found'")}
+            status = dict(c.execute(f"SELECT stop_id, status FROM {s}.explorations").fetchall())
             for (stop_id,) in c.execute(f"SELECT stop_id FROM {s}.stops ORDER BY position"):
                 if stop_id not in winner:
                     order.append(stop_id)
-                if stop_id not in winner or stop_id in found or winner[stop_id][1] is False:
-                    winner[stop_id] = (n, stop_id in found)
+                rank = RANK.get(status.get(stop_id), 0)
+                if stop_id not in winner or rank >= winner[stop_id][1]:
+                    winner[stop_id] = (n, rank)
         with run.transaction():
             for n, source in enumerate(sources):
                 s = f"s{n}"
@@ -103,7 +108,7 @@ def _merge(target: Path, sources: list[Path]) -> dict:
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, dst)
                 copied += 1
-        found = sum(1 for _, f in winner.values() if f)
+        found = sum(1 for _, rank in winner.values() if rank == RANK["found"])
         from .export import write_results
         write_results(run)
     return {"stops": len(order), "found": found, "photos": copied, "missing_photos": missing,
@@ -111,12 +116,10 @@ def _merge(target: Path, sources: list[Path]) -> dict:
 
 
 def _media_of(run: RunStore, stop_id: str) -> set[str]:
-    shas = {r["media"] for r in run.query("SELECT media FROM photos WHERE stop_id = ?", (stop_id,))}
-    for r in run.query("SELECT stop_photos, record FROM explorations WHERE stop_id = ?", (stop_id,)):
-        shas |= set(json.loads(r["stop_photos"]))
-        record = json.loads(r["record"])
-        shas |= {p["file"] for p in record.get("photos", []) if p.get("file")}
-    for r in run.query("SELECT photos FROM scores WHERE stop_id = ?", (stop_id,)):
-        shas |= set(json.loads(r["photos"]))
-    return {s for s in shas if s and "/" not in s}
-
+    shas: set[str] = set()
+    for table in ("photos", "explorations", "scores"):
+        for row in run.query(f"SELECT * FROM {table} WHERE stop_id = ?", (stop_id,)):
+            for value in dict(row).values():
+                if isinstance(value, str):
+                    shas |= set(SHA.findall(value))
+    return shas

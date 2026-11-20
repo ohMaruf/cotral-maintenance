@@ -223,3 +223,38 @@ def test_merge_takes_a_found_row_over_a_failed_one_and_else_the_later_run(tmp_pa
     with pytest.raises(MergeError, match="no run"):
         merge(runs / "n", [runs / "a", runs / "missing"])
     assert not (runs / "n").exists()
+
+
+def test_merge_never_loses_an_exploration_to_a_run_that_did_not_finish_it(tmp_path):
+    from cotral_maintenance.pipeline.merge import merge
+
+    runs = tmp_path / "runs"
+    first, second = RunStore(runs / "a", create=True), RunStore(runs / "b", create=True)
+    first.add_stops(STOPS[:2])
+    second.add_stops(STOPS[:2])
+    first.put_exploration(exploration("f1", "not_found"), [], [])
+    first.put_exploration(exploration("f2", "not_found"), [], [])
+    second.put_exploration({**exploration("f2", "not_found"), "status": "error", "reason": "server down"}, [], [])
+    first.close()
+    second.close()
+    merge(runs / "m", [runs / "a", runs / "b"])
+    with RunStore(runs / "m") as m:
+        assert m.exploration("f1")["status"] == "not_found"
+        assert m.exploration("f2")["status"] == "not_found"
+
+
+def test_merge_copies_every_image_a_stop_refers_to(tmp_path):
+    from cotral_maintenance.pipeline.merge import merge
+
+    runs = tmp_path / "runs"
+    first, second = RunStore(runs / "a", create=True), RunStore(runs / "b", create=True)
+    first.add_stops(STOPS[:1])
+    second.add_stops(STOPS[1:2])
+    piece, aerial = first.put_media(b"scan piece"), first.put_media(b"map")
+    first.put_exploration({**exploration("f1"), "record": {"aerial": aerial, "scans": [{"pieces": [{"file": piece}]}]}},
+                          [], [])
+    second.put_exploration(exploration("f2"), [], [])
+    first.close()
+    second.close()
+    merge(runs / "m", [runs / "a", runs / "b"])
+    assert media_path(runs / "m", piece).is_file() and media_path(runs / "m", aerial).is_file()

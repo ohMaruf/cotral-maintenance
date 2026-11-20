@@ -5,7 +5,7 @@ import pytest
 
 from cotral_maintenance.explorer.confirmer import FEATURES, Checklist, ConfirmerError, parse, verdict
 from cotral_maintenance.explorer.geometry import Camera, PathFrame, angle_diff, compass, triangulate
-from cotral_maintenance.explorer.session import (GRID, plate_matches, names_a_stop_like_thing, EXPLORE_IMAGES, IMAGE_SIZE, MAX_CONFIRMS, MAX_IMAGES,
+from cotral_maintenance.explorer.session import (GRID, plate_matches, names_a_stop_like_thing, EXPLORE_IMAGES, IMAGE_SIZE, MAX_CALLS, MAX_CONFIRMS, MAX_IMAGES,
                                                  MAX_TILES, STOP_PHOTOS, SWEEP_FOV, ZOOM_SIZE, ScanReply, Session,
                                                  ToolError)
 from cotral_maintenance.explorer.world import Panorama, Placed, World, _visible_start_shift, shared_stretches
@@ -1080,10 +1080,21 @@ def test_the_other_directions_osm_node_gets_an_opening_and_close_spots_share_one
                    Placed("OSM bus stop 'Test stop'", "bus_stop", *FRAME.to_latlon(430.0, 6.0), 130.0, -6.0, "f2")]
     s.__init__(world, s.run_dir, s.image_cache, s.metadata, s.fetch_image, s.confirmer, s.tile_source,
                scanner=s.scanner)
-    anchors = [round(a) for a, _ in s._anchors()]
+    anchors = [round(a) for a, *_ in s._anchors()]
     assert anchors == [100, 60, 130]
     result = s.begin()
     assert "in OpenStreetMap" in result.text and s.explore_used == 5
+
+
+def test_a_same_name_stop_on_the_right_is_not_a_partner_and_gtfs_does_not_widen_the_ring(tmp_path):
+    s = scanning_session(tmp_path, FakeScanner())
+    world = misplaced_osm_world(partner=False)
+    world.others = [Placed("f2 Test stop", "stop", *FRAME.to_latlon(426.0, -9.0), 126.0, 9.0, "f2")]
+    s.__init__(world, s.run_dir, s.image_cache, s.metadata, s.fetch_image, s.confirmer, s.tile_source,
+               scanner=s.scanner)
+    assert [round(a) for a, *_ in s._anchors()] == [100]
+    s.begin()
+    assert s.ring_start_m == 25.0
 
 
 def test_a_found_partner_replaces_its_osm_and_timetable_openings(tmp_path):
@@ -1095,7 +1106,7 @@ def test_a_found_partner_replaces_its_osm_and_timetable_openings(tmp_path):
                scanner=s.scanner)
     s.world.found = place_found(s.world, [("f2", "Test stop", *FRAME.to_latlon(420.0, 9.0))])
     anchors = s._anchors()
-    assert [round(a) for a, _ in anchors] == [100, 120]
+    assert [round(a) for a, *_ in anchors] == [100, 120]
     assert "(found)" in anchors[1][1]
 
 
@@ -1105,6 +1116,34 @@ def test_a_confirmed_candidate_left_unsubmitted_is_submitted_when_the_search_end
     session.finish("turn cap")
     assert session.outcome["status"] == "found" and session.outcome["candidate"] == 1
     assert session.outcome["submitted_by"] == "the harness (turn cap)"
+
+
+def test_a_confirmed_candidate_is_submitted_after_the_call_cap(session):
+    spot_and_confirm(session, fermata_or_bus_text="yes", cotral_logo="yes")
+    session.calls = MAX_CALLS
+    with pytest.raises(ToolError, match="call cap"):
+        session.note("x")
+    session.finish("the explorer ended: outcome")
+    assert session.outcome["status"] == "found" and session.outcome["submitted_by"] == "the harness (call cap)"
+    assert session.events[-1]["tool"] == "harness_submit"
+
+
+def test_a_failed_harness_submit_ends_not_found_instead_of_crashing(session):
+    spot_and_confirm(session, fermata_or_bus_text="yes", cotral_logo="yes")
+
+    def down(*_):
+        raise ConnectionError("timeout")
+    session.fetch_image = down
+    session.image_cache = session.run_dir / "empty_cache"
+    session.finish("turn cap")
+    assert session.outcome["status"] == "not_found" and "could not submit candidate 1" in session.outcome["reason"]
+
+
+def test_the_harness_does_not_submit_a_candidate_left_of_the_path(session):
+    spot_and_confirm(session, fermata_or_bus_text="yes", cotral_logo="yes")
+    session.candidates[0].offset = -9.0
+    session.finish("turn cap")
+    assert session.outcome == {"status": "not_found", "reason": "turn cap"}
 
 
 def test_without_a_confirmed_candidate_the_end_is_not_found(session):

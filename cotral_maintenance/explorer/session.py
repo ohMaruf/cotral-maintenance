@@ -205,9 +205,8 @@ class Session:
         self.calls = 0
         self.judged: set[int] = set()  # close views the confirmer has answered on
         start = world.starts[0]
-        self.ring_start_m = max([RING_START_M["osm" if start.kind.startswith("osm") else start.kind
-                                              if start.kind in RING_START_M else "gtfs"],
-                                 *(abs(a - start.along) + SWEEP_TARGET_M for a, _ in self._anchors())])
+        self.ring_start_m = RING_START_M["osm" if start.kind.startswith("osm") else start.kind
+                                         if start.kind in RING_START_M else "gtfs"]
         self.aimed = 0
         self.outcome: dict | None = None
         self.events: list[dict] = []
@@ -422,7 +421,12 @@ class Session:
     def submit_found(self, candidate: int) -> ToolResult:
         args = {"candidate": candidate}
         self._count_call()
-        c = self._candidate(candidate)
+        stop_photos = self._submit(self._candidate(candidate))
+        text = f"Submitted. The search is over: found. The harness took {len(stop_photos)} photos of the stop."
+        return self._log("submit_found", args, ToolResult(text, [self._file(p) for p in stop_photos], done=True))
+
+    def _submit(self, c: Candidate) -> list[Photo]:
+        candidate = c.index
         if c.status != "confirmed":
             raise ToolError(f"candidate {candidate} is {c.status}, not confirmed; confirm it first")
         target = self.world.frame.to_xy(c.lat, c.lon)
@@ -446,8 +450,7 @@ class Session:
                         "stop_photos": [p.file for p in stop_photos],
                         "near_other_stop": near[0].label if near else None,
                         "plate_matches": plate_matches(c.plate_text, self.world.stop.stop_id)}
-        text = f"Submitted. The search is over: found. The harness took {len(stop_photos)} photos of the stop."
-        return self._log("submit_found", args, ToolResult(text, [self._file(p) for p in stop_photos], done=True))
+        return stop_photos
 
     def exhausted(self) -> str | None:
         """Why nothing more can be found, or None. No confirmed candidate, and no way to get one: confirmations
@@ -468,18 +471,27 @@ class Session:
 
     def finish(self, reason: str) -> None:
         if self.outcome is not None:
-            return
-        confirmed = [c for c in self.candidates if c.status == "confirmed"]
+            if self.outcome.get("reason") != "call cap":
+                return
+            reason = "call cap"
+            self.outcome = None
+        confirmed = [c for c in self.candidates if c.status == "confirmed" and c.offset >= -2]
         own = self.world.stop.stop_id
         for c in sorted(confirmed, key=lambda c: (plate_matches(c.plate_text, own), c.evidence == "cotral_sign",
                                                    c.index), reverse=True):
-            self.calls = min(self.calls, MAX_CALLS - 1)
             try:
-                self.submit_found(c.index)
+                stop_photos = self._submit(c)
             except ToolError:
                 continue
+            except Exception as error:
+                self.outcome = {"status": "not_found",
+                                "reason": f"{reason}; the harness could not submit candidate {c.index}: {error}"}
+                self.log_error("harness_submit", {"candidate": c.index}, str(error))
+                return
             self.outcome["submitted_by"] = f"the harness ({reason})"
-            self.save()
+            self._log("harness_submit", {"candidate": c.index},
+                      ToolResult(f"The harness submitted candidate {c.index} ({reason}).",
+                                 [self._file(p) for p in stop_photos], done=True))
             return
         self.outcome = {"status": "not_found", "reason": reason}
         self.save()
@@ -881,25 +893,27 @@ class Session:
         before = [p for p in close if (target[0] - self._xy(p)[0]) * tx + (target[1] - self._xy(p)[1]) * ty >= 3.0]
         return min(before or close, key=lambda p: math.dist(self._xy(p), target))
 
-    def _anchors(self) -> list[tuple[float, str]]:
+    def _anchors(self) -> list[tuple[float, str, bool]]:
         name = self.world.stop.name.strip().lower()
-        partners = [o for o in self.world.others if o.label.split(" ", 1)[-1].strip().lower() == name]
+        partners = [o for o in self.world.others
+                    if o.offset < 0 and o.label.split(" ", 1)[-1].strip().lower() == name]
         ids = {o.ref for o in partners if o.ref}
-        partner_osm = [h for h in self.world.hints
-                       if (h.ref and h.ref in ids) or h.label.split("'", 1)[-1].rstrip("'").strip().lower() == name]
+        partner_osm = [h for h in self.world.hints if h.offset < 0 and (
+            (h.ref and h.ref in ids) or h.label.split("'", 1)[-1].rstrip("'").strip().lower() == name)]
         found = [o for o in self.world.found if o.kind == "found_partner"]
-        out = [(st.along, f"{st.label}, another estimate of this stop's position") for st in self.world.starts[1:]]
-        out += [(o.along, f"across the road from {o.label}") for o in found]
+        out = [(st.along, f"{st.label}, another estimate of this stop's position", False)
+               for st in self.world.starts[1:]]
+        out += [(o.along, f"across the road from {o.label}", True) for o in found]
         if not found:
             out += [(h.along, f"across the road from {h.label}{' ' + h.ref if h.ref else ''}, the same-name stop of "
-                              f"the other direction in OpenStreetMap") for h in partner_osm]
+                              f"the other direction in OpenStreetMap", True) for h in partner_osm]
             out += [(o.along, f"across the road from {o.label}, the same-name stop of the other direction "
-                              f"(timetable position)") for o in partners]
+                              f"(timetable position)", True) for o in partners]
         lo, hi = self.world.limits
-        kept: list[tuple[float, str]] = []
-        for a, label in out:
-            if lo <= a <= hi and all(abs(a - k) >= SWEEP_TARGET_M for k, _ in kept):
-                kept.append((a, label))
+        kept: list[tuple[float, str, bool]] = []
+        for a, label, widens in out:
+            if lo <= a <= hi and all(abs(a - k) >= SWEEP_TARGET_M for k, _, _ in kept):
+                kept.append((a, label, widens))
         return kept
 
     def _opening(self) -> tuple[list[tuple[Photo, str]], list[str], list[Photo]]:
@@ -917,7 +931,7 @@ class Session:
         scanned, found = self._scan_all([p for p, _ in shots])
         for p, _ in shots:
             self._mark_seen_close(p)
-        for at, label in self._anchors():
+        for at, label, widens in self._anchors():
             if len(shots) >= MAX_OPENINGS or abs(at - start) < SWEEP_TARGET_M:
                 continue
             target = min(range(len(self.cells)), key=lambda i: abs(self.cells[i] - at))
@@ -931,6 +945,8 @@ class Session:
             self._spend()
             photo = self._shoot(pano, heading, SWEEP_FOV, 0.0, f"opening_{f}", along=along)
             shots.append((photo, f"aimed at {_m(at)}: {label}"))
+            if widens:
+                self.ring_start_m = max(self.ring_start_m, abs(at - start) + SWEEP_TARGET_M)
             lines, more = self._scan_all([photo])
             scanned += lines
             found += more
@@ -1247,12 +1263,14 @@ class Session:
                          "theirs): " + "; ".join(f"{o.label} at {_m(o.along)}, {abs(o.offset):.0f} m {_side(o.offset)}"
                                                  for o in w.found) + ".")
         lines.append("Panoramas: " + self._panorama_text())
-        lines.append(f"Budget: {EXPLORE_IMAGES} wide images (the opening one included; 1 per sweep) for looking broadly, "
-                     f"{MAX_TILES} tiles for close views (a zoom or look_from costs about 2-4 tiles), {MAX_CONFIRMS} "
-                     f"confirmations (free).")
-        lines.append("Below: the opening sweeps, taken for you: two from the start, AHEAD-RIGHT and BEHIND-RIGHT, "
-                     "and one aimed at each other likely position not yet seen close (another estimate of the "
-                     "position, the spot across the road from the same-name stop of the other direction).")
+        lines.append(f"Budget: {EXPLORE_IMAGES} wide images (the opening sweeps below included; 1 per sweep) for "
+                     f"looking broadly, {MAX_TILES} tiles for close views (a zoom or look_from costs about 2-4 tiles), "
+                     f"{MAX_CONFIRMS} confirmations (free).")
+        lines.append(f"Below: the opening sweeps, taken for you (at most {MAX_OPENINGS}): two from the start, "
+                     "AHEAD-RIGHT and BEHIND-RIGHT, then some aimed at other likely positions (another estimate of "
+                     "the position, the spot across the road from the same-name stop of the other direction). Each "
+                     "caption says where it was aimed; a likely position no caption names was either in view of an "
+                     "earlier one or is not checked yet.")
         return "\n".join(lines)
 
     def _path_text(self) -> str:

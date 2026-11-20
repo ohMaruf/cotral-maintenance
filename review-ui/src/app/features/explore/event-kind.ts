@@ -25,6 +25,7 @@ const KINDS: Record<string, { label: string; glyph: string }> = {
   show_map: { label: 'Show map', glyph: '▦' },
   note: { label: 'Note', glyph: '✎' },
   submit_found: { label: 'Submit found', glyph: '⚑' },
+  harness_submit: { label: 'Submitted by the harness', glyph: '⚑' },
   tool_error: { label: 'Refused call', glyph: '⚠' },
 };
 

@@ -313,6 +313,7 @@ export type EventKind =
   | 'show_map'
   | 'note'
   | 'submit_found'
+  | 'harness_submit'
   | 'tool_error'
   | (string & {});
 

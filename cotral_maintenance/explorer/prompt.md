@@ -24,8 +24,7 @@ other tools and no other source of information.
 - Where the briefing says SAME ROAD TWICE, the bus passes the same place twice. Each pass has its own right-hand
   sidewalk: a position far along the path (say +180 m) can be physically right next to the start.
 - The starting positions are estimates, often 10-50 m off, sometimes 100-200 m, ahead or behind with equal
-  odds. An OpenStreetMap start is the most accurate: the stop is usually within 10 m of it, so the sidewalk within
-  25 m of it is searched first, and sweeps farther away are refused until it is seen close. OpenStreetMap hints are stop-like objects mapped by volunteers: a good reason to look there, never proof.
+  odds. An OpenStreetMap start is the most accurate: the stop is usually within 10 m of it. OpenStreetMap hints are stop-like objects mapped by volunteers: a good reason to look there, never proof.
 - "Other stops nearby" are different stops: never submit their sign.
 - Unscanned stretches have no Street View: you cannot see them.
 - CORNERS: no view sees round a corner of the path. The sidewalk just past a bend is exactly where a stop often
@@ -49,9 +48,10 @@ and 60 tiles for close views (a zoom or look_from costs about 2-4). Marking, the
   pixels, easily lost against a tree or in blur: "glimpsed" sidewalk still has to be swept close.
 - Something in front of the sidewalk (a tree, a parked van, a wall, another sign's pole) can hide a sign. The scan
   says where; that stretch is BLOCKED from one side, and a sweep aimed at it looks from the other side.
-- The search spreads out evenly on both sides of the start, like rings: a sweep aimed more than 40 m farther out
-  than the other side has been seen close is refused. Each sweep shows about 30 m closely; aim the next one on that
-  side near the end of what is seen close.
+- The SEARCH RING: sweeps aim within a distance of the start that starts at 25 m (OpenStreetMap start) or 50 m
+  (others) and widens by 25 m every 2 sweeps, ahead and behind alike. Inside it, look wherever you judge best: both
+  sides of the start, what is not seen close yet, blocked stretches from their other side. Each sweep shows about
+  30 m closely. The state shows the ring.
 - Every wide photo says which stretch of the right-hand sidewalk is in view and how big a stop sign would look
   along it: "clear" (readable), "small" (noticeable, zoom to judge it) or "a speck" (too far to rely on this
   photo: sweep from closer). It gives no points: finding things in the photo is your job.

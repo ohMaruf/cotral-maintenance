@@ -235,7 +235,7 @@ def test_the_budget_leaves_room_for_the_stop_photos():
 
 def test_a_sweep_can_face_behind(session):
     session.begin()
-    session.balance_m = math.inf
+    session.ring_start_m = math.inf
     session.sweep(at_m=-100, facing="behind")
     photo = session.photos[-1]
     assert photo.toward == "sweep_behind" and photo.heading == pytest.approx(90 + 130)
@@ -245,7 +245,7 @@ def test_a_sweep_can_face_behind(session):
 
 def test_a_sweep_counts_as_seen_close_only_where_a_sign_is_readable(session):
     session.begin()
-    session.balance_m = math.inf
+    session.ring_start_m = math.inf
     session.sweep(at_m=-100, facing="ahead")
     c = session.photos[-1].along
     assert c == pytest.approx(-115, abs=6)
@@ -309,7 +309,6 @@ def test_scanned_sidewalk_counts_as_seen_close_only_within_30_m(tmp_path):
     before = session.photos[0]
     assert state_at(session, before.along + 25) == "seen_close"
     assert state_at(session, before.along + 45) == "not_looked"
-    assert 20 <= session.looked_out_to(1) <= 35
 
 
 def test_sidewalk_behind_something_is_blocked_and_the_next_sweep_looks_from_the_other_side(tmp_path):
@@ -332,7 +331,7 @@ def spot_and_confirm(session, **answers):
     """A sweep, then a zoom on something: every zoom is judged by the confirmer at once."""
     session.confirmer = FakeConfirmer(**answers)
     session.begin()
-    session.balance_m = math.inf
+    session.ring_start_m = math.inf
     session.sweep(at_m=55)
     return session.zoom(session.photos[-1].index, *at(session, session.photos[-1].index, 520, 330))
 
@@ -522,7 +521,7 @@ def test_invalid_arguments_are_explained(session):
 
 def test_a_sweep_from_the_return_pass_looks_at_its_own_right_hand_side(tmp_path):
     s = make_session(tmp_path, out_and_back_world())
-    s.balance_m = math.inf
+    s.ring_start_m = math.inf
     s.sweep(at_m=315.0)
     photo = s.photos[-1]
     assert photo.along == pytest.approx(300.0, abs=2) and photo.heading == pytest.approx(270 + 50)
@@ -576,7 +575,7 @@ def test_look_from_a_position_already_used_is_refused(session):
 
 def test_a_sweep_glimpses_the_sidewalk_where_a_sign_would_be_a_few_pixels(session):
     session.begin()
-    session.balance_m = math.inf
+    session.ring_start_m = math.inf
     session.sweep(at_m=-100, facing="ahead")
     c = session.photos[-1].along
     assert state_at(session, c + 6) == "seen_close" and state_at(session, c + 22) == "glimpsed"
@@ -643,7 +642,7 @@ def test_the_corners_of_the_path_are_found(tmp_path):
 def test_nothing_round_a_corner_is_seen(tmp_path):
     s = make_session(tmp_path, corner_world())
     s.begin()
-    s.balance_m = math.inf
+    s.ring_start_m = math.inf
     s.sweep(at_m=70)
     states = {round(a): st for a, st in zip(s.cells, s.state, strict=True)}
     assert states[60] == "seen_close" and states[120] == "not_looked"  # round the corner: not even glimpsed
@@ -653,7 +652,7 @@ def test_a_sweep_facing_a_corner_makes_the_harness_look_round_it(tmp_path):
     s = make_session(tmp_path, corner_world())
     s.begin()
     assert "CORNERS NOT YET EXAMINED" in s._state() and "+100 m (right turn 90°" in s._state()
-    s.balance_m = math.inf
+    s.ring_start_m = math.inf
     result = s.sweep(at_m=95)
     after, before = s.photos[-2:]
     assert len(result.images) == 3 and "CORNER +100 m" in result.text
@@ -764,33 +763,37 @@ def test_a_sweep_looks_at_its_spot_from_before_it_away_from_the_start(session):
     assert session._camera(ahead).column_of(session.world.path.sidewalk(17)) is not None
 
 
-def test_the_search_spreads_out_evenly(tmp_path):
-    # f306, 0.16.0: ahead out to +436 m before one sweep behind found the stop at -44 m
-    session = scanning_session(tmp_path, FakeScanner())
-    session.begin()
-    reach = session.looked_out_to(-1)
-    with pytest.raises(ToolError, match=r"evenly.*Sweep at -\d+ m first: the sidewalk there is not looked"):
-        session.sweep(at_m=reach + 60)
-    session.sweep(at_m=-40)
-    assert session.looked_out_to(-1) > reach
-    session.sweep(at_m=session.looked_out_to(-1) + 30)
-
-
-def test_a_refused_sweep_names_the_nearest_stretch_not_seen_close(tmp_path):
-    session = scanning_session(tmp_path, FakeScanner(cover_photos={2}))
-    session.begin()
-    gap = next(a for a, st in zip(session.cells, session.state, strict=True) if a > 0 and st == "blocked")
-    with pytest.raises(ToolError, match=re.escape(f"Sweep at {gap:+.0f} m first: the sidewalk there is blocked")):
-        session.sweep(at_m=-80)
-
-
-def test_a_side_with_nothing_left_to_see_doesnt_hold_the_other_back(tmp_path):
-    world = straight_world()
-    world.limits = (-20.0, 200.0)  # almost nothing behind the start
-    s = make_session(tmp_path, world)
+def test_sweeps_aim_inside_a_ring_that_widens_every_two_sweeps(tmp_path):
+    s = scanning_session(tmp_path, FakeScanner())
     s.begin()
-    assert s.looked_out_to(-1) == math.inf
+    assert "SEARCH RING: sweeps aim within 50 m of the start" in s._state()
+    with pytest.raises(ToolError, match="outside the search ring.*within 50 m.*next after 2 more"):
+        s.sweep(at_m=80)
+    assert len(s.photos) == 2
+    s.sweep(at_m=40)
+    s.sweep(at_m=-40)
+    assert s.ring_m == 75
+    s.sweep(at_m=70)
+    assert s.photos[-1].along == pytest.approx(55, abs=6)
+
+
+def test_an_osm_start_has_a_tighter_ring(tmp_path):
+    s = scanning_session(tmp_path, FakeScanner())
+    s.__init__(osm_start_world(), s.run_dir, s.image_cache, s.metadata, s.fetch_image, s.confirmer, s.tile_source,
+               scanner=s.scanner)
+    s.begin()
+    with pytest.raises(ToolError, match="within 25 m"):
+        s.sweep(at_m=40)
+    s.sweep(at_m=25)
+
+
+def test_the_ring_opens_when_nothing_inside_it_is_left_to_see(tmp_path):
+    s = scanning_session(tmp_path, FakeScanner())
+    s.begin()
+    real = s._sweep_options
+    s._sweep_options = lambda a, f, scan: ([], None) if abs(a) <= s.ring_m else real(a, f, scan)
     s.sweep(at_m=120)
+    assert s.photos[-1].along == pytest.approx(105, abs=6)
 
 
 # ---- the aerial map and the stops already found
@@ -964,35 +967,16 @@ def osm_start_world():
     return world
 
 
-def test_an_osm_start_keeps_the_search_near_it_until_its_sidewalk_is_seen_close(tmp_path):
-    s = scanning_session(tmp_path, FakeScanner(cover_photos={2}))
-    s.__init__(osm_start_world(), s.run_dir, s.image_cache, s.metadata, s.fetch_image, s.confirmer, s.tile_source,
-               scanner=s.scanner)
-    s.balance_m = math.inf
-    s.begin()
-    gap = min((a for a, st in zip(s.cells, s.state, strict=True) if abs(a) <= 25 and st == "blocked"), key=abs)
-    with pytest.raises(ToolError, match=re.escape("OpenStreetMap position") + ".*" +
-                       re.escape(f"Sweep at {gap:+.0f} m first: the sidewalk there is blocked")):
-        s.sweep(at_m=-90)
-    assert len(s.photos) == 2
-    while True:
-        try:
-            s.sweep(at_m=-90)
-            break
-        except ToolError as error:
-            spot = float(re.search(r"Sweep at ([+-]\d+) m first", str(error)).group(1))
-            s.sweep(at_m=spot)
-    assert s.photos[-1].along == pytest.approx(-75, abs=6)
-
-
-def test_a_places_start_doesnt_hold_the_search_near_it(tmp_path):
-    s = scanning_session(tmp_path, FakeScanner(cover_photos={2}))
-    s.balance_m = math.inf
-    s.begin()
-    s.sweep(at_m=-90)
-    assert s.photos[-1].along == pytest.approx(-75, abs=6)
-
-
 def test_the_briefing_gives_the_measured_odds_of_the_start(tmp_path):
     s = make_session(tmp_path, osm_start_world())
     assert "Of 504 checked stops with a start like this one, 55% within 10 m, 74% within 25 m" in s.begin().text
+
+
+def test_the_scan_covers_a_sign_a_little_left_of_the_route_line(tmp_path):
+    s = scanning_session(tmp_path, FakeScanner())
+    s.begin()
+    before = s.photos[0]
+    camera = s._camera(before)
+    x0, _, x1, _ = s._scan_box(camera, before.along)
+    sign = s.world.path.point(before.along + 14, -2.0)
+    assert x0 <= camera.column_of(sign) <= x1

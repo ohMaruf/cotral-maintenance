@@ -112,8 +112,8 @@ TOOLS = [
        "photos and the state. Call it once, first.", {}, []),
     fn("sweep", "Costs 1 image. One wide photo (fov 110) of the right-hand sidewalk around at_m metres along the "
        "path, from a panorama about 15 m before it, looking at it: away from the start, or back towards it when the "
-       "stretch is BLOCKED from that side. The search spreads out evenly: a sweep aimed more than 40 m farther out "
-       "than the other side has been seen close is refused.", {"at_m": NUM}, ["at_m"]),
+       "stretch is BLOCKED from that side. Sweeps aim inside the SEARCH RING around the start, which widens every 2 "
+       "sweeps.", {"at_m": NUM}, ["at_m"]),
     fn("zoom", f"Costs about 2-4 tiles. A sharp close-up centred on a point of a photo, from the same panorama. "
        f"{POINT}. fov 5-20 degrees (10 is a good start). what: the stop-like thing you SEE at that point, in a few "
        f"words (e.g. 'dark panel on a thin pole by the gate', 'shelter roof behind the parked van'). The harness judges "

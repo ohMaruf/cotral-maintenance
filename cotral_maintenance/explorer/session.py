@@ -52,15 +52,16 @@ SECOND_VIEW_RANGE = (0.6, 1.6)  # ... from this much to this much of the estimat
 SECOND_VIEW_FOV = 30.0
 # The search spreads out evenly from the start: a sweep standing more than this much farther out than the other side
 # has been looked at is refused (0.16.0 NVFP4 swept ahead out to +436 m before one sweep behind found f306 at -44 m).
-BALANCE_M = 40.0
-LOOKED_SHARE = 0.7  # a side counts as looked at out to where this share of its sidewalk has been seen
+RING_START_M = {"osm": 25.0, "places": 50.0, "gtfs": 50.0}
+RING_STEP_M = 25.0
+RING_EVERY = 2
+RING_PROBE_M = 10.0
 MAX_CALLS = 100
 SCAN_RANGE_M = (5.0, 40.0)
 CLOSE_M = 30.0
 SWEEP_STANDOFF_M = 15.0
 SWEEP_TARGET_M = 15.0
-OSM_ZONE_M = 25.0
-SCAN_OFFSETS_M = (3.0, 8.0, 14.0)
+SCAN_OFFSETS_M = (-3.0, 3.0, 8.0, 14.0)
 SCAN_TOP_M = 4.0
 SCAN_MARGIN_PX = 12
 SCAN_SCALE = 3.9
@@ -206,7 +207,10 @@ class Session:
         self.confirms = 0
         self.calls = 0
         self.judged: set[int] = set()  # close views the confirmer has answered on
-        self.balance_m = BALANCE_M  # inf switches the even-spread rule off (geometry tests)
+        start = world.starts[0]
+        self.ring_start_m = RING_START_M["osm" if start.kind.startswith("osm") else start.kind
+                                         if start.kind in RING_START_M else "gtfs"]
+        self.aimed = 0
         self.outcome: dict | None = None
         self.events: list[dict] = []
         cells = world.cells()
@@ -500,8 +504,7 @@ class Session:
         lo, hi = self.world.limits
         if not lo - 20 <= at_m <= hi + 20:
             raise ToolError(f"{_m(at_m)} is outside the search limits ({_m(lo)} to {_m(hi)})")
-        self._refuse_outside_osm_zone(at_m)
-        self._refuse_if_unbalanced(at_m)
+        self._refuse_outside_ring(at_m)
         options, error = self._sweep_options(at_m, facing, scan)
         if not options:
             raise error
@@ -509,6 +512,7 @@ class Session:
         if not total:
             self._refuse_nothing_new(camera, at_m)
         self.sweeps += 1
+        self.aimed += 1
         return self._shoot(pano, heading, SWEEP_FOV, 0.0, f"sweep_{f}", along=along, shot=self.sweeps)
 
     def _sweep_options(self, at_m: float, facing: str | None, scan: str | None) -> tuple[list[tuple], ToolError | None]:
@@ -531,42 +535,27 @@ class Session:
             options.append((target in gain, bool(gain), near > 0, -len(options), f, pano, along, heading, camera))
         return options, error
 
-    def _refuse_outside_osm_zone(self, at_m: float) -> None:
-        start = self.world.starts[0]
-        if not start.kind.startswith("osm") or abs(at_m - start.along) <= OSM_ZONE_M + SWEEP_STANDOFF_M:
+    @property
+    def ring_m(self) -> float:
+        return self.ring_start_m + RING_STEP_M * (self.aimed // RING_EVERY)
+
+    def _ring_text(self) -> str:
+        left = RING_EVERY - self.aimed % RING_EVERY
+        return (f"sweeps aim within {self.ring_m:.0f} m of the start for now; the ring widens by {RING_STEP_M:.0f} m "
+                f"every {RING_EVERY} sweeps (next after {left} more)")
+
+    def _refuse_outside_ring(self, at_m: float) -> None:
+        start = self.world.starts[0].along
+        if abs(at_m - start) <= self.ring_m:
             return
-        open_cells = sorted((i for i, a in enumerate(self.cells) if abs(a - start.along) <= OSM_ZONE_M
-                             and self.state[i] not in ("seen_close", "hidden", "unscanned")),
-                            key=lambda i: abs(self.cells[i] - start.along))
-        for i in open_cells:
-            options, _ = self._sweep_options(self.cells[i], None, None)
-            if any(o[0] for o in options):
-                raise ToolError(f"the start is an OpenStreetMap position, usually within 10 m of the stop: the sidewalk "
-                                f"within {OSM_ZONE_M:.0f} m of it is searched first. Sweep at {_m(self.cells[i])} first: "
-                                f"the sidewalk there is {self.state[i].replace('_', ' ')}.")
-
-    def looked_out_to(self, side: int) -> float:
-        cells = sorted((abs(a), st) for a, st in zip(self.cells, self.state, strict=True) if a * side > 0)
-        reach, looked = 0.0, 0
-        for n, (d, st) in enumerate(cells, 1):
-            looked += st in ("seen_close", "hidden", "unscanned")
-            if looked / n >= LOOKED_SHARE:
-                reach = d
-        return math.inf if cells and reach >= cells[-1][0] - CELL_M else reach
-
-    def _refuse_if_unbalanced(self, at_m: float) -> None:
-        side = 1 if at_m >= 0 else -1
-        other = self.looked_out_to(-side)
-        if abs(at_m) > other + self.balance_m:
-            name, sign = ("behind" if side > 0 else "ahead"), -side
-            gap = min((i for i, a in enumerate(self.cells) if a * sign > 0
-                       and self.state[i] not in ("seen_close", "hidden", "unscanned")),
-                      key=lambda i: abs(self.cells[i]), default=None)
-            first = (f" Sweep at {_m(self.cells[gap])} first: the sidewalk there is "
-                     f"{self.state[gap].replace('_', ' ')}." if gap is not None else f" Sweep {name} first.")
-            raise ToolError(f"the search spreads out evenly from the start: {name} it is seen close only out to "
-                            f"{_m(sign * other)}, so no sweep aims farther out than {_m(side * (other + self.balance_m))} "
-                            f"here yet." + first)
+        lo, hi = self.world.limits
+        a = max(lo, start - self.ring_m)
+        while a <= min(hi, start + self.ring_m):
+            options, _ = self._sweep_options(a, None, None)
+            if any(o[1] for o in options):
+                raise ToolError(f"{_m(at_m)} is outside the search ring: {self._ring_text()}. Sweep inside it, "
+                                f"from {_m(start - self.ring_m)} to {_m(start + self.ring_m)}.")
+            a += RING_PROBE_M
 
     def _refuse_nothing_new(self, camera: Camera, at_m: float) -> None:
         shown = [i for i, p in enumerate(self._sidewalk) if camera.column_of(p) is not None
@@ -1298,7 +1287,7 @@ class Session:
         total = sum(lik)
         lines = [f"STATE: {EXPLORE_IMAGES - self.explore_used}/{EXPLORE_IMAGES} images, "
                  f"{MAX_TILES - len(self.tiles_paid)}/{MAX_TILES} tiles, {MAX_CONFIRMS - self.confirms}/{MAX_CONFIRMS} "
-                 f"confirmations left."]
+                 f"confirmations left.", f"- SEARCH RING: {self._ring_text()}."]
         for state, label in (("seen_close", "seen close"),
                              ("blocked", "BLOCKED from one side (something in front could hide a sign: sweep there, "
                                          "the harness looks from the other side)"),

@@ -71,7 +71,7 @@ def build_parser() -> argparse.ArgumentParser:
                           "(default: Google's free tiers 1000, 10000, 5000)")
     run.add_argument("--allow-new-gtfs", action="store_true", help="accept a GTFS feed that changed since the run began")
     run.add_argument("--max-turns", type=int, default=None, metavar="N",
-                     help="end each stop's search after N explorer turns (default 30), for quick tests")
+                     help="end each stop's search after N explorer turns (default 10)")
     run.add_argument("--allow-mixed", action="store_true",
                      help="add scores of this code's version to a run scored by another (ingest and explore "
                           "always mix)")

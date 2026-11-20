@@ -29,7 +29,7 @@ from PIL import Image
 from .confirmer import ANSWERS, FEATURES, Checklist, ConfirmerError, instructions, parse
 from .session import GRID, ScanReply, Session, ToolError
 
-MAX_TURNS = 30
+MAX_TURNS = 10
 MAX_INVALID = 3  # failed requests or replies without a call, in a row
 MAX_REPEATS = 4  # the same failing call this many times in a row
 STALL_NUDGE, STALL_END = 4, 8  # turns in a row that change nothing: a nudge, then the end

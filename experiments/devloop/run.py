@@ -44,7 +44,7 @@ def main() -> None:
     parser.add_argument("--tag", default=datetime.now().strftime("%Y%m%d-%H%M%S"))
     parser.add_argument("--model", default="haiku", help="the explorer")
     parser.add_argument("--vision-model", default="haiku", help="the confirmer and the scanner")
-    parser.add_argument("--max-turns", type=int, default=30)
+    parser.add_argument("--max-turns", type=int, default=10)
     parser.add_argument("--parallel", type=int, default=2)
     parser.add_argument("--timeout", type=int, default=3600)
     args = parser.parse_args()

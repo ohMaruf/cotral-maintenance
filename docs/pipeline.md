@@ -170,9 +170,10 @@ commit that does not touch a phase must not split its rows. The commit, a sha256
 diff and the package version are recorded per invocation. A code change that alters a phase's
 output without touching a prompt must bump that phase's constant.
 
-A run is one batch: `cotral run` refuses to add rows of one version to a phase whose rows another
-version made, and says so. Then either redo the phase for the run (`--resume --force score`; scores
-are free, explorations are billed), start a new run for the new version, or pass `--allow-mixed`.
+Ingest and explore rows of different versions mix in one run: a found stop is found, whatever
+harness found it, and every row keeps its version. Scores must be uniform: `cotral run` refuses to
+add scores of one version to a run scored by another, and says so. Then either rescore the run
+(`--resume --force score`; scores are free), start a new run, or pass `--allow-mixed`.
 `cotral status RUN` lists the rows per version; `results.csv` has `ingest_version`,
 `explore_version`, `score_version`, and `versions.json` (also in a bundle) holds what each means.
 Rows made before versions were recorded show `unknown`; explorations got theirs back from the

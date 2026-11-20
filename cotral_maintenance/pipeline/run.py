@@ -186,10 +186,11 @@ def phase_versions(req: RunRequest, paths: Paths, osm: OsmStore, gtfs_sha256: st
             "score": V.score_detail(req.profile.scorer.describe())}
 
 
+MIXABLE = ("ingest", "explore")
+
+
 def _stamp_versions(run: RunStore, seq: int, req: RunRequest, paths: Paths, osm: OsmStore, package: str | None,
                     targets: list[str]) -> None:
-    """Record the versions this invocation runs with, stamp them on the rows it writes, and refuse to add rows of
-    one version to a phase whose rows were made by another (unless allowed): a run is one batch, one version."""
     details = phase_versions(req, paths, osm, sha256_file(paths.gtfs / "stops.txt"))
     versions = {phase: V.fingerprint(d) for phase, d in details.items()}
     mixed = []
@@ -202,7 +203,10 @@ def _stamp_versions(run: RunStore, seq: int, req: RunRequest, paths: Paths, osm:
         unknown = others.pop(None, 0)
         if unknown:
             logger.warning("%s: %d rows were made before versions were recorded (version unknown)", phase, unknown)
-        if others:
+        if others and phase in MIXABLE:
+            logger.info("%s: adding rows of %s beside %s", phase, versions[phase],
+                        ", ".join(f"{n} rows of {v}" for v, n in others.items()))
+        elif others:
             mixed.append(f"{phase}: this code is version {versions[phase]}, the run has "
                          + ", ".join(f"{n} rows of {v}" for v, n in others.items()))
     if mixed and not req.allow_mixed:

@@ -67,10 +67,11 @@ def build_parser() -> argparse.ArgumentParser:
                      help="redo this phase (and the later ones) for the selected stops; explore is billed")
     run.add_argument("--cap", action="append", default=[], metavar="API=N",
                      help="monthly cap of billed requests per API key: static, tiles, places "
-                          "(default: Google's free tiers 10000, 100000, 5000)")
+                          "(default: Google's free tiers 1000, 10000, 5000)")
     run.add_argument("--allow-new-gtfs", action="store_true", help="accept a GTFS feed that changed since the run began")
     run.add_argument("--allow-mixed", action="store_true",
-                     help="add rows of this code's versions to phases whose rows another version made")
+                     help="add scores of this code's version to a run scored by another (ingest and explore "
+                          "always mix)")
     run.add_argument("--allow-stale", action="store_true",
                      help="run even if this checkout is behind its remote or inputs/ is not at the pinned commit")
 

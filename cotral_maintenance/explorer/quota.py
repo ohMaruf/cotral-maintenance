@@ -1,15 +1,3 @@
-"""The monthly free tiers of the billed Google APIs, and a ledger that keeps runs inside them.
-
-Google gives, per billing account and calendar month, 1,000 Static Street View images and
-10,000 Map Tiles Street View tiles free (metadata requests are free and unlimited). The
-dataset is computed over months: a stop is started only when the month's remaining free
-requests cover the most that stop could use, and every run adds what it actually billed.
-
-The ledger only knows what goes through it: other uses of the same API key (the scoring
-pipeline's phase 2 downloads Static images too) share the free tier, so record them here
-or keep a margin.
-"""
-
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -32,7 +20,7 @@ class MonthlyLedger:
     def __init__(self, path: Path, free: dict[str, int] | None = None, margin: float = 0.05) -> None:
         self.path = path
         self.free = free or FREE_PER_MONTH
-        self.margin = margin  # a share of each free tier left unused, for other uses of the key
+        self.margin = margin
         self.data: dict[str, dict] = json.loads(path.read_text()) if path.is_file() else {}
 
     @staticmethod

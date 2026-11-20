@@ -1,16 +1,3 @@
-"""The end-to-end pipeline on one run: GTFS records in, ranked maintenance scores out.
-
-    ingest   GTFS -> OSM (Geofabrik) -> Places -> GTFS: where each stop's search starts (CPU, Places API)
-    explore  the LLM explorer finds each stop in Street View and keeps 1-2 photos of it (GPU, Street View)
-    score    Imajev scores each found stop from its photos (GPU)
-    export   results.csv, ranked
-
-Explore and score need different models, and one GPU holds one of them at a time, so the stops are
-taken in chunks: explore a chunk, swap the server, score it, write the results, next chunk. Results
-come in from the first chunk on, and a long run (thousands of stops, over months of Street View
-budget) can be stopped and resumed anywhere: every stop is stored as soon as it is done.
-"""
-
 import logging
 import os
 import platform
@@ -46,7 +33,7 @@ PHASES = ("ingest", "explore", "score")
 class RunRequest:
     run_id: str
     profile: Profile
-    stops: list[Stop] | None  # None: the stops already in the run
+    stops: list[Stop] | None
     phases: tuple[str, ...] = PHASES
     chunk: int = 50
     force: tuple[str, ...] = ()
@@ -61,8 +48,6 @@ class MixedVersions(ValueError):
 
 
 class Servers:
-    """At most one model server up at a time: asking for the other one stops the current one first."""
-
     def __init__(self, profile: Profile, paths: Paths, logs: Path) -> None:
         self.specs = {"explorer": profile.explorer.server, "scorer": profile.scorer.server}
         self.paths = paths
@@ -183,7 +168,6 @@ def run_pipeline(req: RunRequest, paths: Paths) -> dict:
 
 
 def phase_versions(req: RunRequest, paths: Paths, osm: OsmStore, gtfs_sha256: str) -> dict[str, dict]:
-    """The detail of the version each phase runs with in this invocation."""
     return {"ingest": V.ingest_detail(osm.meta(), gtfs_sha256),
             "explore": V.explore_detail(harness(paths), explorer_description(req.profile.explorer)),
             "score": V.score_detail(req.profile.scorer.describe())}
@@ -221,7 +205,7 @@ def _stamp_versions(run: RunStore, seq: int, req: RunRequest, paths: Paths, osm:
         run.stamp[phase] = (versions[phase], seq)
     try:
         dataset = paths.dataset.identity()
-    except (CotralMaintenanceError, OSError) as error:  # a run on inputs without a manifest still runs
+    except (CotralMaintenanceError, OSError) as error:
         dataset = {"error": str(error)}
     run.set_invocation_versions(seq, {"package": package, "dataset": dataset, **versions})
 
@@ -233,7 +217,6 @@ def _add(counts: dict, phase: str, c: dict) -> None:
 
 
 def _check_inputs(run: RunStore, stops_file: Path, allow_new: bool) -> None:
-    """A run is tied to one GTFS feed: stop ids and positions must mean the same thing in every invocation."""
     digest = sha256_file(stops_file)
     known = run.get_meta("gtfs_stops_sha256")
     if known is None:

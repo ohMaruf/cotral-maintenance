@@ -1,10 +1,3 @@
-"""Thin client for the Map Tiles API Street View endpoints (session, metadata, tiles).
-
-Tiles give the full-resolution panorama, which the Static API caps at 640x640
-per image. Tiles are cached on disk: they are the raw data, so views can be
-re-rendered with other settings without paying for them again.
-"""
-
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,20 +12,18 @@ SESSION_URL = "https://tile.googleapis.com/v1/createSession"
 METADATA_URL = "https://tile.googleapis.com/v1/streetview/metadata"
 TILE_URL = "https://tile.googleapis.com/v1/streetview/tiles/{z}/{x}/{y}"
 
-MAX_ZOOM = 5  # full-size panorama
+MAX_ZOOM = 5
 
 
 @dataclass(frozen=True)
 class PanoGeometry:
-    """Size and orientation of a panorama, from the tiles metadata endpoint."""
-
     pano_id: str
-    image_width: int  # at MAX_ZOOM
+    image_width: int
     image_height: int
     tile_width: int
     tile_height: int
-    heading: float  # compass heading of the panorama's centre column
-    tilt: float  # 90 = horizon on the equator
+    heading: float
+    tilt: float
     roll: float
 
     def size_at(self, zoom: int) -> tuple[int, int]:
@@ -41,8 +32,6 @@ class PanoGeometry:
 
 
 class TileSource(Protocol):
-    """What the renderer needs from a client; lets tests pass a fake."""
-
     def get_geometry(self, pano_id: str) -> PanoGeometry: ...
     def get_tile(self, pano_id: str, zoom: int, x: int, y: int) -> bytes: ...
 
@@ -72,7 +61,6 @@ class MapTilesClient:
         self._session.close()
 
     def _session_token(self) -> str:
-        """Created on first use; a token is valid for about two weeks, far longer than a run."""
         if self._token is None:
             data = parse_json(send(
                 self._session, "POST", SESSION_URL, self._timeout_s,

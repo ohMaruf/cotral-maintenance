@@ -1,18 +1,3 @@
-"""Command line: `uv run cotral --help` (or `python -m cotral_maintenance`).
-
-    cotral inputs check | fetch          the dataset (inputs/dataset.toml): verify, fetch, unzip the GTFS
-    cotral osm build | download          the local OSM store, from the dataset's extracts
-    cotral models fetch [--profile P]    download a profile's model files (pinned revisions)
-    cotral run RUN (--limit N | --stop-id ID ... | --all | --resume) [--profile P]
-                                         GTFS -> OSM / Places -> explore -> score -> results.csv
-    cotral status RUN                    what a run has done so far
-    cotral export RUN                    rewrite RUN/results.csv
-    cotral merge NEW RUN RUN...          a new run from several (per stop: found wins, then the later run)
-    cotral bundle RUN [--media all|stop] one .tar.zst to carry the run to another machine
-    cotral unbundle FILE [--replace]     unpack a bundle into the runs directory
-    cotral usage                         billed Google requests this month, per API key
-"""
-
 import argparse
 import json
 import logging

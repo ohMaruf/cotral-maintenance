@@ -1,8 +1,3 @@
-"""Run log for reproducibility: what was run, on which code and which input data.
-
-Each run appends one JSON line to the log, including interrupted and failed runs.
-"""
-
 import hashlib
 import json
 import subprocess
@@ -31,7 +26,6 @@ def _git(*args: str) -> str | None:
 
 
 def git_state() -> dict[str, object]:
-    """Current commit and whether there are uncommitted changes (None outside a git repo)."""
     commit = _git("rev-parse", "HEAD")
     status = _git("status", "--porcelain")
     return {"commit": commit, "dirty": bool(status) if commit else None}

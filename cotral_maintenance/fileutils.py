@@ -1,5 +1,3 @@
-"""Crash-safe file writes: an interrupted run never leaves a partial file behind."""
-
 import csv
 import io
 import json
@@ -11,7 +9,6 @@ from pathlib import Path
 
 
 def write_atomic(path: Path, data: bytes) -> None:
-    """Write via a temp file + rename; the rename is atomic on the same filesystem."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_bytes(data)
@@ -23,7 +20,6 @@ def write_json_atomic(path: Path, obj: object) -> None:
 
 
 def write_dataset(rows: Sequence, row_type: type, path: Path) -> None:
-    """Write dataclass rows as a CSV, with its fields as columns."""
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, fieldnames=[f.name for f in fields(row_type)])
     writer.writeheader()
@@ -32,8 +28,6 @@ def write_dataset(rows: Sequence, row_type: type, path: Path) -> None:
 
 
 class RawStore:
-    """Raw per-stop records, one JSON file per stop: <root>/<stop_id>.json."""
-
     def __init__(self, root: Path) -> None:
         self.root = root
 
@@ -47,6 +41,5 @@ class RawStore:
         write_json_atomic(self.path(stop_id), record)
 
     def records(self) -> Iterator[dict]:
-        """All stored records, ordered by stop id."""
         for path in sorted(self.root.glob("*.json")):
             yield json.loads(path.read_text(encoding="utf-8"))

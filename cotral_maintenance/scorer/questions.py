@@ -1,33 +1,10 @@
-"""What the scorer is asked about a found stop, on the explorer's 1-2 stop photos (Imajev: at most 8 questions).
-
-The explorer only reports a stop it has confirmed, so the stop itself is not asked about: the
-sign (or shelter, or markings) is what it confirmed, recorded as the exploration's `evidence`.
-The scorer judges what is around it. Every value is 0 (bad) .. 1 (good):
-  - has_shelter, has_seating, has_lamp: the probability that the element is there. Cotral puts a
-    shelter or a bench at some stops and not at others, so a missing element is not a defect: it
-    has no condition, and is listed in `missing` (below 0.5).
-  - shelter, seating: the condition of the element, only when it is there (else None). Asked on a
-    0 (unusable) .. 4 (good) scale; the value is the expected level / 4.
-  - waiting_area, accessibility: always there, rated the same way.
-  - stop_visible: the probability that the photos show the stop at all. When they don't, the other
-    answers describe something else and the stop goes to a person.
-`condition` (computed, not asked) is the mean of the conditions that apply; stops are ranked by it,
-worst first. A lamp's condition cannot be judged from daytime photos, so lighting is presence only.
-
-Photos: every question but the lamp reads the explorer's 1-2 stop photos (close views). A lamp pole
-next to a stop looks like any other pole in a close view; its lamp head shows in a wide view, so the
-lamp question reads the first stop photo and a wide photo the explorer already took (free) of the
-same stop. Each photo is described to the model from its own geometry: camera distance and
-direction, field of view, where the stop is in the frame.
-"""
-
 import math
 
 from ..geo import bearing_deg, distance_m
 from .imajev import Question
 
 PRESENT_MIN = 0.5
-ELEMENT_LEVELS = [  # worst first: the level is the condition
+ELEMENT_LEVELS = [
     "Broken, damaged so that it cannot be used",
     "Significant damage or deficiency",
     "Moderate wear or damage that should be fixed",
@@ -48,7 +25,7 @@ ACCESS_LEVELS = [
     "Mostly accessible: a raised kerb or platform and step-free access, with minor obstacles",
     "Fully accessible: a raised platform or kerb at bus floor height, step-free, even and unobstructed",
 ]
-ELEMENTS = {  # name: (presence question, what to rate)
+ELEMENTS = {
     "shelter": ("Is there a bus shelter (a covered structure where passengers wait) at the stop?",
                 "the bus shelter at the stop"),
     "seating": ("Is there seating for waiting passengers (a bench or seats, also inside a shelter) at the stop?",
@@ -77,25 +54,21 @@ def present(name: str) -> str:
 
 
 def condition(values: dict[str, float | None]) -> float | None:
-    """The stop's condition, 0 (bad) .. 1 (good): the mean of the conditions that apply (a missing shelter or
-    seating has none). None when nothing was rated."""
     rated = [values[k] for k in CONDITIONS if values.get(k) is not None]
     return round(sum(rated) / len(rated), 4) if rated else None
 
 
 def missing(values: dict) -> list[str]:
-    """The elements the stop lacks: shelter, seating, lamp (presence below 0.5)."""
     return [name for name in (*ELEMENTS, "lamp")
             if values.get(present(name)) is not None and values[present(name)] < PRESENT_MIN]
 
 
 def values(answers: dict) -> dict[str, float | None]:
-    """The score columns from the scorer's answers."""
     out = {}
     for name, a in answers.items():
         if a is None:
             out[name] = None
-        elif a["type"] == "score":  # expected level / top level
+        elif a["type"] == "score":
             out[name] = round(a["score"] / max(float(k) for k in a["probabilities"]), 4)
         else:
             out[name] = round(a["noul"], 4)
@@ -113,12 +86,11 @@ EVIDENCE_TEXT = {
     "shelter_only": "a bus shelter, without a sign",
     "road_marking": "bus stop markings on the road",
 }
-WIDE_FOV = 90  # a photo this wide or wider is a wide view
-WIDE_DISTANCE_M = (10.0, 60.0)  # a wide view for the lamp: the stop well inside it, close enough to see poles
+WIDE_FOV = 90
+WIDE_DISTANCE_M = (10.0, 60.0)
 
 
 def frame_x(photo: dict, stop_lat: float, stop_lon: float) -> float | None:
-    """Where the stop is across the photo, 0 left .. 1 right (None: behind the camera)."""
     off = (bearing_deg(photo["lat"], photo["lon"], stop_lat, stop_lon) - photo["heading"] + 180) % 360 - 180
     if abs(off) >= 90:
         return None
@@ -148,11 +120,6 @@ def describe_photos(photos: list[dict], stop_lat: float, stop_lon: float) -> lis
 
 
 def lamp_photos(stop_photos: list[dict], wide: list[dict], stop_lat: float, stop_lon: float) -> list[dict]:
-    """A stop photo and a wide photo of the same stop, for the lamp: camera 10-60 m away, the stop well inside the
-    wide frame. Best is a zoom pair, the stop photo and the wide photo taken from the same panorama: the same scene at
-    two fields of view, where the pole of the close view is easy to find in the wide one (and its lamp head with it).
-    Else the first stop photo and the wide photo facing most like it. Just the stop photos when there is none."""
-
     def usable(p: dict) -> bool:
         x = frame_x(p, stop_lat, stop_lon)
         lo, hi = WIDE_DISTANCE_M
@@ -189,7 +156,6 @@ def questions(lamp: bool = True, others: bool = True) -> list[Question]:
 
 
 def state(stop_name: str, evidence: str | None, photos: list[str]) -> dict:
-    """`photos`: the description of each photo (describe_photo), in the order the photos are given."""
     several = len(photos) > 1
     return {
         "task": f"{'These photos show' if several else 'This photo shows'} a Cotral bus stop in Lazio, Italy, "

@@ -1,11 +1,3 @@
-"""Model servers: fetch their files, start them, wait until they answer, stop them.
-
-On the 16 GB GPU the explorer (Qwen3.8-27B) and the scorer (Imajev-4B) don't fit together with
-the explorer's KV cache, so the pipeline runs one at a time: explore a chunk of stops with the
-explorer server up, stop it, score the chunk with the scorer server up, and so on. A server of
-kind "external" is someone else's: it is only checked, never started or stopped.
-"""
-
 import logging
 import os
 import shutil
@@ -21,7 +13,7 @@ from .settings import ROOT, ModelFile, ServerSpec
 
 logger = logging.getLogger(__name__)
 
-START_TIMEOUT_S = 900.0  # a 10 GB model from a cold disk, plus warm-up
+START_TIMEOUT_S = 900.0
 
 
 class ModelServerError(CotralMaintenanceError):
@@ -29,7 +21,6 @@ class ModelServerError(CotralMaintenanceError):
 
 
 def fetch(file: ModelFile, models: Path) -> Path:
-    """The local path of a model file, downloaded at its pinned revision if missing."""
     path = file.path(models)
     if path.is_file():
         return path
@@ -64,8 +55,6 @@ def healthy(spec: ServerSpec) -> bool:
 
 
 class ManagedServer:
-    """A model server for the time of a `with` block (or a check of an external one)."""
-
     def __init__(self, name: str, spec: ServerSpec, models: Path, log_path: Path) -> None:
         self.name = name
         self.spec = spec

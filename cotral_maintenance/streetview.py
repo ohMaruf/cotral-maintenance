@@ -1,5 +1,3 @@
-"""Thin client for the Street View Static API (metadata + image endpoints)."""
-
 import logging
 from typing import Protocol, Self
 
@@ -17,8 +15,6 @@ SERVER_ERROR_STATUS = "UNKNOWN_ERROR"
 
 
 class ImageSource(Protocol):
-    """What the rest of the package needs from a client; lets tests pass a fake."""
-
     def get_metadata(self, lat: float, lon: float, radius_m: float) -> PanoMetadata: ...
     def get_image(self, pano_id: str, heading: float, view: View) -> bytes: ...
 
@@ -41,7 +37,6 @@ class StreetViewClient:
         self._session.close()
 
     def get_metadata(self, lat: float, lon: float, radius_m: float) -> PanoMetadata:
-        """Find the nearest outdoor panorama. Metadata requests are free of charge."""
         location = f"{lat},{lon}"
         data = parse_json(
             self._get(
@@ -65,7 +60,6 @@ class StreetViewClient:
         )
 
     def get_image(self, pano_id: str, heading: float, view: View) -> bytes:
-        """Download one image of a specific panorama. Billed per request."""
         response = self._get(
             IMAGE_URL, {"pano": pano_id, "heading": f"{heading:.1f}", **view.to_params()}
         )

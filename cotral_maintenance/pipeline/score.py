@@ -1,10 +1,3 @@
-"""Phase 3, score: Imajev judges the maintenance state of each found stop from its 1-2 stop photos.
-
-Only stops the explorer found are scored: their stop photos are what the scorer reads. A stop not
-found (or without imagery) gets no score; it stays in the results with its search outcome, for a
-person to check.
-"""
-
 import logging
 import time
 from collections.abc import Callable
@@ -19,7 +12,7 @@ from ..settings import ModelSpec, Paths
 
 logger = logging.getLogger(__name__)
 
-STOPS_IN_FLIGHT = 2  # stops scored at once; each sends its prompts concurrently
+STOPS_IN_FLIGHT = 2
 
 
 def make_scorer(spec: ModelSpec, paths: Paths) -> Scorer:
@@ -38,7 +31,6 @@ def make_scorer(spec: ModelSpec, paths: Paths) -> Scorer:
 
 
 def scorable(run: RunStore, stop_ids: list[str]) -> list[str]:
-    """The stops among `stop_ids` the explorer found with at least one stop photo, and not scored yet."""
     wanted = set(stop_ids)
     rows = run.query("SELECT e.stop_id FROM explorations e JOIN stops s USING (stop_id) "
                      "LEFT JOIN scores sc USING (stop_id) WHERE e.status = 'found' AND e.stop_photos != '[]' "

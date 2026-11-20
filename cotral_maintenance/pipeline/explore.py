@@ -1,15 +1,3 @@
-"""Phase 2, explore: find each stop in Street View with the LLM explorer, and keep 1-2 photos of it.
-
-Several stops are explored at once (`concurrency` in the profile): each worker has its own Google
-clients and its own pair of server slots (explorer, confirmer), so llama-server batches their
-tokens together and the GPU stays busy while other workers wait on Google or on their tools.
-Before a stop starts, the most it could bill is reserved in the usage ledger; a stop that would
-go over the month's cap is not started.
-
-A finished stop is stored at once (its record, photos, transcript); a stop interrupted half-way
-is not stored, and is explored again by the next run.
-"""
-
 import hashlib
 import json
 import logging
@@ -71,7 +59,6 @@ class ExploreContext:
 
 
 def harness(paths: Paths) -> dict:
-    """The harness that explores: its version, the prompt's sha256, the reference images' sha256, git."""
     prompt = PROMPT.read_bytes()
     refs = hashlib.sha256()
     for path in [paths.reference_sign, *paths.lookalikes]:
@@ -86,7 +73,6 @@ def explorer_description(spec: ModelSpec) -> dict:
 
 
 def explore(ctx: ExploreContext, stop_ids: list[str], on_done: Callable[[str, str], None] | None = None) -> dict:
-    """Explore the stops; returns counts per outcome. Stops when the budget runs out or ctx.stop_event is set."""
     rows = {i: ctx.run.stop(i) for i in stop_ids}
     shape_ids = {s["shape_id"] for r in rows.values() for s in r["services"]}
     shapes = load_shapes(ctx.paths.gtfs, shape_ids) if shape_ids else {}
@@ -134,7 +120,7 @@ def explore(ctx: ExploreContext, stop_ids: list[str], on_done: Callable[[str, st
                 stop_id = futures[future]
                 try:
                     status = future.result()
-                except Exception:  # a bug in one stop must not end a run of hundreds
+                except Exception:
                     logger.exception("Exploring %s failed", stop_id)
                     status = "crashed"
                 counts[status] = counts.get(status, 0) + 1
@@ -152,7 +138,6 @@ def explore(ctx: ExploreContext, stop_ids: list[str], on_done: Callable[[str, st
 
 
 def progress_line(stop_id: str, entry: dict) -> None:
-    """One log line per explorer turn and per confirmer call, so a stop in progress shows that it is moving."""
     if "tool_calls" in entry:
         calls = ", ".join(f"{c['name']}({c['arguments'][:80]})" for c in entry["tool_calls"]) or "no tool call"
         timings = entry.get("timings") or {}
@@ -262,7 +247,6 @@ def _store_without_search(ctx: ExploreContext, base: dict, status: str, reason: 
 
 def _store(ctx: ExploreContext, base: dict, session: Session, ended: str, turns: int, t0: float,
            transcript: list[dict], work: Path) -> None:
-    """Move the run's files into the store's media and rewrite every file reference as a sha256."""
     shas: dict[str, str] = {}
     for path in sorted(work.rglob("*")):
         if path.is_file() and path.suffix.lower() in (".jpg", ".jpeg", ".png"):
@@ -285,7 +269,6 @@ def _store(ctx: ExploreContext, base: dict, session: Session, ended: str, turns:
 
 
 def _rewrite(d: dict, shas: dict[str, str]) -> dict:
-    """Replace work-directory file paths by media sha256s, wherever the record mentions them."""
     for k, v in d.items():
         if isinstance(v, str) and v in shas:
             d[k] = shas[v]

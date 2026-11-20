@@ -1,5 +1,3 @@
-"""Plain data types shared across modules."""
-
 from dataclasses import dataclass
 
 
@@ -15,10 +13,6 @@ class Stop:
 
 @dataclass(frozen=True)
 class View:
-    """One named image in a stop's shot plan, with its camera settings.
-    The shot plan (panoramas.plan_shots) decides the panorama and heading.
-    """
-
     name: str
     pitch: float = 0.0
     fov: float = 90.0
@@ -26,8 +20,6 @@ class View:
 
     @property
     def key(self) -> str:
-        """Stable identifier, used as the cache file name. Includes the size, so
-        images at another resolution are never mistaken for cached ones."""
         return f"{self.name}_{self.size}"
 
     def to_params(self) -> dict[str, str]:
@@ -44,14 +36,11 @@ class PanoMetadata:
 
     @property
     def is_google(self) -> bool:
-        """False for user-uploaded photospheres, which are often indoors, at night or blurry."""
         return "Google" in self.copyright
 
 
 @dataclass(frozen=True)
 class Shot:
-    """A panorama to photograph a stop from, and the camera heading that faces the stop."""
-
     pano: PanoMetadata
     distance_m: float
     heading: float

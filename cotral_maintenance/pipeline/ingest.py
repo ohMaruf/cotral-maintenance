@@ -1,19 +1,3 @@
-"""Phase 1, ingest: from GTFS records to where each stop's search starts.
-
-For every stop of the run:
-  1. GTFS: the stop, the trips serving it (their shapes, the stops called before and after).
-  2. OpenStreetMap (the local store built from Geofabrik): the object that is this stop, by `ref`
-     or as the nearest stop-like object closer to it than to any other Cotral stop (osm_match.py).
-  3. Google Places, only for stops OSM has no object for: Nearby Search around the GTFS position;
-     a stop Google lists under this id (or a retired id with the same name) gives the position.
-  4. Else the GTFS position.
-The search itself (phase 2) uses all of these as starting positions and hints; this phase decides
-the primary one and records where every source put the stop.
-
-Places responses are cached in the shared cache (one per stop: re-ingesting costs nothing), and
-counted in the usage ledger.
-"""
-
 import logging
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -41,7 +25,6 @@ def stop_rows(stops: list[Stop], services: dict[str, list]) -> list[dict]:
 
 
 def select_into_run(run: RunStore, stops: list[Stop], gtfs_dir) -> int:
-    """Add stops to the run, with the GTFS services that serve them (one pass over stop_times.txt)."""
     known = set(run.stop_ids())
     new = [s for s in stops if s.stop_id not in known]
     if not new:
@@ -57,7 +40,6 @@ def select_into_run(run: RunStore, stops: list[Stop], gtfs_dir) -> int:
 
 def ingest(run: RunStore, stop_ids: list[str], all_stops: list[Stop], osm: OsmStore, places_cache: RawStore,
            make_places: Callable[[], PlacesClient] | None, ledger: UsageLedger | None, key: str | None) -> dict:
-    """Decide the start of each stop; returns counts per source."""
     by_id = {s.stop_id: s for s in all_stops}
     cotral = [s for s in all_stops if is_cotral_stop(s)]
     stops = [by_id[i] for i in stop_ids]
@@ -118,7 +100,7 @@ def _fetch_places(stops: list[Stop], cache: RawStore, make_client: Callable[[], 
         try:
             with make_client() as client:
                 billed = int(fetch_stop(stop, client, cache))
-        except Exception as error:  # one stop's failure falls back to GTFS, it does not stop the run
+        except Exception as error:
             logger.warning("Places search failed for %s: %s", stop.stop_id, error)
         finally:
             if reservation is not None:

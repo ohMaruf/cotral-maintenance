@@ -1,18 +1,3 @@
-"""Where things live and which models run: paths from the environment, model profiles from config/profiles.toml.
-
-Paths (defaults relative to the repository root; override with environment variables or .env):
-  COTRAL_DATASET     inputs/dataset.toml      the dataset manifest (dataset.py): the GTFS zip, the OSM extracts, the
-                                              explorer's reference images, with their sha256 (inputs/: the data
-                                              repository, a git submodule)
-  COTRAL_GTFS        GTFS_COTRAL              the GTFS feed, unzipped from the dataset (`cotral inputs fetch`)
-  COTRAL_OSM_STORE   data/osm/osm.sqlite3     the OSM store built from the dataset's extracts (`cotral osm build`)
-  COTRAL_CACHE       data/cache               caches shared by runs (metadata, photos, tiles, Places, usage)
-  COTRAL_RUNS        runs                     one directory per run
-  COTRAL_MODELS      ~/models                 model files downloaded from Hugging Face
-  COTRAL_PROFILES    config/profiles.toml
-Google: MAPS_API_KEY (required for ingest and explore), MAPS_API_REFERRER (optional).
-"""
-
 import copy
 import os
 import tomllib
@@ -92,7 +77,7 @@ class ModelFile:
 
 @dataclass(frozen=True)
 class ServerSpec:
-    kind: str  # llama-server, command, external
+    kind: str
     port: int
     files: dict[str, ModelFile] = field(default_factory=dict)
     args: tuple[str, ...] = ()
@@ -110,8 +95,6 @@ class ServerSpec:
 
 @dataclass(frozen=True)
 class ModelSpec:
-    """One side of a profile: the explorer or the scorer."""
-
     role: str
     dialect: str
     model: str
@@ -119,11 +102,11 @@ class ModelSpec:
     concurrency: int = 1
     sampling: dict = field(default_factory=dict)
     template: dict = field(default_factory=dict)
-    request: dict = field(default_factory=dict)  # backend-specific OpenAI request fields
+    request: dict = field(default_factory=dict)
     max_tokens: int = 3000
     rotations: int = 4
     readout: dict[str, ModelFile] = field(default_factory=dict)
-    raw: dict = field(default_factory=dict)  # the profile entry as written, recorded with every result
+    raw: dict = field(default_factory=dict)
 
     def describe(self) -> dict:
         return {"role": self.role, "dialect": self.dialect, "model": self.model, "profile_entry": self.raw}
@@ -148,7 +131,6 @@ def load_profiles(path: Path) -> dict[str, dict]:
 
 
 def _merge(base: dict, over: dict) -> dict:
-    """`over` on top of `base`, table by table; a table with `inherit = false` replaces the inherited one whole."""
     out = copy.deepcopy(base)
     for k, v in over.items():
         if isinstance(v, dict) and v.get("inherit") is False:
@@ -189,7 +171,6 @@ def _server(value: dict) -> ServerSpec:
 
 
 def _binary(configured: str | None) -> str:
-    """A server's own `binary` (a llama.cpp build it needs), else $LLAMA_SERVER, else llama-server on the PATH."""
     if configured:
         return os.path.expanduser(configured)
     return os.environ.get("LLAMA_SERVER", "llama-server")

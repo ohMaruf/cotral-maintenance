@@ -1,28 +1,3 @@
-"""Phase 1: check Cotral stops against Google Maps and correct them (Places API).
-
-Two steps, kept separate for reproducibility:
-1. fetch: one Nearby Search per stop; the raw request and response are stored
-   as-is. A stored file marks the stop as done, which makes runs resumable.
-2. build: the corrected-stops dataset is derived from the GTFS and the raw files
-   only, so it can be rebuilt offline at any time and always gives the same result.
-
-Google names Cotral stops "<name> # <stop_id>", which is what we match on. Every
-response also returns the neighbouring stops, so all raw responses together form
-a catalogue of Google's stops: a stop can be found through another stop's search.
-
-Google and the GTFS are not the same version of the network, so each stop gets a
-status, tried in this order, and a `reason` in words:
-- verified: Google has the stop under its id. Google's position is used.
-- reidentified: Google does not have the id, but has a stop with the same name
-  under an id that is not in the GTFS. Cotral gave the stop a new id and Google
-  kept the old one, so Google's position is used.
-- substituted: a legacy (non "f<digits>") id that Google does not have, with
-  Cotral stops right next to it, which took over from it.
-- missing: Google does not have it. If the same-name stop on Google has an id
-  that is in the GTFS, it is a different stop, so this does not count as a match.
-- not_checked: no search has been made for the stop yet.
-"""
-
 import csv
 import logging
 import re
@@ -43,10 +18,7 @@ from .stops import STOP_ID_IN_NAME, is_cotral_stop
 logger = logging.getLogger(__name__)
 
 SEARCH_RADIUS_M = 250.0
-# A stop that changed id may also have moved, but stays in the same part of town.
-# Without this limit, two towns' "Liceo scientifico" stops could be matched.
 REIDENTIFY_MAX_M = 2000.0
-# 1038, in the March 2026 feed, was 41-56 m from the Cotral stops that replaced it.
 SUBSTITUTE_MAX_M = 100.0
 LIST_SEPARATOR = ";"
 
@@ -59,20 +31,12 @@ class Status(StrEnum):
     NOT_CHECKED = "not_checked"
 
 
-# Stops known to stand where the dataset says they do.
 CONFIRMED = (Status.VERIFIED, Status.REIDENTIFIED)
-# Stops known not to be there.
 GONE = (Status.SUBSTITUTED, Status.MISSING)
 
 
 @dataclass(frozen=True)
 class CorrectedStop:
-    """One row of the corrected-stops dataset: the columns of GTFS stops.txt, with
-    the corrected position in stop_lat/stop_lon, then how it was arrived at.
-
-    offset_m is the distance between the Google and the GTFS positions.
-    """
-
     stop_id: str
     stop_name: str
     stop_lat: float
@@ -104,7 +68,6 @@ class CorrectedStop:
 
 
 def fetch_stop(stop: Stop, client: PlacesSource, store: RawStore, force: bool = False) -> bool:
-    """Query Places for one stop unless already stored. Returns True if the API was called."""
     if not force and store.has(stop.stop_id):
         return False
     request = build_nearby_request(stop.lat, stop.lon, SEARCH_RADIUS_M)
@@ -124,7 +87,6 @@ def fetch_stop(stop: Stop, client: PlacesSource, store: RawStore, force: bool = 
 def fetch_stops(
     stops: Sequence[Stop], client: PlacesSource, store: RawStore, force: bool = False
 ) -> int:
-    """Fetch every stop in order. Network failures skip the stop; ApiError propagates."""
     fetched = 0
     for index, stop in enumerate(stops, start=1):
         try:
@@ -146,7 +108,6 @@ def cotral_id_of(place: dict) -> str | None:
 
 
 def comparable_name(name: str) -> str:
-    """A name without case and punctuation: "FROSINONE| Liceo" == "FROSINONE | Liceo"."""
     return " ".join(re.findall(r"\w+", name.casefold()))
 
 
@@ -160,11 +121,6 @@ def distance_to(stop: Stop, place: dict) -> float:
 
 
 def match_retired_ids(stops: Sequence[Stop], retired: Sequence[dict]) -> dict[str, dict]:
-    """Pair stops Google does not have with same-name places whose id left the GTFS.
-
-    Nearest pairs first, each place used once: the two directions of a stop share
-    a name, and one retired place cannot stand for both.
-    """
     by_name: dict[str, list[dict]] = defaultdict(list)
     for place in retired:
         by_name[comparable_name(name_on_google(place))].append(place)
@@ -184,7 +140,6 @@ def match_retired_ids(stops: Sequence[Stop], retired: Sequence[dict]) -> dict[st
 
 
 def find_substitutes(stop: Stop, cotral_stops: Sequence[Stop]) -> list[str]:
-    """Ids of the Cotral stops next to `stop`, nearest first."""
     nearby = [(distance_m(stop.lat, stop.lon, o.lat, o.lon), o.stop_id) for o in cotral_stops]
     return [stop_id for distance, stop_id in sorted(nearby) if distance <= SUBSTITUTE_MAX_M]
 
@@ -214,7 +169,6 @@ def correct_stop(
     retired: dict | None,
     substitutes: Sequence[str],
 ) -> CorrectedStop:
-    """Derive one dataset row. Pure: same inputs, same row."""
     common = {
         "stop_id": stop.stop_id,
         "stop_name": stop.name,
@@ -274,11 +228,6 @@ def correct_stop(
 
 
 def build_dataset(stops: Sequence[Stop], store: RawStore) -> list[CorrectedStop]:
-    """One row per stop of the GTFS, in its order, whether checked yet or not.
-
-    A full run gives the final answer: `missing` can become `verified` or
-    `reidentified` once a neighbour's search has returned the Google stop.
-    """
     records = {record["stop"]["stop_id"]: record for record in store.records()}
     places = {place["id"]: place for record in records.values() for place in record["response"]["places"]}
     by_cotral_id: dict[str, list[dict]] = defaultdict(list)
@@ -306,7 +255,6 @@ def build_dataset(stops: Sequence[Stop], store: RawStore) -> list[CorrectedStop]
 
 
 def load_corrected_stops(path: Path) -> dict[str, tuple[Stop, Status]]:
-    """Each stop at its corrected position, with its status, by stop id."""
     with path.open(newline="", encoding="utf-8") as f:
         return {
             row["stop_id"]: (

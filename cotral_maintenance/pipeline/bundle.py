@@ -1,14 +1,3 @@
-"""Carry a run between machines: one .tar.zst file, or rsync of the run directory.
-
-A run directory is self-contained (run.sqlite, media/, logs/, results.csv), so either works:
-  - `cotral bundle RUN` -> RUN.tar.zst; `cotral unbundle RUN.tar.zst` on the other machine.
-    `--media stop` leaves out the explorer's search photos (the bulk of a run) and keeps the
-    stop photos; the review app shows what is there.
-  - `rsync -a server:cotral-maintenance/runs/RUN/ runs/RUN/` copies only what changed (photos are
-    content-addressed: a file never changes once written). Copy while no pipeline writes to the
-    run, or the database may be caught mid-write.
-"""
-
 import json
 import tarfile
 from pathlib import Path
@@ -35,14 +24,13 @@ def _stop_photos(run: RunStore) -> set[str]:
 
 
 def bundle(root: Path, out: Path, media: str = "all", logs: bool = True) -> tuple[Path, int]:
-    """Pack a run (not being written) into `out`. Returns the file and the number of photos in it."""
     if media not in MEDIA_CHOICES:
         raise ValueError(f"media must be one of {MEDIA_CHOICES}")
     store = RunStore(root)
     try:
         shas = media_to_ship(store, media)
     finally:
-        store.close()  # folds the WAL back: the database is one complete file
+        store.close()
     name = root.name
     out.parent.mkdir(parents=True, exist_ok=True)
     tmp = out.with_name(out.name + ".part")
@@ -62,8 +50,6 @@ def bundle(root: Path, out: Path, media: str = "all", logs: bool = True) -> tupl
 
 
 def unbundle(archive: Path, runs: Path, replace: bool = False) -> Path:
-    """Unpack a bundle into the runs directory. An existing run is merged into only with `replace`
-    (its database is replaced; photos are added, never removed)."""
     with tarfile.open(archive, "r:*") as tar:
         names = {m.name.split("/", 1)[0] for m in tar.getmembers()}
         if len(names) != 1:
@@ -76,5 +62,5 @@ def unbundle(archive: Path, runs: Path, replace: bool = False) -> Path:
         for leftover in (target / f"{DB_NAME}-wal", target / f"{DB_NAME}-shm"):
             leftover.unlink(missing_ok=True)
         tar.extractall(runs, filter="data")
-    RunStore(target).close()  # checks the schema version
+    RunStore(target).close()
     return target

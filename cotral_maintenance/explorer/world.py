@@ -1,14 +1,3 @@
-"""The world of one search: the bus's path and everything placed on it.
-
-Built once per stop, before the explorer's first turn (design doc §11, steps A-B):
-  - the main shape serving the stop, snapped onto OSM roads, cut to the stretch
-    between the previous and the next stop, in travel order
-  - the start (Places when Google has the stop, else GTFS) at 0 m, and the limits
-  - starting positions, OSM hints, other stops ("not this stop"), placed on the path
-  - the panoramas along the path (free metadata lookups, 2024 onwards only)
-Nothing here knows the verified position.
-"""
-
 import logging
 import math
 from dataclasses import dataclass, field
@@ -23,9 +12,9 @@ from .geometry import PathFrame, angle_diff
 
 logger = logging.getLogger(__name__)
 
-REACH_M = 1500.0  # shape snapped this far each way from the stop
-MAX_LIMIT_M = 1000.0  # search limits: halfway to the neighbouring stops, capped
-LIMIT_MARGIN_M = 30.0  # beyond the farthest starting position
+REACH_M = 1500.0
+MAX_LIMIT_M = 1000.0
+LIMIT_MARGIN_M = 30.0
 PANO_STEP_M = 10.0
 PANO_RADIUS_M = 15.0
 UNSCANNED_M = 15.0
@@ -33,19 +22,17 @@ HINT_MAX_OFFSET_M = 25.0
 OTHER_STOP_MAX_OFFSET_M = 30.0
 MIN_SCAN_DATE = "2024-01"
 CELL_M = 4.0
-START_REACH_M = 25.0  # an OSM start off the path is moved to a scanned point of it this close
+START_REACH_M = 25.0
 
 
 @dataclass(frozen=True)
 class Placed:
-    """Something placed on the path."""
-
     label: str
-    kind: str  # "places", "gtfs", an OSM kind, "stop"
+    kind: str
     lat: float
     lon: float
     along: float
-    offset: float  # + right of travel
+    offset: float
     ref: str = ""
 
 
@@ -65,17 +52,16 @@ class World:
     stop: Stop
     frame: LocalFrame
     path: PathFrame
-    limits: tuple[float, float]  # along, behind and ahead
+    limits: tuple[float, float]
     starts: list[Placed]
     hints: list[Placed]
     others: list[Placed]
     panoramas: list[Panorama] = field(default_factory=list)
     previous: Placed | None = None
     next: Placed | None = None
-    found: list[Placed] = field(default_factory=list)  # other stops already found in this run: confirmed signs
+    found: list[Placed] = field(default_factory=list)
 
     def cells(self) -> list[float]:
-        """Centres of the 4 m cells of the right-hand sidewalk, between the limits."""
         lo, hi = self.limits
         n = int(math.ceil((hi - lo) / CELL_M))
         return [lo + (i + 0.5) * CELL_M for i in range(n)]
@@ -93,16 +79,12 @@ def build_world(stop: Stop, services: list[Service], shapes: dict[str, list[tupl
                 metadata: MetadataCache) -> World:
     world = _build_world(stop, services, shapes, all_stops, places, store, metadata, 0.0)
     shift = _visible_start_shift(world)
-    if shift:  # the panorama lookups are anchored on the path, so this rebuild reuses them
+    if shift:
         world = _build_world(stop, services, shapes, all_stops, places, store, metadata, shift)
     return world
 
 
 def _visible_start_shift(world: World) -> float:
-    """An OSM start can lie off the path, nearest a stretch with no Street View (an access road) while a road the
-    bus drives, with panoramas, passes close by. The stop is only searchable from there: move the start to the
-    nearest scanned point of the path within START_REACH_M of the object, preferring passes that have it on their
-    right. 0 when the start is already scanned, or nothing scanned is close enough."""
     start = world.starts[0]
     if not start.kind.startswith("osm") or world.scanned(start.along):
         return 0.0
@@ -135,7 +117,6 @@ def _build_world(stop: Stop, services: list[Service], shapes: dict[str, list[tup
     probe = PathFrame(min(pieces, key=lambda pc: _distance_to(pc, (0.0, 0.0))), 0.0)
     gtfs_s, _, _ = probe.locate((0.0, 0.0))
 
-    # The start: OSM when an object can be tied to the stop (the most accurate source), else Places, else GTFS.
     osm = match_osm(stop, store, [s for s in all_stops.values() if is_cotral_stop(s)])
     start_ll = (osm.feature.lat, osm.feature.lon) if osm else places or (stop.lat, stop.lon)
     start_s, _, _ = probe.locate(frame.to_xy(*start_ll))
@@ -145,17 +126,17 @@ def _build_world(stop: Stop, services: list[Service], shapes: dict[str, list[tup
         xy = frame.to_xy(lat, lon)
         if before is None:
             along, offset, _ = path.locate(xy)
-        else:  # previous stop: search only the path before the stop; next stop: only after
+        else:
             along, offset = _locate_part(path, xy, gtfs_s - start_s - start_shift, before)
         return Placed(label, kind, lat, lon, along, offset, ref)
 
     starts = [place(_osm_label(osm), f"osm_{osm.how}", osm.feature.lat, osm.feature.lon, osm.feature.ref)] if osm else []
-    if osm and start_shift:  # the object belongs to the scanned pass it was moved to, not to the access road
+    if osm and start_shift:
         o = starts[0]
         p0, (rx, ry) = path.point(0.0), path.right(0.0)
         xy = frame.to_xy(o.lat, o.lon)
         starts[0] = Placed(o.label, o.kind, o.lat, o.lon, 0.0, (xy[0] - p0[0]) * rx + (xy[1] - p0[1]) * ry, o.ref)
-    if places and math.hypot(*frame.to_xy(*places)) > 2.0:  # Places often copies GTFS: then it adds nothing
+    if places and math.hypot(*frame.to_xy(*places)) > 2.0:
         starts.append(place("Places", "places", *places))
     starts.append(place("GTFS", "gtfs", stop.lat, stop.lon))
     prev_stop = next((all_stops[i] for i in service.previous if i in all_stops), None)
@@ -173,7 +154,7 @@ def _build_world(stop: Stop, services: list[Service], shapes: dict[str, list[tup
 
     hints = []
     for f in store.stops_in(bbox_around(stop.lat, stop.lon, max(-lo, hi) + 100)):
-        if osm and f.osm_id == osm.feature.osm_id:  # already the start
+        if osm and f.osm_id == osm.feature.osm_id:
             continue
         h = place(f"OSM {f.kind.replace('_', ' ')}" + (f" '{f.name}'" if f.name else ""), f.kind, f.lat, f.lon, f.ref)
         if lo - 20 <= h.along <= hi + 20 and abs(h.offset) <= HINT_MAX_OFFSET_M:
@@ -203,11 +184,8 @@ def _osm_label(osm: OsmMatch) -> str:
 
 
 def find_panoramas(world: World, metadata: MetadataCache, at: float | None = None) -> list[Panorama]:
-    """Panoramas along the path (or across the road at `at`), 2024 onwards, Google's own."""
     lo, hi = world.limits
     if at is None:
-        # anchored on the path itself (multiples of PANO_STEP_M from its first point), not on the start, so moving
-        # the start reuses the cached lookups
         first = math.ceil((lo + world.path.start_s) / PANO_STEP_M) * PANO_STEP_M - world.path.start_s
         probes = [(a, 0.0, PANO_RADIUS_M) for a in _frange(first, hi, PANO_STEP_M)]
     else:
@@ -236,7 +214,6 @@ def _distance_to(points, p) -> float:
 
 
 def _locate_part(path: PathFrame, xy, split_along: float, before: bool) -> tuple[float, float]:
-    """Locate on the part of the path before (or after) split_along only."""
     best = (math.inf, 0.0, 0.0)
     steps = int((path.last - path.first) / 2) + 1
     for i in range(steps + 1):
@@ -253,10 +230,6 @@ def _locate_part(path: PathFrame, xy, split_along: float, before: bool) -> tuple
 
 @dataclass(frozen=True)
 class SharedStretch:
-    """Two stretches of the path on the same road: an out-and-back (opposite) or a loop passing again.
-    b_from is the place on the other pass matching a_from, b_to the one matching a_to (so for an
-    out-and-back b_from > b_to)."""
-
     a_from: float
     a_to: float
     b_from: float
@@ -266,7 +239,6 @@ class SharedStretch:
 
 def shared_stretches(path: PathFrame, lo: float, hi: float, step: float = 5.0, near: float = 12.0,
                      min_gap: float = 40.0, min_length: float = 15.0) -> list[SharedStretch]:
-    """Where the path between lo and hi runs along road it also drives elsewhere (within `near` metres)."""
     samples = list(_frange(lo, hi, step))
     others = list(_frange(max(lo - 100, path.first), min(hi + 100, path.last), step / 2))
     pairs: list[tuple[float, float, bool]] = []
@@ -288,7 +260,6 @@ def shared_stretches(path: PathFrame, lo: float, hi: float, step: float = 5.0, n
     for run in runs:
         a1, a2 = run[0][0], run[-1][0]
         bs = [b for _, b, _ in run]
-        # report each pair once, from the earlier pass; the later one is skipped when the earlier is sampled too
         if a2 - a1 < min_length or (min(bs) < a1 and max(bs) >= lo):
             continue
         out.append(SharedStretch(a1, a2, run[0][1], run[-1][1], run[0][2]))

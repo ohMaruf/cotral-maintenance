@@ -1,10 +1,3 @@
-"""The debug map of a search, drawn with Pillow on a plain metre grid (no map tiles).
-
-Shows the path with direction ticks, the right-hand sidewalk coloured by state,
-panoramas, every photo as a numbered view cone, starting positions, OSM hints,
-other stops and candidates. Given to the explorer on show_map() and saved per call.
-"""
-
 import math
 from pathlib import Path
 
@@ -38,7 +31,7 @@ def draw_map(session: Session, out: Path) -> Path:
     d = ImageDraw.Draw(img)
     d.line([px(w.path.point(a)) for a in _steps(w.path.first, w.path.last, 3)], fill=(150, 150, 150), width=2)
     d.line([px(w.path.point(a)) for a in _steps(lo, hi, 3)], fill=(60, 60, 60), width=4)
-    for a in _steps(lo, hi, 25):  # direction of travel
+    for a in _steps(lo, hi, 25):
         p, b = w.path.point(a), w.path.bearing(a)
         tip, l1, l2 = ray_point(p, b, 4), ray_point(p, b + 150, 4), ray_point(p, b - 150, 4)
         d.polygon([px(tip), px(l1), px(l2)], fill=(60, 60, 60))

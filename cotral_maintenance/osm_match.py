@@ -1,19 +1,3 @@
-"""The OpenStreetMap object that is a given Cotral stop, when there is one.
-
-OSM is the most accurate position source we have, when an object can be tied to the
-stop. Measured on the 504 verified stops (experiments/explore, 2026-11-09), error to the
-verified position:
-
-  - by ref: an object whose `ref` lists the stop id (anywhere, no distance limit):
-    135 stops, median 6.9 m (their GTFS: 17.0 m)
-  - nearest: the closest stop-like object within NEAREST_M of the GTFS position, provided
-    it is closer to this stop than to any other Cotral stop: 132 stops, median 9.9 m
-    (their GTFS: 16.7 m)
-  - by name alone: 12 more stops, median 33 m, worse than GTFS: not used.
-
-Together: OSM for 267 of 504 stops; with GTFS for the rest, median 17.5 m against 23.7 m.
-"""
-
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -23,13 +7,13 @@ from .roadpath import LocalFrame
 from .stops import Stop
 
 NEAREST_M = 100.0
-OTHERS_REACH_M = 400.0  # how far to look for a Cotral stop that an object could belong to instead
+OTHERS_REACH_M = 400.0
 
 
 @dataclass(frozen=True)
 class OsmMatch:
     feature: StopFeature
-    how: str  # "ref" or "nearest"
+    how: str
     from_gtfs_m: float
 
 

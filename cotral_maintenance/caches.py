@@ -1,14 +1,3 @@
-"""Caches shared by every run on a machine: Street View metadata, and the ledger of billed Google requests.
-
-Both are SQLite files in the cache directory, safe for the explorer's parallel workers. Neither
-travels with a run: a run records the usage it caused in its own store, and the photos it used.
-
-The ledger keeps runs inside a monthly cap per API key (Google's free tiers are per billing
-account and calendar month: 1,000 Static Street View images, 10,000 Map Tiles tiles). A stop
-is started only after reserving the most it could bill; when it ends, the reservation is
-replaced by what it actually billed. Keys are stored as a fingerprint, never in clear.
-"""
-
 import hashlib
 import sqlite3
 import threading
@@ -46,8 +35,6 @@ class _Db:
 
 
 class MetadataCache(_Db):
-    """Street View metadata lookups (free, but slow), by rounded position and radius. None = no imagery there."""
-
     def __init__(self, path: Path, lookup: Callable[[float, float, float], PanoMetadata]) -> None:
         super().__init__(path, "CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, pano_id TEXT, lat REAL, "
                                "lon REAL, date TEXT, copyright TEXT)")
@@ -67,7 +54,7 @@ class MetadataCache(_Db):
                 break
             except NoImageryError:
                 break
-            except ServerError:  # transient on Google's side: retry once, then don't cache
+            except ServerError:
                 if attempt == 2:
                     return None
         with self._lock:
@@ -78,7 +65,7 @@ class MetadataCache(_Db):
         return value
 
     def save(self) -> None:
-        """Kept for the session's interface: every lookup is already stored."""
+        ...
 
 
 @dataclass(frozen=True)
@@ -93,8 +80,6 @@ class BudgetExhausted(Exception):
 
 
 class UsageLedger(_Db):
-    """Billed requests per key, month and API, against a monthly cap; reservations for work in flight."""
-
     def __init__(self, path: Path, caps: dict[str, int] | None = None) -> None:
         super().__init__(path, "CREATE TABLE IF NOT EXISTS usage (month TEXT, key_id TEXT, api TEXT, used INTEGER, "
                                "PRIMARY KEY (month, key_id, api))")
@@ -116,7 +101,6 @@ class UsageLedger(_Db):
                     for api, cap in self.caps.items()}
 
     def reserve(self, key: str, amounts: dict[str, int]) -> Reservation:
-        """Reserve the most a unit of work can bill, or raise BudgetExhausted."""
         month = this_month()
         left = self.remaining(key, month)
         short = {api: (n, left.get(api, 0)) for api, n in amounts.items() if n > left.get(api, 0)}
@@ -129,7 +113,6 @@ class UsageLedger(_Db):
         return Reservation(key, month, dict(amounts))
 
     def settle(self, reservation: Reservation, billed: dict[str, int]) -> None:
-        """Replace a reservation by what was actually billed (in the month it was reserved in)."""
         with self._lock:
             for api, n in reservation.amounts.items():
                 k = (reservation.month, reservation.key_id, api)
@@ -141,7 +124,6 @@ class UsageLedger(_Db):
                         "DO UPDATE SET used = used + excluded.used", (reservation.month, reservation.key_id, api, n))
 
     def record(self, key: str, api: str, n: int) -> None:
-        """Usage that was not reserved (e.g. Places searches, counted as they happen)."""
         if n > 0:
             self.settle(Reservation(key, this_month(), {}), {api: n})
 
@@ -151,7 +133,6 @@ def open_metadata_cache(cache_dir: Path, lookup: Callable[[float, float, float],
 
 
 def import_json_metadata(json_path: Path, cache: MetadataCache) -> int:
-    """Load an old metadata.json cache (data/agent_runs/cache) into the SQLite one."""
     import json
 
     data = json.loads(json_path.read_text())

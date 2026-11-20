@@ -1,23 +1,3 @@
-"""One search: the explorer's tools, the bookkeeping, and the record (design doc §6).
-
-The session owns the state; each tool method returns a ToolResult (text, and the
-photos to show). Every call is appended to the record in order, so a run can be
-replayed exactly. Images come from `fetch_image` (the Street View Static API: one
-billed request per image) and are cached on disk by panorama, heading, fov, pitch and
-size, so re-running a stop costs nothing twice.
-
-Budget, per stop: MAX_IMAGES Static API images and MAX_TILES Map Tiles tiles (both billed per request);
-metadata lookups are free and not counted.
-  - sweep: one wide Static image from a panorama, ahead-right (or behind-right) of travel: broad looks.
-  - zoom: a narrow, full-resolution view of a spot of a photo, from the same panorama, rendered from
-    tiles (2-4 each, priced before fetching); a narrow Static image once the tiles run out.
-  - look_from: the same kind of narrow view of a candidate, from ANOTHER panorama: a new viewpoint
-    when the sign can't be seen clearly (edge on, hidden, too far).
-  - confirm: no image; a fresh confirmer call judges the close view the candidate was marked on.
-  - STOP_PHOTOS images are kept back: when a stop is submitted, the harness photographs
-    it and its surroundings for the next stage of the pipeline.
-"""
-
 import json
 import math
 import re
@@ -36,18 +16,17 @@ from .geometry import Camera, angle_diff, compass, ray_point, ray_to_sidewalk, t
 from ..caches import MetadataCache
 from .world import CELL_M, Panorama, World, find_panoramas, shared_stretches
 
-MAX_IMAGES = 22  # billed Static API images per stop, the stop photos included (1,000 free a month: see quota.py)
-STOP_PHOTOS = 2  # kept back for photographing a found stop
-BEND_DEG = 30.0  # a turn of the path this sharp is a corner: no view sees round it
+MAX_IMAGES = 22
+STOP_PHOTOS = 2
+BEND_DEG = 30.0
 BEND_SPAN_M = 10.0
-CORNER_M = 12.0  # the sidewalk this far either side of a corner must be seen close for the corner to count as examined
+CORNER_M = 12.0
 EXPLORE_IMAGES = MAX_IMAGES - STOP_PHOTOS
-MAX_CONFIRMS = 30  # confirmer calls (not Google requests): every close view is judged
-CORNER_REACH_M = 40.0  # a sweep facing a corner this close makes the harness look round it
-CORNER_STEP_M = 6.0  # ... from panoramas about this far past and before it
-SECOND_VIEW_SPAN_M = 3.0  # an automatic second view frames the first view's sight line with this margin either side
-SECOND_VIEW_RANGE = (0.6, 1.6)  # ... from this much to this much of the estimated distance: a single view's distance
-                                # was 10 m short at f4156 (0.11.1), and its second view missed the sign
+MAX_CONFIRMS = 30
+CORNER_REACH_M = 40.0
+CORNER_STEP_M = 6.0
+SECOND_VIEW_SPAN_M = 3.0
+SECOND_VIEW_RANGE = (0.6, 1.6)
 SECOND_VIEW_FOV = 30.0
 RING_START_M = {"osm": 25.0, "places": 50.0, "gtfs": 50.0}
 RING_STEP_M = 25.0
@@ -68,43 +47,39 @@ SCAN_OVERLAP_PX = 120
 SCAN_HITS = 2
 SCAN_SAME_DEG = 2.0
 MAX_SCAN_TILES = 200
-IMAGE_SIZE = (640, 640)  # the Static API's maximum
+IMAGE_SIZE = (640, 640)
 SWEEP_FOV = 110.0
-SWEEP_TURNS = {"ahead": 50.0, "behind": 130.0}  # image centre, degrees right of travel: -5..105 or 75..185
-MAX_TILES = 60  # Map Tiles tiles per stop, for zooms and new viewpoints (10,000 free a month: see quota.py)
-ZOOM_SIZE = (512, 512)  # a tile view: about 45 px per degree at fov 10
+SWEEP_TURNS = {"ahead": 50.0, "behind": 130.0}
+MAX_TILES = 60
+ZOOM_SIZE = (512, 512)
 ZOOM_FOV = (5.0, 20.0)
 DEFAULT_ZOOM_FOV = 10.0
 CLOSE_VIEWS = ("zoom", "look_from")
 LOOK_FROM_MAX_M = 40.0
-OSM_SNAP_M = 15.0  # a sight line passing this close to an OSM start is taken to end there
-STOP_CONTEXT_FOV = (50.0, 60.0)  # the found stop: from the confirming panorama, from a second one
-STOP_PHOTO_BACK_M = 12.0  # the second stop photo: from about this far before the stop, looking at it
-SIGN_M = 0.6  # width of a stop sign panel
-SIGN_HEIGHT_M = 2.2  # height of a stop sign panel's centre above the sidewalk
+OSM_SNAP_M = 15.0
+STOP_CONTEXT_FOV = (50.0, 60.0)
+STOP_PHOTO_BACK_M = 12.0
+SIGN_M = 0.6
+SIGN_HEIGHT_M = 2.2
 READABLE_PX = 12.0
-SPOT_PX = 5.0  # ... this wide, as glimpsed: enough to notice and zoom on, not to judge
+SPOT_PX = 5.0
 NEARBY_STOP_M = 15.0
-FOUND_OTHER_M = 8.0  # a candidate this close to another stop's confirmed sign is that sign
-BEARING_SPAN_M = 8.0  # direction of travel averaged over this much path each way
+FOUND_OTHER_M = 8.0
+BEARING_SPAN_M = 8.0
 STATES = ("not_looked", "glimpsed", "seen_close", "blocked", "hidden", "unscanned")
-# Where the stop is, by distance from the start, per start source (rings: up to 10 m, 25, 50, 100, 400).
-# Measured on the 504 verified stops (osm_match.py): OSM matched, and GTFS where OSM has no match.
 SPREAD = {
     "osm": ((10, 0.55), (25, 0.19), (50, 0.12), (100, 0.07), (400, 0.07)),
     "places": ((10, 0.38), (25, 0.22), (50, 0.20), (100, 0.14), (400, 0.06)),
     "gtfs": ((10, 0.18), (25, 0.22), (50, 0.31), (100, 0.18), (400, 0.11)),
 }
 HINT_WEIGHT = {"bus_stop": 0.3, "platform": 0.3, "shelter": 0.3, "stop_position": 0.2, "bus_station": 0.1,
-               "found_partner": 0.4}  # the same-name stop of the other direction, found across the road
+               "found_partner": 0.4}
 HINT_SIGMA_M = 8.0
 SEEN_FACTOR = {"seen_close": 0.1, "blocked": 0.5, "hidden": 0.5, "glimpsed": 0.8}
 CANDIDATE_KINDS = ("sign", "shelter", "pole_with_panel", "bench", "road_marking", "people_waiting")
-# Points on photos are given on a 0-1000 grid over the image, whatever its size: the scale Qwen-VL models are
-# trained to point in (Qwen3.8 located a sign within 3 px this way), and easier than pixels for any model.
 GRID = 1000
 
-FetchImage = Callable[[str, float, float, float, int, int], bytes]  # pano, heading, fov, pitch, width, height
+FetchImage = Callable[[str, float, float, float, int, int], bytes]
 
 
 @dataclass
@@ -117,8 +92,6 @@ Scanner = Callable[[Path], ScanReply | None]
 
 
 class TileSource(Protocol):
-    """Narrow views from Map Tiles (tileviews.TileViews), priced before they are fetched."""
-
     def plan(self, pano_id: str, heading: float, pitch: float, fov: float, width: int, height: int,
              paid: Iterable[tuple]) -> tuple[float, float, set[tuple]]: ...
 
@@ -128,7 +101,7 @@ class TileSource(Protocol):
 
 
 class ToolError(Exception):
-    """The call is invalid; the message tells the explorer why."""
+    ...
 
 
 @dataclass
@@ -143,7 +116,7 @@ class Photo:
     index: int
     pano_id: str
     date: str
-    along: float  # of the panorama
+    along: float
     offset: float
     heading: float
     fov: float
@@ -154,11 +127,11 @@ class Photo:
     lon: float
     width: int = IMAGE_SIZE[0]
     height: int = IMAGE_SIZE[1]
-    shot: int = 0  # the sweep number (0 for other photos)
-    parent: int | None = None  # the photo a zoom was taken from
-    billed: bool = True  # False when it came from the cache
-    source: str = "static"  # "static" (Street View Static API) or "tiles" (Map Tiles)
-    tiles: int = 0  # tiles paid for this view (a tile is paid once per stop)
+    shot: int = 0
+    parent: int | None = None
+    billed: bool = True
+    source: str = "static"
+    tiles: int = 0
     strip: tuple[float, float] | None = None
     cover: list[tuple[float, float]] = field(default_factory=list)
 
@@ -167,12 +140,12 @@ class Photo:
 class Candidate:
     index: int
     kind: str
-    views: list[tuple[int, float, float]]  # (photo index, bearing, elevation)
+    views: list[tuple[int, float, float]]
     lat: float
     lon: float
     along: float
     offset: float
-    status: str = "spotted"  # spotted, confirmed, rejected
+    status: str = "spotted"
     checklist: dict[str, str] = field(default_factory=dict)
     plate_text: str = ""
     evidence: str = ""
@@ -193,7 +166,7 @@ class Session:
         self.fetch_image = fetch_image
         self.confirmer = confirmer
         self.tile_source = tiles
-        self.aerial = aerial  # the aerial map (aerial.py), shown at begin(); None when it couldn't be drawn
+        self.aerial = aerial
         self.harness = {"version": HARNESS_VERSION, **(harness or {})}
         self.tiles_paid: set[tuple] = set()
         self.scanner = scanner
@@ -204,7 +177,7 @@ class Session:
         self.sweeps = 0
         self.confirms = 0
         self.calls = 0
-        self.judged: set[int] = set()  # close views the confirmer has answered on
+        self.judged: set[int] = set()
         start = world.starts[0]
         self.ring_start_m = RING_START_M["osm" if start.kind.startswith("osm") else start.kind
                                          if start.kind in RING_START_M else "gtfs"]
@@ -226,14 +199,12 @@ class Session:
 
     @property
     def explore_used(self) -> int:
-        """Static images the explorer has used (the stop photos are kept back)."""
         return sum(1 for p in self.photos if p.source == "static" and p.toward != "stop_photo")
 
     @property
     def billed(self) -> int:
         return sum(1 for p in self.photos if p.billed)
 
-    # ------------------------------------------------------------------ tools
 
     def begin(self) -> ToolResult:
         if self.photos:
@@ -268,8 +239,6 @@ class Session:
         return self._log("sweep", args, ToolResult(text, [self._file(q) for q in [photo, *extra, *found]]))
 
     def zoom(self, photo: int, x: float, y: float, fov: float = DEFAULT_ZOOM_FOV, what: str | None = None) -> ToolResult:
-        """`what`: the stop-like thing the explorer sees at the point (required from the explorer; None only for
-        direct calls). Kept with the zoom for review, never shown to the confirmer."""
         args = {"photo": photo, "x": x, "y": y, "fov": fov, "what": what}
         self._count_call()
         if not ZOOM_FOV[0] <= fov <= ZOOM_FOV[1]:
@@ -294,7 +263,6 @@ class Session:
         return self._log("zoom", args, ToolResult(text, [self._file(q) for q in shown]))
 
     def look_from(self, candidate: int, from_m: float | None = None, fov: float = DEFAULT_ZOOM_FOV) -> ToolResult:
-        """A narrow view of a candidate from another panorama: a new viewpoint."""
         args = {"candidate": candidate, "from_m": from_m, "fov": fov}
         self._count_call()
         if not ZOOM_FOV[0] <= fov <= ZOOM_FOV[1]:
@@ -351,7 +319,6 @@ class Session:
         return self._log("mark_candidate", args, ToolResult(text + "\n\n" + self._state()))
 
     def confirm(self, candidate: int) -> ToolResult:
-        """No image: the confirmer judges the zoom photo the candidate was last marked on."""
         args = {"candidate": candidate}
         self._count_call()
         c = self._candidate(candidate)
@@ -366,7 +333,7 @@ class Session:
             raise ToolError(f"candidate {candidate} was marked on a wide photo only; the confirmer needs a close view: "
                             f"zoom on it and mark it on the zoom photo")
         fresh = [i for i in zooms if i not in self.judged]
-        if not fresh:  # the same photo gets the same answer: asking again only spends confirmations
+        if not fresh:
             raise ToolError(f"photo {zooms[-1]} was already judged by the confirmer; for a new judgement take a new "
                             f"close view (zoom closer, or look_from({candidate}))")
         photo = self._photo(fresh[-1])
@@ -413,7 +380,6 @@ class Session:
         return self._log("find_other_scans", args, ToolResult(text))
 
     def show_map(self, draw: Callable[["Session", Path], Path]) -> ToolResult:
-        """The debug map (drawn by `draw`, see drawing.py) and the state."""
         self._count_call()
         out = draw(self, self.run_dir / "maps" / f"map_{len(self.events) + 1:03d}.png")
         return self._log("show_map", {}, ToolResult(self._state(), [out]))
@@ -434,10 +400,7 @@ class Session:
         if c.status != "confirmed":
             raise ToolError(f"candidate {candidate} is {c.status}, not confirmed; confirm it first")
         target = self.world.frame.to_xy(c.lat, c.lon)
-        # A sign next to another stop (often the same name, the other direction or a shared pole) is accepted unless
-        # its plate reads the other stop's id: a plate is often unreadable, and that doesn't mean the stop isn't found
-        # (f2164, 0.14.0). The outcome names the neighbour, for review.
-        for o in self.world.found:  # another stop's confirmed sign, a few metres accurate: never this stop's
+        for o in self.world.found:
             if math.dist(target, self.world.frame.to_xy(o.lat, o.lon)) <= FOUND_OTHER_M:
                 raise ToolError(f"candidate {candidate} is {math.dist(target, self.world.frame.to_xy(o.lat, o.lon)):.0f}"
                                 f" m from the confirmed sign of {o.label}: it is that stop's sign, not this one's")
@@ -457,10 +420,6 @@ class Session:
         return stop_photos
 
     def exhausted(self) -> str | None:
-        """Why nothing more can be found, or None. No confirmed candidate, and no way to get one: confirmations
-        used up, or no image or tile left for a close view and no unjudged close view to confirm. The search then
-        ends (0.11.1 runs spent up to 40 turns on free calls after this point: a model can't be asked to stop when
-        every turn must be a tool call)."""
         if self.outcome is not None or any(c.status == "confirmed" for c in self.candidates):
             return None
         if self.confirmer is not None and self.confirms >= MAX_CONFIRMS:
@@ -500,7 +459,6 @@ class Session:
         self.outcome = {"status": "not_found", "reason": reason}
         self.save()
 
-    # ------------------------------------------------------------ bookkeeping
 
     def _count_call(self) -> None:
         if self.outcome is not None:
@@ -741,7 +699,6 @@ class Session:
 
     def _narrow(self, pano: Panorama, heading: float, pitch: float, fov: float, toward: str, along: float,
                 parent: int | None = None) -> Photo:
-        """A narrow view: from tiles while the tile budget allows, else a narrow Static image."""
         if self.tile_source is not None:
             h, pt, new = self.tile_source.plan(pano.pano_id, heading, pitch, fov, *ZOOM_SIZE, self.tiles_paid)
             if len(self.tiles_paid) + len(new) <= MAX_TILES:
@@ -754,7 +711,6 @@ class Session:
         return self._shoot(pano, heading, fov, pitch, toward, along=along, parent=parent)
 
     def _judge(self, photo: Photo):
-        """The confirmer's checklist on a close view, or None (no confirmer, none left, no usable answer)."""
         if self.confirmer is None or self.confirms >= MAX_CONFIRMS:
             return None
         try:
@@ -766,9 +722,6 @@ class Session:
         return checklist
 
     def _examine(self, view: Photo, shown: list[Photo]) -> str:
-        """Every close view is judged, so nothing the explorer zoomed on goes unexamined. A stop: a confirmed
-        candidate. A look-alike: closed. Anything that could be a stop seen badly (from behind, edge on, hidden): a
-        second view from another panorama, judged too, before it can be dismissed."""
         checklist = self._judge(view)
         if checklist is None:
             return ("Not judged automatically (no confirmations left, or no usable answer): if it may be the stop, "
@@ -789,8 +742,6 @@ class Session:
         design = a.get("same_design_as_reference")
         maybe = a.get("could_be_stop_from_another_angle") in ("yes", "unsure") or a.get("shelter") == "unsure" or \
             design in ("yes", "unsure") or any(a.get(k) == "yes" for k in ("fermata_or_bus_text", "cotral_logo"))
-        # A close view often holds several signs: a look-alike beside a panel with the Cotral design doesn't close it
-        # (f4156, 0.11.1: the real sign behind a tree, an arrow sign in the same frame).
         core = any(a.get(k) == "yes" for k in ("fermata_or_bus_text", "cotral_logo", "timetable", "shelter"))
         if (lookalike and design != "yes" and not core) or not maybe:
             return f"JUDGED by the confirmer: not a stop ({self._heard(checklist)})."
@@ -811,9 +762,6 @@ class Session:
                 + self._rejudge(c, second))
 
     def _rejudge(self, c: Candidate, view: Photo) -> str:
-        """Judge a candidate's view from another panorama. It can confirm the candidate, never reject it: it is aimed
-        at an estimated position and may not show the object at all (f4156, 0.11.1: a bench and an arrow sign in the
-        second view rejected the real stop)."""
         checklist = self._judge(view)
         if checklist is None:
             return f"Not judged automatically: confirm({c.index}) after marking it on this photo."
@@ -835,8 +783,6 @@ class Session:
         c.evidence = result.evidence
 
     def _complete_corner(self, photo: Photo) -> tuple[float | None, list[Photo]]:
-        """When a sweep faces a corner, look round it: from just past it looking back, and from just before it
-        looking ahead. The explorer can't cut a corner; the harness never leaves one half-seen."""
         sign = 1 if photo.toward == "sweep_ahead" else -1
         ahead = [b for b, _ in self.bends if b not in self.corners_done and 0 < sign * (b - photo.along) <= CORNER_REACH_M]
         if not ahead:
@@ -865,8 +811,6 @@ class Session:
         return corner, shots
 
     def _frame_sight_line(self, origin, bearing: float, target, pano: Panorama) -> tuple[float, float]:
-        """(heading, fov) for a view from `pano` of the stretch of a first view's sight line where the object can be:
-        a single view's bearing is precise, its distance is not."""
         d0 = max(math.dist(origin, target), 1.0)
         here = self._xy(pano)
         ends = [ray_point(origin, bearing, d0 * k) for k in SECOND_VIEW_RANGE]
@@ -875,7 +819,7 @@ class Session:
         middle = (bearings[0] + spread / 2) % 360
         margin = math.degrees(math.atan(SECOND_VIEW_SPAN_M / max(math.dist(here, target), 1.0)))
         fov = max(ZOOM_FOV[0], min(SECOND_VIEW_FOV, abs(spread) + 2 * margin))
-        if abs(spread) + 2 * margin > SECOND_VIEW_FOV:  # too long a stretch to frame: centre on the estimate
+        if abs(spread) + 2 * margin > SECOND_VIEW_FOV:
             middle = compass(target[0] - here[0], target[1] - here[1])
         return middle, fov
 
@@ -885,8 +829,6 @@ class Session:
         return f"heading {p.heading:.0f}°, pitch {p.pitch:.0f}°, fov {p.fov:.0f}°, {p.width}x{p.height}, cost {paid}"
 
     def _other_viewpoint(self, c: Candidate, target, used: set[str]) -> Panorama:
-        """The best other panorama for a candidate: close to it, at least a few metres away, and before it in the
-        direction of travel, else after it."""
         close = [p for p in self.world.panoramas if p.pano_id not in used
                  and 5.0 <= math.dist(self._xy(p), target) <= LOOK_FROM_MAX_M]
         if not close:
@@ -983,8 +925,6 @@ class Session:
         return photo
 
     def _photograph_stop(self, c: Candidate) -> list[Photo]:
-        """The found stop and its surroundings, for the next stage: a wider view from the panorama that confirmed it,
-        and one from a panorama about STOP_PHOTO_BACK_M before it (as a passenger arrives), aimed at its position."""
         photos: list[Photo] = []
         source = self._photo(c.confirm_photo or c.views[-1][0])
         bearing = next((b for i, b, _ in c.views if i == source.index), source.heading)
@@ -1002,7 +942,6 @@ class Session:
         return photos
 
     def _find_bends(self) -> list[tuple[float, float]]:
-        """(along, signed turn in degrees, + right) of every corner of the path within the limits."""
         lo, hi = self.world.limits
         path = self.world.path
         turns = []
@@ -1025,14 +964,11 @@ class Session:
         return bends
 
     def _bend_between(self, a: float, b: float, margin: float = 3.0) -> float | None:
-        """The corner nearest `a` strictly between a and b (no view from a sees round it), or None."""
         lo, hi = sorted((a, b))
         inside = [x for x, _ in self.bends if lo + margin < x < hi - margin]
         return min(inside, key=lambda x: abs(x - a)) if inside else None
 
     def _unexamined_corners(self) -> list[tuple[float, float, float]]:
-        """(along, turn, share of the remaining likelihood within CORNER_M) of corners not yet seen close, most
-        likely first."""
         lik = self._likelihood()
         total = sum(lik) or 1.0
         out = []
@@ -1105,22 +1041,20 @@ class Session:
         return out
 
     def _prior(self) -> list[float]:
-        """Where the stop probably is: the measured spread around the start (the most accurate source), plus
-        bumps at the OSM hints."""
         weights = [0.0] * len(self.cells)
         start = self.world.starts[0]
         spread = SPREAD["osm" if start.kind.startswith("osm") else start.kind if start.kind in SPREAD else "gtfs"]
         origin = self.world.frame.to_xy(start.lat, start.lon)
-        for i, a in enumerate(self.cells):  # by distance on the ground: a later pass can be close to the start
+        for i, a in enumerate(self.cells):
             d, lo = math.dist(self.world.path.sidewalk(a), origin), 0
             for hi, share in spread:
-                if d < hi:  # the ring's share, spread over the ring's length of sidewalk on both sides
+                if d < hi:
                     weights[i] += share / (2 * (hi - lo)) * CELL_M
                     break
                 lo = hi
         partners = [o for o in self.world.found if o.kind == "found_partner"]
         for h in [*self.world.hints, *partners]:
-            if h.offset < -3 and h.kind != "found_partner":  # a partner is across the road by definition
+            if h.offset < -3 and h.kind != "found_partner":
                 continue
             w = HINT_WEIGHT.get(h.kind, 0.1)
             for i, a in enumerate(self.cells):
@@ -1132,7 +1066,6 @@ class Session:
     def _likelihood(self) -> list[float]:
         return [w * SEEN_FACTOR.get(s, 1.0) for w, s in zip(self.prior, self.state, strict=True)]
 
-    # ------------------------------------------------------------- geometry
 
     def _xy(self, pano) -> tuple[float, float]:
         return self.world.frame.to_xy(pano.lat, pano.lon)
@@ -1167,7 +1100,6 @@ class Session:
         return best
 
     def _pixel(self, photo: Photo, x: float, y: float) -> tuple[float, float]:
-        """The pixel of a point given on the 0-1000 grid of a photo."""
         if not (0 <= x <= GRID and 0 <= y <= GRID):
             raise ToolError(f"x and y are on a 0-{GRID} grid over the photo (0,0 top left, {GRID},{GRID} bottom right)")
         return min(x, GRID - 0.5) * photo.width / GRID, min(y, GRID - 0.5) * photo.height / GRID
@@ -1177,9 +1109,6 @@ class Session:
             raise ValueError(f"pixel ({x}, {y}) outside photo {photo.index} ({photo.width}x{photo.height})")
 
     def _point(self, photo: Photo, x: float, y: float):
-        """(bearing, point) of a pixel on the right-hand sidewalk: where its sight line reaches the sidewalk, else
-        where the pointed spot meets the ground (near the horizon a row says almost nothing about distance, and on
-        slopes the ground range was 5-70 m off)."""
         self._check_pixel(photo, x, y)
         camera = self._camera(photo)
         bearing = camera.bearing_of(x)
@@ -1190,10 +1119,6 @@ class Session:
         return bearing, ray_point(camera.position, bearing, distance if distance is not None else 15.0)
 
     def _candidate_point(self, photo: Photo, x: float, y: float):
-        """(bearing, point, basis) of a candidate seen once. The bearing is precise; the distance is not: from the
-        ground under the object it was 5-70 m off in the dry runs (slopes, small pitch errors). So, in order: the point
-        of the sight line nearest an OSM start it passes close to (about 5 m off), where the sight line meets the
-        right-hand sidewalk (about 10 m), the ground distance."""
         self._check_pixel(photo, x, y)
         camera = self._camera(photo)
         bearing = camera.bearing_of(x)
@@ -1321,16 +1246,12 @@ class Session:
                                    if unscanned else ". No unscanned stretch.")
 
     def _coverage(self, p: Photo) -> str:
-        """Which stretch of the right-hand sidewalk a wide photo shows, and how big a sign would look along it. No
-        points on the photo: given ready-made points, the explorer zoomed on them instead of looking (16 of 16 zooms
-        on caption points, f4156, 0.13.0: cars, motorcycles and faces, while the sign stood in plain view)."""
         camera = self._camera(p)
         lo, hi = self.world.limits
-        seen = []  # (along, size) of the sidewalk in view, nearest first
+        seen = []
         for a in _frange(math.ceil(lo), hi, 2.0):
             s = self.world.path.sidewalk(a)
             d = math.dist(s, camera.position)
-            # only the pass near this photo: a far-away pass of the same road would be described twice
             if camera.column_of(s) is not None and d <= 80 and abs(a - p.along) <= 120 \
                     and 0 <= camera.row_of(s, SIGN_HEIGHT_M) < p.height:
                 seen.append((d, a, _sign_size(camera.pixels_across(SIGN_M, d))))
@@ -1398,7 +1319,6 @@ class Session:
         return (f"at {_m(c.along)}, {abs(c.offset):.0f} m {_side(c.offset)} of the path centre line "
                 f"({c.basis.replace('_', ' ')}, {len(c.views)} view{'s' if len(c.views) > 1 else ''}).")
 
-    # ---------------------------------------------------------------- record
 
     def _photo(self, index: int) -> Photo:
         if not 1 <= index <= len(self.photos):
@@ -1461,7 +1381,6 @@ class Session:
         }
 
     def billed_requests(self) -> dict[str, int]:
-        """Requests actually sent to the billed APIs: Static images not in the cache, tiles fetched from Google."""
         return {"static": sum(1 for p in self.photos if p.source == "static" and p.billed),
                 "tiles": int(getattr(self.tile_source, "fetched", 0))}
 
@@ -1476,8 +1395,6 @@ def _frange(lo: float, hi: float, step: float):
         v += step
 
 
-# What a zoom may be aimed at: something that could be a stop. 0.15.0 NVFP4 zoomed on a grid of guessed points (tree
-# tops, sky, hedges: 26 zooms on f306) while the sign's pole stood in one of its photos.
 STOP_LIKE_WORDS = ("sign", "panel", "pole", "post", "plate", "shelter", "canopy", "bench", "marking", "bus", "stop",
                    "fermata", "waiting", "timetable", "board", "lay-by", "layby", "zig")
 
@@ -1500,8 +1417,6 @@ SEARCHING = re.compile(r"\b(looking|checking|check|search\w*|scan\w*|any|anythin
 
 
 def plate_matches(plate_text: str, stop_id: str) -> bool:
-    """Whether a plate as read ("N.f 2164", "f.2164", "F 2164") carries this stop's id ("f2164"): its number, as a
-    whole number on the plate. A plain substring test refused f2164 28 times over a dot and a space (0.14.0)."""
     number = re.sub(r"\D", "", stop_id).lstrip("0")
     return bool(number) and number in (n.lstrip("0") for n in re.findall(r"\d+", plate_text))
 
@@ -1511,7 +1426,6 @@ def _m(v: float) -> str:
 
 
 def _sign_size(px: float) -> str:
-    """How a 0.6 m sign looks at that distance in a sweep: readable, noticeable, or a speck you can't rely on."""
     return "clear" if px >= READABLE_PX else "small" if px >= SPOT_PX else "a speck"
 
 

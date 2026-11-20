@@ -12,7 +12,7 @@ FETCH_TIMEOUT_S = 30
 
 
 class StaleCheckoutError(CotralMaintenanceError):
-    """The checkout is behind its remote, or its submodule is not at the pinned commit."""
+    ...
 
 
 def _git(*args: str, timeout: float = 10) -> subprocess.CompletedProcess | None:

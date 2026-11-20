@@ -1,14 +1,3 @@
-"""Where Imajev runs. Every backend takes the same questions and photos and returns Jev answers.
-
-- `LlamaCppReadout`: a GGUF of Imajev on llama-server (CUDA on the GPU server, Metal on a Mac),
-  started with `--embeddings --pooling last`. The server returns the final hidden state at the
-  answer position; the trained readout (`decision_readout.safetensors`, from the adapter repo:
-  the GGUF does not carry it) turns it into option logits here. All prompts of a stop are sent
-  concurrently, so the server's parallel slots stay busy.
-- `SystemOne`: Imajev's own reference server (`scripts/playground/server.py`, MLX on a Mac or
-  PyTorch on CUDA), `POST /v1/systemone`. It applies its own rotations and calibration.
-"""
-
 import base64
 import io
 import json
@@ -25,7 +14,7 @@ from PIL import Image
 
 from .imajev import MAX_IMAGES, MEDIA, Engine, Question, render, to_jev_request
 
-PATCH_MULTIPLE = 32  # Qwen3.5 vision: 16 px patches merged 2x2
+PATCH_MULTIPLE = 32
 
 
 class ScorerError(Exception):
@@ -39,7 +28,6 @@ class Scorer(Protocol):
 
 
 def prepare_photo(data: bytes) -> bytes:
-    """JPEG bytes both backends read identically: RGB, sides a multiple of 32 px (Street View photos already are)."""
     with Image.open(io.BytesIO(data)) as img:
         img = img.convert("RGB")
         w, h = (max(PATCH_MULTIPLE, round(s / PATCH_MULTIPLE) * PATCH_MULTIPLE) for s in img.size)
@@ -51,7 +39,6 @@ def prepare_photo(data: bytes) -> bytes:
 
 
 def load_readout(path: Path) -> np.ndarray:
-    """The readout matrix [codes, hidden] from a safetensors file holding one tensor `weight`."""
     raw = path.read_bytes()
     (n,) = struct.unpack("<Q", raw[:8])
     header = json.loads(raw[8:8 + n])
@@ -90,7 +77,6 @@ class LlamaCppReadout:
         return self._marker
 
     def hidden(self, text: str, photos: list[bytes]) -> np.ndarray:
-        """The final hidden state at the answer position (after the model's last norm)."""
         prompt = render(text, len(photos), self.marker())
         content = {"prompt_string": prompt, "multimodal_data": [base64.b64encode(p).decode() for p in photos]} \
             if photos else prompt
@@ -106,7 +92,7 @@ class LlamaCppReadout:
             if r.status_code == 200:
                 data = r.json()
                 vector = data[0]["embedding"] if isinstance(data, list) else data["embedding"]
-                if vector and isinstance(vector[0], list):  # per-token output: the last token
+                if vector and isinstance(vector[0], list):
                     vector = vector[-1]
                 return np.asarray(vector, dtype=np.float32)
             if r.status_code < 500 or attempt == 2:
@@ -150,12 +136,7 @@ class SystemOne:
 
 
 class LlamaCppSystemOne:
-    """A Jev decision model whose GGUF carries its decision head, answered by llama-server itself on
-    `POST /v1/systemone` (llama.cpp build 11773 or later), e.g. H2O Lightning 4B. JSON request; photos as data URLs in
-    the top-level `images` array; every string NFC-normalized, as the model's tokenizer expects (llama.cpp does not
-    normalize). The probabilities are the model's own, calibrated: no rotations, no client-side readout."""
-
-    MAX_IMAGES = 8  # llama-server's limit
+    MAX_IMAGES = 8
 
     def __init__(self, base_url: str, describe: dict, timeout_s: float = 600.0) -> None:
         self.base_url = base_url.rstrip("/")

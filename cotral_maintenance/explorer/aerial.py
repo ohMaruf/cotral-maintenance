@@ -15,12 +15,12 @@ logger = logging.getLogger(__name__)
 TILE_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
 ZOOM = 17
 HALF_M = 300.0
-SIZE = 800  # px: 0.75 m per pixel
+SIZE = 800
 LABEL_EVERY_M = 50
 ROAD_LEVEL = 246
 GROUND = 70
 
-FetchTile = Callable[[int, int, int], bytes]  # z, x, y -> jpeg bytes
+FetchTile = Callable[[int, int, int], bytes]
 
 
 class EsriTiles:
@@ -47,7 +47,6 @@ class EsriTiles:
 
 
 def world_px(lat: float, lon: float, z: int = ZOOM) -> tuple[float, float]:
-    """Web Mercator pixel of a point at zoom z (256 px tiles)."""
     n = 256 * 2 ** z
     return (lon + 180) / 360 * n, (1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * n
 
@@ -95,7 +94,6 @@ def draw_aerial(world: World, out: Path, fetch: FetchTile) -> Path:
             d.polygon([tip, (x + 9 * math.cos(ang + 2.5), y + 9 * math.sin(ang + 2.5)),
                        (x + 9 * math.cos(ang - 2.5), y + 9 * math.sin(ang - 2.5))], fill=(255, 255, 0),
                       outline=(0, 0, 0))
-            # on the RIGHT of travel (image y points down): each pass of a shared road gets its own side
             _label(d, (x - 28 * math.sin(ang), y + 28 * math.cos(ang)), f"{a:+.0f}", big, (160, 0, 70))
         a += LABEL_EVERY_M
     x, y = px(start.lat, start.lon)
@@ -107,7 +105,7 @@ def draw_aerial(world: World, out: Path, fetch: FetchTile) -> Path:
             _label(d, (x, y - 20), "OSM " + h.kind.replace("_", " "), small, (20, 70, 200))
     found = {o.ref for o in world.found}
     for o in world.others:
-        if o.ref in found:  # drawn once, as found
+        if o.ref in found:
             continue
         _stop_dot(d, px(o.lat, o.lon), (255, 140, 0), f"{o.ref} (other stop)", small, (150, 70, 0))
     for o in world.found:
@@ -159,8 +157,6 @@ def _steps(lo: float, hi: float, step: float) -> list[float]:
 
 
 def place_found(world: World, found: list[tuple[str, str, float, float]]) -> list[Placed]:
-    """Other stops already found in this run, (stop_id, name, lat, lon) of their confirmed signs, placed on the path;
-    only those within the search limits and the map."""
     out = []
     for stop_id, name, lat, lon in found:
         if stop_id == world.stop.stop_id:
@@ -169,7 +165,6 @@ def place_found(world: World, found: list[tuple[str, str, float, float]]) -> lis
         if math.hypot(*xy) > HALF_M * 1.5:
             continue
         along, offset, _ = world.path.locate(xy)
-        # the same name across the road: very likely the stop of the other direction, this stop's partner
         partner = name.strip().lower() == world.stop.name.strip().lower() and offset < 0
         out.append(Placed(f"{stop_id} {name} (found)", "found_partner" if partner else "found", lat, lon, along,
                           offset, stop_id))

@@ -1,18 +1,3 @@
-"""The dataset a run reads, described by a manifest (inputs/dataset.toml): every input file, its role, where it
-came from and its sha256.
-
-The files live next to the manifest, in the data repository (a git submodule at inputs/, large files in Git LFS),
-so the exact bytes a result came from stay retrievable. A file that is missing is fetched from its `url` and
-accepted only if its sha256 matches: a "latest" URL that has moved on is refused, never silently used.
-
-    cotral inputs check     every file against its sha256
-    cotral inputs fetch     fetch what is missing, then unzip the GTFS feed into GTFS_COTRAL/ (once)
-
-Roles: gtfs (the operator's feed, zipped), osm (OpenStreetMap extracts covering the network), sign (the
-explorer's reference image of the operator's stop sign), lookalike (signs it must not take for one),
-reference (ground truth for experiments, not read by the pipeline).
-"""
-
 import hashlib
 import logging
 import tomllib
@@ -50,10 +35,9 @@ class Source:
     sha256: str
     path: Path
     url: str | None = None
-    info: dict = field(default_factory=dict)  # data_date, retrieved, license, md5, description
+    info: dict = field(default_factory=dict)
 
     def state(self) -> str:
-        """ok, missing, lfs-pointer (the file is a Git LFS pointer: `git lfs pull` not run) or mismatch."""
         if not self.path.is_file():
             return "missing"
         with self.path.open("rb") as f:
@@ -105,7 +89,6 @@ class Dataset:
         return [s.path for s in self.of("lookalike")]
 
     def identity(self) -> dict:
-        """What the dataset is, for a run's versions: its name and every pipeline input's sha256."""
         return {"name": self.name, "sources": {s.file: s.sha256 for s in self.sources if s.role != "reference"}}
 
     def check(self) -> list[tuple[Source, str]]:
@@ -113,8 +96,6 @@ class Dataset:
 
 
 def fetch(dataset: Dataset, gtfs_dir: Path, timeout_s: float = 60.0) -> dict:
-    """Make every source present and verified (download what is missing from its url), then unzip the GTFS feed
-    into `gtfs_dir` if it is not there. Raises DatasetError with what to do when a source cannot be had."""
     report: dict[str, str] = {}
     problems = []
     for source in dataset.sources:
@@ -158,8 +139,6 @@ def _download(source: Source, timeout_s: float) -> str:
 
 
 def unzip_gtfs(zip_path: Path, gtfs_dir: Path) -> str:
-    """Unzip the feed into `gtfs_dir`, flat, once. An unzipped feed is never replaced (a run is tied to the feed it
-    started with); when it differs from the zip, that is reported."""
     with zipfile.ZipFile(zip_path) as z:
         members = {Path(n).name: n for n in z.namelist() if n.endswith(".txt") and not Path(n).name.startswith(".")}
         missing = set(GTFS_FILES) - members.keys()

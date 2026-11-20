@@ -1,22 +1,3 @@
-"""The run store: everything one pipeline run produced, in one portable directory.
-
-    <runs>/<run_id>/
-        run.sqlite        stops, starting positions, explorations, scores, usage, provenance
-        media/ab/<sha256>.jpg   every photo, content-addressed (a photo shared by two stops is stored once)
-        logs/             the pipeline's and the model servers' logs
-
-The directory is self-contained: no path in the database points outside it, and nothing in
-it depends on the machine it was made on. `bundle.py` packs it into one file to carry it
-from the GPU server to a laptop; the review app reads it as it is.
-
-Every phase writes one row per stop, in its own transaction, as soon as the stop is done:
-an interrupted run loses at most the stops in flight, and re-running resumes.
-
-The database is opened by one writer at a time (the pipeline), in WAL mode while it runs;
-`close()` checkpoints it back to a single file, so a copied run is always complete.
-Threads share one connection behind a lock: writes are a few per stop, never the bottleneck.
-"""
-
 import hashlib
 import json
 import sqlite3
@@ -167,16 +148,10 @@ CREATE TABLE IF NOT EXISTS versions (
 
 SCORE_COLUMNS = ("condition", "has_shelter", "shelter", "has_seating", "seating", "waiting_area", "accessibility",
                  "has_lamp", "stop_visible")
-# Older schemas this code upgrades in place. 1 -> 2: new score questions (no signage, no overall score, lighting as
-# the presence of a lamp, a computed priority); scores are cheap to redo, so they are dropped and every exploration
-# is kept: the next `cotral run RUN --resume` scores the stops again. 2 -> 3: presence and condition asked apart,
-# 0 bad .. 1 good, ranked by condition; dropped the same way.
-# 3 -> 4: every phase row records the version that produced it (rows made before keep NULL: unknown), and
-# explorations get theirs back from the harness and explorer they recorded.
 MIGRATIONS = {
     1: "DROP TABLE scores;",
     2: "DROP TABLE IF EXISTS scores;",
-    3: "DROP TABLE IF EXISTS scores;",  # and the new columns, see _add_columns
+    3: "DROP TABLE IF EXISTS scores;",
 }
 NEW_COLUMNS = {"starts": {"version": "TEXT", "invocation": "INTEGER"},
                "explorations": {"version": "TEXT", "invocation": "INTEGER"}, "invocations": {"versions": "TEXT"}}
@@ -220,7 +195,6 @@ class RunStore:
             self._conn.executescript(SCHEMA)
             self._backfill_explore_versions()
             self._conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
-        # phase -> (version, invocation) stamped on the rows this process writes (set by the pipeline)
         self.stamp: dict[str, tuple[str, int]] = {}
 
     def _add_columns(self) -> None:
@@ -241,7 +215,6 @@ class RunStore:
                                (v, _json(detail)))
             self._conn.execute("UPDATE explorations SET version = ? WHERE stop_id = ?", (v, r["stop_id"]))
 
-    # ------------------------------------------------------------------ versions
 
     def add_version(self, version: str, detail: dict, invocation: int | None) -> None:
         with self.transaction() as c:
@@ -249,7 +222,6 @@ class RunStore:
                       (version, detail["phase"], _json(detail), invocation))
 
     def versions_in(self, phase: str, stop_ids: Iterable[str] | None = None) -> dict[str | None, int]:
-        """How many of the phase's rows each version produced (None: rows made before versions were recorded)."""
         rows = self.query(f"SELECT stop_id, version FROM {PHASE_TABLES[phase]}")
         wanted = None if stop_ids is None else set(stop_ids)
         out: dict[str | None, int] = {}
@@ -264,7 +236,6 @@ class RunStore:
                 for r in self.query("SELECT * FROM versions ORDER BY phase, first_invocation")}
 
     def versions_summary(self) -> dict:
-        """Per phase: rows per version ("unknown": made before versions were recorded), and whether it is mixed."""
         out = {}
         for phase in PHASE_TABLES:
             counts = {v or "unknown": n for v, n in self.versions_in(phase).items()}
@@ -280,7 +251,6 @@ class RunStore:
         return self.root / LOGS_DIR
 
     def close(self) -> None:
-        """Fold the WAL back into the database file, so the run directory can be copied as it is."""
         with self._lock:
             if self._closed:
                 return
@@ -310,7 +280,6 @@ class RunStore:
         with self._lock:
             return self._conn.execute(sql, tuple(params)).fetchall()
 
-    # ------------------------------------------------------------------ meta
 
     def set_meta(self, key: str, value: object) -> None:
         with self.transaction() as c:
@@ -320,10 +289,8 @@ class RunStore:
         rows = self.query("SELECT value FROM meta WHERE key = ?", (key,))
         return json.loads(rows[0]["value"]) if rows else default
 
-    # ------------------------------------------------------------------ media
 
     def put_media(self, data: bytes) -> str:
-        """Store a photo, return its sha256. Writing the same bytes twice is a no-op."""
         sha = hashlib.sha256(data).hexdigest()
         path = media_path(self.root, sha)
         if not path.is_file():
@@ -336,10 +303,8 @@ class RunStore:
     def media(self, sha: str) -> Path:
         return media_path(self.root, sha)
 
-    # ------------------------------------------------------------------ stops
 
     def add_stops(self, stops: list[dict]) -> int:
-        """Add stops to the selection, after the ones already there; a stop already in the run is kept as it is."""
         with self.transaction() as c:
             start = c.execute("SELECT COALESCE(MAX(position), -1) + 1 FROM stops").fetchone()[0]
             added = 0
@@ -355,7 +320,6 @@ class RunStore:
         return [r["stop_id"] for r in self.query("SELECT stop_id FROM stops ORDER BY position")]
 
     def pending(self, phase: str, stop_ids: Iterable[str] | None = None) -> list[str]:
-        """Stops of the run (or of `stop_ids`) the phase has not done yet, in run order."""
         table = {"ingest": "starts", "explore": "explorations", "score": "scores"}[phase]
         rows = self.query(f"SELECT s.stop_id FROM stops s LEFT JOIN {table} t USING (stop_id) "
                           f"WHERE t.stop_id IS NULL ORDER BY s.position")
@@ -366,7 +330,6 @@ class RunStore:
         return ids
 
     def forget(self, phase: str, stop_ids: Iterable[str]) -> None:
-        """Drop a phase's results (and the later phases'), so the stops are done again."""
         tables = {"ingest": ["scores", "transcripts", "photos", "explorations", "starts"],
                   "explore": ["scores", "transcripts", "photos", "explorations"],
                   "score": ["scores"]}[phase]
@@ -375,7 +338,6 @@ class RunStore:
                 for table in tables:
                     c.execute(f"DELETE FROM {table} WHERE stop_id = ?", (stop_id,))
 
-    # ------------------------------------------------------------------ phase rows
 
     def put_start(self, row: dict) -> None:
         with self.transaction() as c:
@@ -396,7 +358,6 @@ class RunStore:
         return _decode(rows[0], ("services",))
 
     def put_exploration(self, row: dict, photos: list[dict], transcript: list[dict]) -> None:
-        """One finished exploration, its photos and its transcript, all at once."""
         with self.transaction() as c:
             stop_id = row["stop_id"]
             for table in ("scores", "transcripts", "photos", "explorations"):
@@ -430,7 +391,6 @@ class RunStore:
                 (row["stop_id"], _json(row["photos"]), _json(row["scorer"]), *(row.get(k) for k in SCORE_COLUMNS),
                  _json(row["answers"]), row["seconds"], row.get("scored_at") or utc_now(), *self._stamp("score", row)))
 
-    # ------------------------------------------------------------------ usage and invocations
 
     def add_usage(self, month: str, key_id: str, api: str, count: int) -> None:
         if count <= 0:
@@ -456,7 +416,6 @@ class RunStore:
                       (utc_now(), status, _json(counts), seq))
 
     def summary(self) -> dict:
-        """Counts per phase and outcome."""
         one = lambda sql: self.query(sql)[0][0]  # noqa: E731
         return {
             "stops": one("SELECT COUNT(*) FROM stops"),

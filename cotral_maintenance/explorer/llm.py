@@ -1,19 +1,3 @@
-"""The explorer and the confirmer as LLM calls, on any OpenAI-compatible chat server.
-
-Two dialects, because servers differ in what they accept:
-  llamacpp  llama-server. Every turn must be a tool call (tool_choice "required": the server
-            constrains the output, so no malformed replies); each explorer and confirmer keeps its
-            own server slot (id_slot) and the cached prompt (cache_prompt); thinking is controlled
-            by chat_template_kwargs; photos go inside the tool results.
-  strict    a plain OpenAI server that refuses unknown fields (TurboFieldfare): tool_choice "auto"
-            (a reply without a call is answered with a reminder), no slots or template controls, and
-            images only in user messages, so a tool result's photos follow it as a user message.
-
-The loop keeps the history an exact extension of the previous request, so the server's prompt cache
-is reused every turn. Reasoning is disabled at the server and deliberately never retained in the
-history; harness nudges are appended to the last tool result.
-"""
-
 import base64
 import io
 import json
@@ -31,9 +15,9 @@ from .confirmer import ANSWERS, FEATURES, Checklist, ConfirmerError, instruction
 from .session import GRID, ScanReply, Session, ToolError
 
 MAX_TURNS = 10
-MAX_INVALID = 3  # failed requests or replies without a call, in a row
-MAX_REPEATS = 4  # the same failing call this many times in a row
-STALL_NUDGE, STALL_END = 4, 8  # turns in a row that change nothing: a nudge, then the end
+MAX_INVALID = 3
+MAX_REPEATS = 4
+STALL_NUDGE, STALL_END = 4, 8
 REFERENCE_PX = 640
 REQUEST_TIMEOUT_S = 1800.0
 STRICT_FIELDS = ("temperature", "top_p", "top_k", "seed", "repetition_penalty")
@@ -41,20 +25,17 @@ STRICT_FIELDS = ("temperature", "top_p", "top_k", "seed", "repetition_penalty")
 
 @dataclass
 class ChatClient:
-    """One chat server, in one dialect."""
-
     base_url: str
     model: str
-    dialect: str  # llamacpp | strict
+    dialect: str
     sampling: dict = field(default_factory=dict)
     template: dict = field(default_factory=dict)
     max_tokens: int = 3000
     session: requests.Session = field(default_factory=requests.Session)
-    request: dict = field(default_factory=dict)  # optional backend-specific OpenAI fields
+    request: dict = field(default_factory=dict)
 
     def complete(self, messages: list[dict], tools: list[dict], slot: int | None, seed: int,
                  template: dict | None = None) -> tuple[int, dict | str, float]:
-        """(HTTP status, JSON body or error text, seconds)."""
         body: dict = {**self.request, "model": self.model, "messages": messages, "max_tokens": self.max_tokens,
                       "seed": seed}
         if tools:
@@ -95,8 +76,6 @@ def image_part(path: Path, max_px: int | None = None) -> dict:
     return {"type": "image_url",
             "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(buffer.getvalue()).decode()}}
 
-
-# ---------------------------------------------------------------------------------------------- tools
 
 def fn(name: str, description: str, properties: dict, required: list[str]) -> dict:
     return {"type": "function", "function": {"name": name, "description": description, "parameters": {
@@ -139,7 +118,6 @@ SCHEMAS = {t["function"]["name"]: t["function"]["parameters"] for t in TOOLS}
 
 
 def check(name: str, args: dict) -> str | None:
-    """Why a call doesn't match its tool's schema, in words the model can act on, or None."""
     schema = SCHEMAS.get(name)
     if schema is None:
         return f"there is no tool {name}; the tools are: {', '.join(SCHEMAS)}"
@@ -160,7 +138,6 @@ def check(name: str, args: dict) -> str | None:
 
 
 def call(session: Session, name: str, args: dict, references: list[Path], draw_map: Callable):
-    """Run one tool on the session."""
     def num(k, default=None):
         v = args.get(k, default)
         return None if v is None else float(v)
@@ -198,7 +175,7 @@ def _photo_parts(images: list[Path], session: Session) -> list[dict]:
     parts = []
     for path in images:
         index = next((p.index for p in session.photos if session._file(p) == path), None)
-        if path == session.aerial:  # at full size: its labels are small
+        if path == session.aerial:
             parts += [{"type": "text", "text": "MAP:"}, image_part(path)]
             continue
         parts += [{"type": "text", "text": f"PHOTO {index}:" if index else f"{path.stem}:"},
@@ -207,7 +184,6 @@ def _photo_parts(images: list[Path], session: Session) -> list[dict]:
 
 
 def progress(session: Session) -> tuple:
-    """What a useful turn changes: photos, candidates and their status, the sidewalk bookkeeping."""
     return (len(session.photos), tuple((c.status, len(c.views)) for c in session.candidates),
             tuple(session.state), session.outcome is not None)
 
@@ -216,14 +192,13 @@ def progress(session: Session) -> tuple:
 class Explorer:
     client: ChatClient
     prompt: str
-    references: list[Path]  # the reference sign, then the look-alikes
+    references: list[Path]
     draw_map: Callable
     slot: int | None = None
     should_stop: Callable[[], bool] = lambda: False
     max_turns: int = MAX_TURNS
 
     def run(self, session: Session, log: Callable[[dict], None]) -> tuple[str, int]:
-        """The loop. Returns why it ended and the number of turns."""
         messages: list[dict] = [{"role": "system", "content": self.prompt},
                                 {"role": "user", "content": f"Find bus stop {session.world.stop.stop_id}. "
                                                             "Start with begin()."}]
@@ -241,7 +216,7 @@ class Explorer:
                 log({"turn": turn, "seconds": round(seconds, 1), "error": f"HTTP {status}: {str(data)[:500]}"})
                 if status == 0 and invalid >= MAX_INVALID:
                     return f"server unreachable: {str(data)[:200]}", turn
-                text = str(data).lower()  # llama-server: "exceeds the available context"; vLLM: "maximum context length"
+                text = str(data).lower()
                 if "context" in text and ("exceed" in text or "maximum context length" in text):
                     return "context full", turn
                 if invalid >= MAX_INVALID:
@@ -259,7 +234,7 @@ class Explorer:
                                 for c in calls]})
             if not calls:
                 invalid += 1
-                if self.client.dialect == "strict":  # tool_choice can't be forced: answer, and remind
+                if self.client.dialect == "strict":
                     content = message.get("content") or ""
                     if content.strip().lower().rstrip(".") == "done":
                         return "the explorer said done", turn
@@ -312,7 +287,7 @@ class Explorer:
             if repeats >= MAX_REPEATS:
                 return "stuck repeating a failing call", turn
             spent = session.exhausted()
-            if spent:  # nothing more can be confirmed: the model can't stop by itself (every turn is a tool call)
+            if spent:
                 return spent, turn
             stalled = 0 if progress(session) != before else stalled + 1
             if stalled >= STALL_END:
@@ -323,7 +298,7 @@ class Explorer:
                         "something else."
             elif stalled == STALL_NUDGE:
                 nudge = "The last turns changed nothing."
-            if nudge:  # appended to the last message, so the history stays an extension of the cached prompt
+            if nudge:
                 last = messages[-1]
                 last["content"] = (last["content"] + f"\n\nHARNESS: {nudge}" if isinstance(last["content"], str)
                                    else [*last["content"], {"type": "text", "text": f"HARNESS: {nudge}"}])
@@ -331,10 +306,6 @@ class Explorer:
 
 
 class LlmConfirmer:
-    """The checklist judge: a fresh call per candidate photo that has seen nothing of the search. With llamacpp the
-    answer is one constrained function call on the confirmer's own slot (so the frozen part, instructions, reference
-    and look-alikes, stays cached and the explorer's cache is never evicted); with strict, one JSON object in text."""
-
     TOOL = "submit_checklist"
     SYSTEM = ("You check photos of possible bus stops in Lazio, Italy, taken from Google Street View. You are strict "
               "and honest: you report only what you can actually see in the candidate photo.")

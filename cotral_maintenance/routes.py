@@ -1,10 +1,3 @@
-"""Which GTFS shapes serve a stop, and the shapes themselves.
-
-A stop is served by the trips that call at it; each trip runs along a shape. A
-`Service` groups those trips by shape, with the stops called just before and after
-(their order gives the direction of travel at the stop).
-"""
-
 import csv
 from collections import Counter, defaultdict
 from collections.abc import Collection
@@ -20,13 +13,11 @@ LatLon = tuple[float, float]
 class Service:
     shape_id: str
     trips: int
-    previous: tuple[str, ...]  # stop ids called just before, by these trips
+    previous: tuple[str, ...]
     next: tuple[str, ...]
 
 
 def load_services(gtfs_dir: Path, stop_ids: Collection[str]) -> dict[str, list[Service]]:
-    """Services of each wanted stop, most trips first. Reads trips.txt and stop_times.txt
-    (which must list each trip's rows together, as GTFS feeds do)."""
     wanted = set(stop_ids)
     trip_shape = {r["trip_id"]: r["shape_id"] for r in _rows(gtfs_dir / "trips.txt")}
     counts: dict[str, Counter] = defaultdict(Counter)
@@ -67,7 +58,6 @@ def load_services(gtfs_dir: Path, stop_ids: Collection[str]) -> dict[str, list[S
 
 
 def load_shapes(gtfs_dir: Path, shape_ids: Collection[str]) -> dict[str, list[LatLon]]:
-    """Points of each wanted shape, in sequence order."""
     wanted = set(shape_ids)
     points: dict[str, list[tuple[int, float, float]]] = defaultdict(list)
     for r in _rows(gtfs_dir / "shapes.txt"):
@@ -78,7 +68,6 @@ def load_shapes(gtfs_dir: Path, shape_ids: Collection[str]) -> dict[str, list[La
 
 
 def clip(points: list[LatLon], lat: float, lon: float, reach_m: float) -> list[LatLon]:
-    """The part of a shape within reach_m (along it) of its point nearest (lat, lon)."""
     nearest = min(range(len(points)), key=lambda i: distance_m(lat, lon, *points[i]))
     lo = hi = nearest
     run = 0.0

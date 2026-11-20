@@ -1,11 +1,3 @@
-"""The run's final table: one row per stop, from its GTFS record to its maintenance scores.
-
-Written to <run>/results.csv, with <run>/versions.json: what each `*_version` column means. Stops are ranked by `condition`, worst first (0 bad .. 1 good: the mean
-of the conditions that apply; a missing shelter or bench has none and is listed in `missing`) among
-those scored with the stop visible; every other stop is listed after them with `needs_review` set and the reason, so a
-person can check what the pipeline could not.
-"""
-
 import csv
 import io
 import json
@@ -79,7 +71,6 @@ def write_results(run: RunStore) -> tuple[str, int]:
 
 
 def versions(run: RunStore) -> dict:
-    """What the version columns of results.csv mean: each version's detail, the rows per phase, the invocations."""
     return {"phases": run.versions_summary(), "versions": run.version_details(),
             "invocations": [{**dict(r), **{k: json.loads(r[k]) if r[k] else None
                                            for k in ("host", "args", "git", "versions", "counts")}}

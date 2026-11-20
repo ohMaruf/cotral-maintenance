@@ -1,14 +1,3 @@
-"""Build the local OSM store (osm_store.py) from the dataset's OSM extracts: `cotral osm build`.
-
-Input: the dataset's `osm` sources (for Cotral, Geofabrik's Central and Southern Italy extracts), each checked
-against its sha256. `cotral osm download` replaces them with their newest copies, for making a new dataset.
-Only what lies within REGION_MARGIN_DEG of the network's extent (from the GTFS stops) is kept:
-  - roads a bus may drive on, with the one-way rule for a bus
-  - every stop-like object (bus stops, platforms, stop positions, public-transport
-    shelters, bus stations), whatever its tagging
-Output: the OSM store (replaced). pyosmium is in the "osm" extra.
-"""
-
 import logging
 import re
 import time
@@ -21,8 +10,8 @@ from .osm_store import OsmStore, Road, StopFeature, bus_road, stop_kind
 from .provenance import utc_now
 from .stops import load_stops
 
-BUILD_VERSION = 2  # bump when the build's output changes for the same extracts (what is kept, how)
-REGION_MARGIN_DEG = 0.05  # about 5 km around the network's extent
+BUILD_VERSION = 2
+REGION_MARGIN_DEG = 0.05
 BATCH = 20_000
 TAG_KEYS = ("highway", "public_transport", "amenity")
 
@@ -72,12 +61,12 @@ def read_extract(path: Path, store: OsmStore, region) -> tuple[int, int]:
                                   node_ids=tuple(n[0] for n in nodes),
                                   coords=tuple((lat, lon) for _, lat, lon in nodes)))
             kind = stop_kind(tags)
-            if kind:  # a stop drawn as an area or a line: keep its centre
+            if kind:
                 ring = nodes[:-1] if nodes[0][0] == nodes[-1][0] else nodes
                 lat = sum(n[1] for n in ring) / len(ring)
                 lon = sum(n[2] for n in ring) / len(ring)
                 stops.append(stop_feature(f"w{obj.id}", kind, lat, lon, tags))
-        elif obj.is_area() and not obj.from_way():  # a multipolygon relation, e.g. a bus station's platforms
+        elif obj.is_area() and not obj.from_way():
             kind = stop_kind(tags)
             ring = [(n.lat, n.lon) for outer in obj.outer_rings() for n in outer if n.location.valid()]
             if kind and ring:
@@ -94,8 +83,6 @@ def read_extract(path: Path, store: OsmStore, region) -> tuple[int, int]:
 
 
 def download(sources: list[Source]) -> list[dict]:
-    """Download the newest copy of each OSM source from its url (Geofabrik's "-latest" files change daily), in
-    place of the pinned one: for making a new dataset. Returns what to write in the manifest."""
     out = []
     for source in sources:
         if not source.url:
@@ -114,8 +101,6 @@ def download(sources: list[Source]) -> list[dict]:
 
 
 def build(sources: list[Source], store_path: Path, stops_file: Path) -> dict:
-    """Build the store from the dataset's OSM extracts, each checked against its sha256 first. The store records
-    the build version and the extracts' sha256: what the ingest version is made of, the same on every machine."""
     import osmium  # noqa: F401  (the "osm" extra; checked before the store is emptied)
 
     if not sources:

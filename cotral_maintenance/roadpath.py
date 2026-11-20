@@ -1,17 +1,3 @@
-"""The path a bus actually drives near a stop: a GTFS shape snapped onto OSM roads.
-
-GTFS shapes are coarse (median segment 133 m, 17% over 300 m), so a straight chord
-can cut a bend or skip the street a loop takes. Snapping uses a hidden Markov model
-(Newson & Krumm, 2009): every shape point has candidate positions on nearby roads;
-the emission score prefers candidates close to the point, the transition score
-prefers consecutive candidates whose distance along the roads matches the distance
-between the shape points. Viterbi picks the best sequence; the path is the road
-route through it. One-way rules are those for a bus (see osm_store.Road.oneway).
-
-Everything runs in a local metric frame (LocalFrame) around the area of interest:
-over a few kilometres the equirectangular error is negligible.
-"""
-
 import heapq
 import math
 from collections.abc import Sequence
@@ -19,8 +5,8 @@ from dataclasses import dataclass, field
 
 from .osm_store import Road
 
-SIGMA_M = 15.0  # spread of shape points around the true road
-BETA_M = 60.0  # tolerance on route length vs straight distance between shape points
+SIGMA_M = 15.0
+BETA_M = 60.0
 CANDIDATE_RADIUS_M = 60.0
 MAX_CANDIDATES = 6
 EARTH_M = 6_371_000.0
@@ -30,8 +16,6 @@ XY = tuple[float, float]
 
 @dataclass(frozen=True)
 class LocalFrame:
-    """Equirectangular metres around (lat0, lon0): x east, y north."""
-
     lat0: float
     lon0: float
 
@@ -46,47 +30,40 @@ class LocalFrame:
 
 @dataclass(frozen=True)
 class Segment:
-    u: int  # OSM node ids, in way order
+    u: int
     v: int
     way_id: int
     a: XY
     b: XY
     length: float
-    forward: bool  # a bus may drive u -> v
-    backward: bool  # a bus may drive v -> u
+    forward: bool
+    backward: bool
 
 
 @dataclass(frozen=True)
 class Candidate:
-    segment: int  # index into RoadGraph.segments
-    t: float  # 0 at u, 1 at v
+    segment: int
+    t: float
     point: XY
-    distance: float  # from the observed point
-    direction: int = 1  # the bus travels u -> v (+1) or v -> u (-1) here
+    distance: float
+    direction: int = 1
 
 
 @dataclass(frozen=True)
 class Route:
     length: float
-    points: tuple[XY, ...]  # from one candidate's point to the other's, through road nodes
+    points: tuple[XY, ...]
 
 
-State = tuple[int, int]  # (node, the node the bus came from)
+State = tuple[int, int]
 
 
 class RoadGraph:
-    """Directed road graph for a bus, in a local frame.
-
-    A bus can't turn round in the middle of a road: routes never go straight back
-    along the segment they arrived on, except at a dead end. Candidates carry the
-    direction of travel, so a reversal between two shape points is impossible too.
-    """
-
     def __init__(self, roads: Sequence[Road], frame: LocalFrame) -> None:
         self.frame = frame
         self.xy: dict[int, XY] = {}
         self.segments: list[Segment] = []
-        self.out: dict[int, list[tuple[int, float]]] = {}  # node -> [(next node, length)]
+        self.out: dict[int, list[tuple[int, float]]] = {}
         for road in roads:
             for node_id, (lat, lon) in zip(road.node_ids, road.coords, strict=True):
                 self.xy.setdefault(node_id, frame.to_xy(lat, lon))
@@ -103,7 +80,6 @@ class RoadGraph:
                     self.out.setdefault(v, []).append((u, length))
 
     def candidates(self, p: XY, radius: float = CANDIDATE_RADIUS_M, limit: int = MAX_CANDIDATES) -> list[Candidate]:
-        """Nearest positions within radius, one per drivable direction of each segment, nearest first."""
         found = []
         for i, s in enumerate(self.segments):
             t, q = _project(p, s.a, s.b)
@@ -117,15 +93,12 @@ class RoadGraph:
         return found[: 2 * limit]
 
     def _turn_allowed(self, node: int, came_from: int, to: int) -> bool:
-        """No U-turn onto the segment just driven, unless the road ends here."""
         return to != came_from or all(m == came_from for m, _ in self.out.get(node, ()))
 
     def routes_from(self, source: Candidate, targets: Sequence[Candidate], max_length: float) -> list[Route | None]:
-        """Shortest drivable route from source to each target, keeping each one's direction of travel
-        (None if longer than max_length or none)."""
         s = self.segments[source.segment]
         results: list[Route | None] = [None] * len(targets)
-        for j, target in enumerate(targets):  # same segment, same direction, moving forward
+        for j, target in enumerate(targets):
             if target.segment == source.segment and target.direction == source.direction:
                 along = (target.t - source.t) * s.length * source.direction
                 if along >= 0:
@@ -156,7 +129,7 @@ class RoadGraph:
     def _dijkstra(self, start: State, cost: float, max_length: float):
         dist: dict[State, float] = {}
         previous: dict[State, State | None] = {}
-        counter = 0  # tie-breaker, so states never get compared
+        counter = 0
         heap = [(cost, counter, start, None)]
         while heap:
             d, _, state, before = heapq.heappop(heap)
@@ -188,12 +161,10 @@ def _project(p: XY, a: XY, b: XY) -> tuple[float, XY]:
 
 @dataclass
 class MatchedPath:
-    """The snapped path, as one or more pieces (a piece ends where no drivable route continues)."""
-
     frame: LocalFrame
     pieces: list[list[XY]] = field(default_factory=list)
-    matched: int = 0  # shape points with a chosen candidate
-    unmatched: int = 0  # shape points with no road within the radius
+    matched: int = 0
+    unmatched: int = 0
 
     @property
     def length(self) -> float:
@@ -204,7 +175,6 @@ class MatchedPath:
 
 
 def match(points: Sequence[XY], graph: RoadGraph, sigma: float = SIGMA_M, beta: float = BETA_M) -> MatchedPath:
-    """Snap a polyline (shape points, in travel order, in graph.frame) onto the road graph."""
     path = MatchedPath(graph.frame)
     chain: _Chain | None = None
     for p in points:
@@ -222,8 +192,6 @@ def match(points: Sequence[XY], graph: RoadGraph, sigma: float = SIGMA_M, beta: 
 
 
 class _Chain:
-    """Viterbi over consecutive shape points that stay connected by drivable routes."""
-
     def __init__(self, graph: RoadGraph, sigma: float, beta: float, p: XY, candidates: list[Candidate]) -> None:
         self.graph, self.sigma, self.beta = graph, sigma, beta
         self.last_point = p
@@ -236,7 +204,6 @@ class _Chain:
         return -0.5 * (c.distance / self.sigma) ** 2
 
     def extend(self, q: XY, targets: list[Candidate]) -> bool:
-        """Add a layer; False (and no change) if no live state reaches it."""
         straight = math.dist(self.last_point, q)
         limit = max(3 * straight, straight + 300.0)
         routes = [self.graph.routes_from(s, targets, limit) if self.score[i] > -math.inf else [None] * len(targets)
@@ -286,8 +253,6 @@ def polyline_length(points: Sequence[XY]) -> float:
 
 
 def locate(points: Sequence[XY], p: XY) -> tuple[float, float, float]:
-    """(along, offset, distance) of p against a polyline: along = metres from its start to the
-    nearest position, offset = signed distance (+ right of travel), distance = |offset|."""
     best = (math.inf, 0.0, 0.0)
     run = 0.0
     for a, b in zip(points, points[1:]):
@@ -297,7 +262,7 @@ def locate(points: Sequence[XY], p: XY) -> tuple[float, float, float]:
         t, q = _project(p, a, b)
         d = math.dist(p, q)
         if d < best[0]:
-            cross = (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])  # > 0: left
+            cross = (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])
             best = (d, run + t * length, -math.copysign(d, cross) if cross else 0.0)
         run += length
     distance, along, offset = best

@@ -1,9 +1,3 @@
-"""Logging configuration: console output plus a rotating log file.
-
-Call `setup_logging` once at program start; modules then use
-`logging.getLogger(__name__)` as usual.
-"""
-
 import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -12,12 +6,10 @@ LOG_FORMAT = "%(asctime)s %(levelname)-8s %(name)s: %(message)s"
 MAX_LOG_BYTES = 5_000_000
 LOG_BACKUP_COUNT = 3
 
-# Third-party loggers that would otherwise log request URLs, which contain the API key.
 NOISY_LOGGERS = ("urllib3", "requests", "PIL", "filelock", "huggingface_hub")
 
 
 def setup_logging(log_file: Path, console_level: int = logging.INFO) -> None:
-    """Send logs to the console at `console_level` and to `log_file` at DEBUG."""
     log_file.parent.mkdir(parents=True, exist_ok=True)
     formatter = logging.Formatter(LOG_FORMAT)
 

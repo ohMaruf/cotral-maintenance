@@ -1,5 +1,3 @@
-"""Thin client for the Places API (New) Nearby Search."""
-
 import logging
 from typing import Protocol, Self
 
@@ -9,10 +7,8 @@ logger = logging.getLogger(__name__)
 
 SEARCH_NEARBY_URL = "https://places.googleapis.com/v1/places:searchNearby"
 INCLUDED_TYPES = ("bus_stop", "transit_station")
-MAX_RESULT_COUNT = 20  # API maximum
+MAX_RESULT_COUNT = 20
 
-# Fields are billed by tier. These are all in the Nearby Search Pro tier; adding
-# Enterprise fields (rating, websiteUri, ...) would raise the price of every request.
 PLACE_FIELDS = (
     "id",
     "displayName",
@@ -31,13 +27,10 @@ FIELD_MASK = ",".join(f"places.{field}" for field in PLACE_FIELDS)
 
 
 class PlacesSource(Protocol):
-    """What the rest of the package needs from a client; lets tests pass a fake."""
-
     def search_nearby(self, request: dict) -> list[dict]: ...
 
 
 def build_nearby_request(lat: float, lon: float, radius_m: float) -> dict:
-    """Request body for transit stops around a point, nearest first."""
     return {
         "includedTypes": list(INCLUDED_TYPES),
         "maxResultCount": MAX_RESULT_COUNT,
@@ -66,7 +59,6 @@ class PlacesClient:
         self._session.close()
 
     def search_nearby(self, request: dict) -> list[dict]:
-        """Run a Nearby Search. Billed per request."""
         response = send(
             self._session,
             "POST",

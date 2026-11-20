@@ -262,6 +262,10 @@ class Session:
         self._count_call()
         if not ZOOM_FOV[0] <= fov <= ZOOM_FOV[1]:
             raise ToolError(f"fov must be between {ZOOM_FOV[0]:.0f} and {ZOOM_FOV[1]:.0f}")
+        if what is not None and SEARCHING.search(what.lower()):
+            raise ToolError(f"what={what!r} describes a search, not a thing you see. Zoom only on one object you can "
+                            f"see in the photo and name it (\"dark panel on a thin pole by the gate\"). The harness "
+                            f"already scans each wide photo's sidewalk for signs; if you see nothing, sweep elsewhere.")
         if what is not None and not names_a_stop_like_thing(what):
             raise ToolError(f"what={what!r} names nothing stop-like. Zoom only on something you can see in the photo "
                             f"that could be a stop: a sign, panel, pole, plate, shelter, bench, road marking or people "
@@ -370,7 +374,7 @@ class Session:
         yes = [k for k, v in checklist.answers.items() if v == "yes"]
         unsure = [k for k, v in checklist.answers.items() if v == "unsure"]
         text = (f"An independent confirmer judged photo {photo.index} (candidate {candidate}).\n"
-                f"Confirmer: \"{checklist.note}\". Yes: {', '.join(yes) or 'none'}. Unsure: {', '.join(unsure) or 'none'}."
+                f"Confirmer: {self._heard(checklist)}. Yes: {', '.join(yes) or 'none'}. Unsure: {', '.join(unsure) or 'none'}."
                 + (f" Plate: {checklist.plate_text}." if checklist.plate_text else "")
                 + f"\nCandidate {candidate} {c.status.upper()}: {result.reason}.")
         if result.confirmed:
@@ -529,6 +533,20 @@ class Session:
                                                                          if earlier else "") +
                         ". Zoom on something in those photos, or sweep where the sidewalk is not looked at yet.")
 
+    def _heard(self, checklist) -> str:
+        said = f"\"{checklist.note}\""
+        plate = checklist.plate_text.strip()
+        if not plate or not re.search(r"\d", plate):
+            return said
+        own = self.world.stop.stop_id
+        if plate_matches(plate, own):
+            return f"{said} (the plate reads this stop's id, {own})"
+        for o in self.world.others:
+            if o.ref and plate_matches(plate, o.ref):
+                return f"{said} (the plate reads {o.label}'s id: that stop's sign)"
+        return (f"{said} (the plate was read as {plate!r}: no stop near here has that id, and plate digits this small "
+                f"are often misread{_digits_off(plate, own)}. It does not show that this is another stop's sign)")
+
     def _scan_all(self, photos: list[Photo]) -> tuple[list[str], list[Photo]]:
         lines: list[str] = []
         shown: list[Photo] = []
@@ -672,7 +690,7 @@ class Session:
         self._record_judgement(c, view, checklist, result)
         if result.confirmed:
             self.candidates.append(c)
-            return (f"JUDGED by the confirmer: \"{checklist.note}\". Candidate {c.index} CONFIRMED ({c.evidence}), "
+            return (f"JUDGED by the confirmer: {self._heard(checklist)}. Candidate {c.index} CONFIRMED ({c.evidence}), "
                     f"{self._describe(c)} submit_found({c.index}); look_from({c.index}) first triangulates its position.")
         a = checklist.answers
         lookalike = [k for k in LOOKALIKE_FEATURES if a.get(k) == "yes"]
@@ -683,7 +701,7 @@ class Session:
         # (f4156, 0.11.1: the real sign behind a tree, an arrow sign in the same frame).
         core = any(a.get(k) == "yes" for k in ("fermata_or_bus_text", "cotral_logo", "timetable", "shelter"))
         if (lookalike and design != "yes" and not core) or not maybe:
-            return f"JUDGED by the confirmer: not a stop (\"{checklist.note}\")."
+            return f"JUDGED by the confirmer: not a stop ({self._heard(checklist)})."
         self.candidates.append(c)
         target = self.world.frame.to_xy(c.lat, c.lon)
         try:
@@ -693,10 +711,10 @@ class Session:
                                   along=self.world.path.along_near(self._xy(pano), c.along, 60.0))
         except ToolError as error:
             c.status = "spotted"
-            return (f"JUDGED by the confirmer: \"{checklist.note}\": it could be a stop seen badly from here, but no "
+            return (f"JUDGED by the confirmer: {self._heard(checklist)}: it could be a stop seen badly from here, but no "
                     f"second view could be taken ({error}). Candidate {c.index} stays open: look at it from elsewhere.")
         shown.append(second)
-        return (f"JUDGED by the confirmer: \"{checklist.note}\": it could be a stop seen badly from here, so the "
+        return (f"JUDGED by the confirmer: {self._heard(checklist)}: it could be a stop seen badly from here, so the "
                 f"harness looked at it from another panorama: PHOTO {second.index}, {self._narrow_note(second)}.\n"
                 + self._rejudge(c, second))
 
@@ -709,13 +727,13 @@ class Session:
             return f"Not judged automatically: confirm({c.index}) after marking it on this photo."
         result = verdict(checklist.answers)
         if c.status == "confirmed" and not result.confirmed:
-            return f"Second view judged: \"{checklist.note}\" (candidate {c.index} stays confirmed)."
+            return f"Second view judged: {self._heard(checklist)} (candidate {c.index} stays confirmed)."
         if result.confirmed:
             self._record_judgement(c, view, checklist, result)
-            return (f"Second view JUDGED by the confirmer: \"{checklist.note}\". Candidate {c.index} CONFIRMED "
+            return (f"Second view JUDGED by the confirmer: {self._heard(checklist)}. Candidate {c.index} CONFIRMED "
                     f"({c.evidence}). submit_found({c.index}).")
         c.status = "spotted"
-        return (f"Second view judged: \"{checklist.note}\". That does not settle it (the view may have missed the "
+        return (f"Second view judged: {self._heard(checklist)}. That does not settle it (the view may have missed the "
                 f"object): candidate {c.index} stays open.")
 
     def _record_judgement(self, c: Candidate, view: Photo, checklist, result) -> None:
@@ -1305,6 +1323,18 @@ STOP_LIKE_WORDS = ("sign", "panel", "pole", "post", "plate", "shelter", "canopy"
 def names_a_stop_like_thing(what: str) -> bool:
     words = re.findall(r"[a-z-]+", what.lower())
     return len(words) >= 2 and any(w.startswith(k) and not w.startswith("bush") for w in words for k in STOP_LIKE_WORDS)
+
+
+def _digits_off(plate_text: str, stop_id: str) -> str:
+    number = re.sub(r"\D", "", stop_id)
+    read = max(re.findall(r"\d+", plate_text), key=len, default="")
+    if len(read) != len(number):
+        return ""
+    off = sum(a != b for a, b in zip(read, number, strict=True))
+    return f"; it is {off} digit{'s' if off != 1 else ''} from this stop's id {stop_id}"
+
+
+SEARCHING = re.compile(r"\b(looking|checking|check|search\w*|scan\w*|any|anything|something|possibly|maybe|perhaps)\b")
 
 
 def plate_matches(plate_text: str, stop_id: str) -> bool:

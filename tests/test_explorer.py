@@ -858,3 +858,45 @@ def test_scan_tiles_are_capped(tmp_path, monkeypatch):
     s = scanning_session(tmp_path, FakeScanner())
     result = s.begin()
     assert len(s.scans) == 1 and "scan tiles are used up" in result.text and len(s.scan_tiles) == 5
+
+
+def test_a_zoom_that_describes_a_search_is_refused(session):
+    session.begin()
+    for bad in ("checking the right-hand sidewalk area for any pole or sign",
+                "looking for a sign or panel on the right side near the fence",
+                "structure at right edge of photo 1, possibly a shelter or sign near the kerb"):
+        with pytest.raises(ToolError, match="describes a search"):
+            session.zoom(1, 500, 500, 10, what=bad)
+    assert len(session.photos) == 2
+    session.zoom(1, 500, 500, 10, what="dark panel on a thin pole by the roadside, possible bus stop sign")
+    assert len(session.photos) == 3
+
+
+class PlateConfirmer(FakeConfirmer):
+    def __init__(self, plate, **answers):
+        super().__init__(**answers)
+        self.plate = plate
+
+    def __call__(self, photo):
+        checklist = super().__call__(photo)
+        checklist.plate_text = self.plate
+        return checklist
+
+
+def test_a_misread_plate_is_said_to_be_a_misreading(session):
+    session.confirmer = PlateConfirmer("N.f 9", fermata_or_bus_text="yes", cotral_logo="yes")
+    session.begin()
+    session.sweep(from_m=40)
+    result = session.zoom(session.photos[-1].index, *at(session, session.photos[-1].index, 520, 330))
+    assert "no stop near here has that id" in result.text and "1 digit from this stop's id f1" in result.text
+
+
+def test_a_plate_with_this_stops_id_or_a_neighbours_is_named(tmp_path):
+    lat, lon = FRAME.to_latlon(290.0, -10.0)
+    s = make_session(tmp_path, straight_world([Placed("f7 Other", "stop", lat, lon, -10.0, -10.0, "f7")]),
+                     PlateConfirmer("f 1", fermata_or_bus_text="yes", cotral_logo="yes"))
+    s.begin()
+    s.sweep(from_m=40)
+    assert "reads this stop's id, f1" in s.zoom(s.photos[-1].index, 500, 500).text
+    s.confirmer.plate = "N.f 7"
+    assert "reads f7 Other's id" in s.zoom(s.photos[-1].index, 400, 500).text

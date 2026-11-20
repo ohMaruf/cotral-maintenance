@@ -1,16 +1,10 @@
-"""Scratch: make Cotral navy (H~219, S~0.42, V~0.33 on the reference sign) stand out in Street View photos.
-
-    uv run python experiments/enhance/cotral_blue.py OUT_DIR IMAGE...
-writes <name>_mask.png (where the navy is) and <name>_enh.png (navy made vivid, the rest muted) for each image.
-"""
-
 import sys
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
 
-HUE, HUE_TOL = 219.0, 28.0  # degrees
+HUE, HUE_TOL = 219.0, 28.0
 S_MIN, V_MIN, V_MAX = 0.18, 0.10, 0.62
 
 
@@ -30,7 +24,6 @@ def rgb_to_hsv(rgb: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
 
 def navy_weight(rgb: np.ndarray) -> np.ndarray:
-    """0..1 per pixel: how much it looks like the sign's navy."""
     h, s, v = rgb_to_hsv(rgb)
     dh = np.abs((h - HUE + 180) % 360 - 180)
     wh = np.clip(1 - dh / HUE_TOL, 0, 1)
@@ -42,8 +35,8 @@ def navy_weight(rgb: np.ndarray) -> np.ndarray:
 def enhance(rgb: np.ndarray) -> np.ndarray:
     w = navy_weight(rgb)[..., None]
     grey = rgb.mean(-1, keepdims=True)
-    muted = grey + 0.55 * (rgb - grey)                # everything else: less colour
-    vivid = np.array([0.05, 0.25, 1.0]) * (0.55 + 0.45 * grey / 0.4)  # navy: saturated bright blue
+    muted = grey + 0.55 * (rgb - grey)
+    vivid = np.array([0.05, 0.25, 1.0]) * (0.55 + 0.45 * grey / 0.4)
     return np.clip(muted * (1 - w) + np.clip(vivid, 0, 1) * w, 0, 1)
 
 

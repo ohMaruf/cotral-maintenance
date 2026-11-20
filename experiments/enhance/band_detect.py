@@ -1,8 +1,3 @@
-"""Scratch: a navy-panel detector on far bands rendered from tiles (far_band.py): recall and false alarms.
-
-    uv run python experiments/enhance/band_detect.py BAND_DIR
-"""
-
 import json
 import sys
 from pathlib import Path
@@ -11,8 +6,8 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent))
-from blobs import components  # noqa: E402
-from cotral_blue import rgb_to_hsv  # noqa: E402
+from blobs import components
+from cotral_blue import rgb_to_hsv
 
 
 def panels(rgb: np.ndarray) -> list[tuple[float, float, int]]:
@@ -21,7 +16,6 @@ def panels(rgb: np.ndarray) -> list[tuple[float, float, int]]:
     out = []
     for ys, xs in components(mask):
         n, bh, bw = len(xs), np.ptp(ys) + 1, np.ptp(xs) + 1
-        # a panel: solid, roughly upright rectangle, a few metres up (not a stretch of sky or shadow)
         if 20 <= n <= 6000 and n >= 0.5 * bh * bw and 0.6 <= bh / bw <= 3.5:
             out.append((xs.mean(), ys.mean(), n))
     return out

@@ -1,12 +1,3 @@
-"""Scratch: selective tiling. A sweep stays a cheap Static API photo; only the FAR part of the right-hand sidewalk
-(20-80 m, where a sign is a few blurry pixels) is re-rendered from tiles at ~4x, and only there.
-
-    uv run python experiments/enhance/far_band.py OUT_DIR runs/A runs/B ...   (fetches tiles: billed)
-
-For every found stop and every wide photo whose view holds the found sign 20-70 m away: the band's box,
-whether the sign falls inside it, the tiles it costs, and the band image (OUT_DIR/<run>_<stop>_<idx>.png).
-"""
-
 import json
 import math
 import sqlite3
@@ -19,9 +10,9 @@ from cotral_maintenance.settings import GoogleKey, Paths
 from cotral_maintenance.tiles import MapTilesClient
 
 NEAR_M, FAR_M = 20.0, 80.0
-SCALE = 4  # band pixels per sweep pixel
+SCALE = 4
 MARGIN_PX = 12
-OFFSETS_M = (3.0, 8.0, 14.0)  # right of the centre line: kerb to a lay-by or a stop set back (f9388: 12 m)  # sweep pixels around the band: path and GTFS geometry are a few metres off
+OFFSETS_M = (3.0, 8.0, 14.0)
 
 
 class Frame:
@@ -33,7 +24,6 @@ class Frame:
 
 
 def band(cam: Camera, path: PathFrame, along: float) -> tuple[float, float, float, float] | None:
-    """(x0, y0, x1, y1) in sweep pixels around the right-hand sidewalk NEAR_M-FAR_M away, sign heights 0-4 m."""
     xs, ys = [], []
     a = max(path.first, along - 130)
     while a <= min(path.last, along + 130):
@@ -53,7 +43,6 @@ def band(cam: Camera, path: PathFrame, along: float) -> tuple[float, float, floa
 
 
 def box_view(cam: Camera, box) -> tuple[float, float, float, int, int]:
-    """heading, pitch, horizontal fov, width, height of a tile render covering the box at SCALE."""
     x0, y0, x1, y1 = box
     b0, b1 = cam.bearing_of(x0), cam.bearing_of(x1)
     fov = (b1 - b0) % 360

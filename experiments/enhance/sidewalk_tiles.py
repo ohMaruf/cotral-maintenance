@@ -1,11 +1,3 @@
-"""Scratch: tiles only where the sidewalk is. For every spot of the right-hand sidewalk 20-80 m from the camera
-(every 2 m along, 3/8/14 m right of the centre line), the footprint of a sign standing there (1 m either side,
-0-4 m up) is mapped to panorama tiles; the union is what gets fetched. Compared with the far band's rectangle.
-No tiles are fetched (metadata only).
-
-    uv run python experiments/enhance/sidewalk_tiles.py runs/A runs/B ...
-"""
-
 import json
 import math
 import sqlite3
@@ -13,18 +5,17 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from far_band import FAR_M, NEAR_M, OFFSETS_M, Frame, band, box_view  # noqa: E402
+from far_band import FAR_M, NEAR_M, OFFSETS_M, Frame, band, box_view
 
-from cotral_maintenance.explorer.geometry import CAMERA_HEIGHT_M, Camera, PathFrame, compass  # noqa: E402
-from cotral_maintenance.render import tiles_for_view  # noqa: E402
-from cotral_maintenance.settings import GoogleKey, Paths  # noqa: E402
-from cotral_maintenance.tiles import MapTilesClient  # noqa: E402
+from cotral_maintenance.explorer.geometry import CAMERA_HEIGHT_M, Camera, PathFrame, compass
+from cotral_maintenance.render import tiles_for_view
+from cotral_maintenance.settings import GoogleKey, Paths
+from cotral_maintenance.tiles import MapTilesClient
 
 SIGN_HALF_M, SIGN_TOP_M = 1.0, 4.0
 
 
 def footprint(cam: Camera, p, ppd: float):
-    """A tiny view framing a sign standing at p, at ppd pixels per degree."""
     d = math.dist(p, cam.position)
     heading = compass(p[0] - cam.position[0], p[1] - cam.position[1])
     hw = math.degrees(math.atan(SIGN_HALF_M / d))
@@ -71,11 +62,10 @@ def main() -> None:
                     g = client.get_geometry(ph["pano_id"])
                     hd, pt, fov, w, h = box_view(cam, box)
                     z5 = tiles_for_view(g, hd, pt, fov, w, h)
-                    z4 = tiles_for_view(g, hd, pt, fov, int(w * 0.95), int(h * 0.95))  # 22.1 px/deg: zoom 4
+                    z4 = tiles_for_view(g, hd, pt, fov, int(w * 0.95), int(h * 0.95))
                     side4, side34 = set(), set()
                     for p in sidewalk_spots(cam, path, ph["along"]):
                         side4 |= tiles_for_view(g, *footprint(cam, p, 22.0))
-                        # nearer than 40 m a sign is 0.9-1.7 degrees wide: zoom 3 (11 px/deg) gives it 10-19 px
                         ppd = 11.0 if math.dist(p, cam.position) < 40 else 22.0
                         side34 |= tiles_for_view(g, *footprint(cam, p, ppd))
                     sign = tiles_for_view(g, *footprint(cam, (0.0, 0.0), 22.0))

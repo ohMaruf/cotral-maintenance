@@ -1,16 +1,3 @@
-"""Refuse to start a run on a checkout that is behind its remote.
-
-A run takes hours of GPU time and billed Google requests, so it must not start on old code by mistake
-(e.g. on the server, after pushing from the laptop but before `git pull`). Before `cotral run`:
-
-- fetch the current branch's upstream (bounded by a timeout, never prompting);
-- behind or diverged from the upstream: refuse;
-- the inputs/ submodule checked out at another commit than the one this checkout pins: refuse;
-- not a git checkout, no upstream, or the fetch failed (offline): warn and go on.
-
-`cotral run --allow-stale` skips the check.
-"""
-
 import logging
 import os
 import subprocess
@@ -29,7 +16,6 @@ class StaleCheckoutError(CotralMaintenanceError):
 
 
 def _git(*args: str, timeout: float = 10) -> subprocess.CompletedProcess | None:
-    # Never ask for credentials or a host key: fail instead, and the check only warns.
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
     env.setdefault("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
     try:
@@ -45,7 +31,6 @@ def _out(*args: str) -> str | None:
 
 
 def check_up_to_date() -> None:
-    """Raise StaleCheckoutError when the checkout must be updated before a run; log otherwise."""
     if _out("rev-parse", "--is-inside-work-tree") != "true":
         logger.warning("Freshness check skipped: %s is not a git checkout", REPO)
         return
@@ -86,8 +71,6 @@ def _check_branch() -> None:
 
 
 def _check_submodules() -> None:
-    # Each line: ' ' at the pinned commit, '+' at another commit, '-' not initialised, 'U' conflicted.
-    # Not _out: stripping would drop the first line's leading ' ' flag.
     result = _git("submodule", "status")
     status = result.stdout if result is not None and result.returncode == 0 else ""
     for line in filter(None, status.splitlines()):

@@ -1,11 +1,3 @@
-"""Scratch: does a navy-blob detector find the signs the explorer found? Recall and false blobs on wide photos.
-
-    uv run python experiments/enhance/blobs.py runs/test-nvfp4-5 runs/test-nvfp4-7 ...
-For every found stop: its wide photos (opening/sweep) whose view holds the found position within 70 m;
-a hit is a blob within 14 px of the projected column and 70 px of the horizon.
-"""
-
-import json
 import math
 import sqlite3
 import sys
@@ -16,13 +8,12 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent))
-from cotral_blue import navy_weight  # noqa: E402
+from cotral_blue import navy_weight
 
 W_MIN, AREA = 0.35, (3, 400)
 
 
 def components(mask: np.ndarray):
-    """(ys, xs) of each 4-connected component of a boolean mask."""
     h, w = mask.shape
     seen = np.zeros_like(mask)
     for y0, x0 in zip(*np.nonzero(mask)):
@@ -45,7 +36,6 @@ def blobs(rgb: np.ndarray) -> list[tuple[float, float, int]]:
     for ys, xs in components(navy_weight(rgb) > W_MIN):
         pts = xs
         bh, bw = np.ptp(ys) + 1, np.ptp(xs) + 1
-        # compact: a sign, not a shadow band or a stretch of sky
         if AREA[0] <= len(pts) <= AREA[1] and len(pts) >= 0.35 * bh * bw and bw <= 40 and bh <= 40:
             out.append((xs.mean(), ys.mean(), len(pts)))
     return out

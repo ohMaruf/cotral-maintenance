@@ -1,24 +1,3 @@
-"""A/B test: does cropping a photo to the far sidewalk degrade what the explorer model can see?
-
-Each wide photo (opening or sweep) of the found stops in the given runs is shown four ways:
-  A  the Static API photo the explorer gets today (640x640, 110°)
-  B  the same view rendered from tiles at ~2x (1254x1254, zoom 3)
-  D  B cropped to the far sidewalk band (20-80 m, 3-14 m right, 0-4 m up): the same pixels, cropped
-  C  the band rendered at ~4x (zoom 4)
-B vs D isolates cropping; C vs D adds resolution; A is today.
-Positives: the found sign 20-70 m away inside the band. Negatives: photos where neither the found sign nor any
-other known stop is in view within 150 m. The model gets the reference sign and one image, and answers whether a
-Cotral sign is there and where (0-1000 grid). A point counts when it is on the sign: within max(1.5°, the sign's
-half-width) of its bearing and between its foot and top (±1°).
-
-Run on the server, from the repository root, with the explorer's server up:
-    uv run python experiments/enhance/crop_ab.py build OUT runs/RUN ... --dry-run   # count tiles, fetch nothing
-    uv run python experiments/enhance/crop_ab.py build OUT runs/RUN ...             # render (billed tiles)
-    uv run python experiments/enhance/crop_ab.py eval OUT --profile remote-nvfp4 [--repeats 3]
-    uv run python experiments/enhance/crop_ab.py report OUT
-`eval` resumes: answers already in OUT/answers.jsonl are not asked again.
-"""
-
 import argparse
 import json
 import math
@@ -37,8 +16,8 @@ from cotral_maintenance.render import render_view, tiles_for_view
 from cotral_maintenance.settings import GoogleKey, Paths, load_profile
 from cotral_maintenance.tiles import MapTilesClient
 
-FULL_PX = 1254  # 11.4 px/degree over 110°: zoom 3
-BAND_SCALE = 3.9  # band pixels per Static API pixel: 22.7 px/degree, zoom 4
+FULL_PX = 1254
+BAND_SCALE = 3.9
 POSITIVE_M = 70.0
 NEGATIVE_CLEAR_M = 150.0
 CONDITIONS = ("A", "B", "D", "C")
@@ -59,7 +38,6 @@ def camera_of(j: dict) -> Camera:
 
 
 def candidates(runs: list[Path], limit_negatives: int):
-    """(run, stop, photo record, Camera, path, sign xy, distance, band box, kind) per usable wide photo."""
     seen, negatives = set(), 0
     for run in runs:
         db = sqlite3.connect(run / "run.sqlite")
@@ -75,7 +53,7 @@ def candidates(runs: list[Path], limit_negatives: int):
                 if not ph["toward"].startswith(("sweep", "opening")):
                     continue
                 key = (ph["pano_id"], round(ph["heading"]))
-                if key in seen:  # runs share stops and photos
+                if key in seen:
                     continue
                 cam = Camera(f.xy(ph["lat"], ph["lon"]), ph["heading"], ph["fov"], ph["pitch"],
                              ph["width"], ph["height"])
@@ -103,7 +81,6 @@ def candidates(runs: list[Path], limit_negatives: int):
 
 
 def views(cam: Camera, box) -> tuple[Camera, tuple[int, int, int, int], Camera]:
-    """B's camera, D's crop of B (pixels), C's camera."""
     full = Camera(cam.position, cam.heading, cam.fov, cam.pitch, FULL_PX, FULL_PX)
     k = FULL_PX / cam.width
     crop = tuple(round(v * k) for v in box)
@@ -223,7 +200,7 @@ def cmd_report(args) -> int:
     out = Path(args.out)
     items = {i["name"]: i for i in json.loads((out / "items.json").read_text())}
     rows = [json.loads(line) for line in (out / "answers.jsonl").read_text().splitlines()]
-    score: dict[tuple[str, int], dict[str, bool | None]] = {}  # (name, repeat) -> condition -> correct
+    score: dict[tuple[str, int], dict[str, bool | None]] = {}
     print(f"{'cond':4s} {'pos':>4s} {'said yes':>9s} {'on sign':>8s} {'neg':>4s} {'false yes':>10s} "
           f"{'invalid':>8s} {'tokens':>7s} {'s/call':>7s}")
     for cond in CONDITIONS:

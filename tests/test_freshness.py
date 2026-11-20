@@ -1,5 +1,3 @@
-"""The pre-run check that the checkout is not behind its remote, on throwaway git repositories."""
-
 import subprocess
 from pathlib import Path
 
@@ -23,7 +21,6 @@ def commit(repo: Path, name: str) -> None:
 
 @pytest.fixture
 def repos(tmp_path, monkeypatch):
-    """(remote clone where others push, the checkout under test) sharing a bare origin."""
     git(tmp_path, "init", "-q", "--bare", "origin.git")
     git(tmp_path, "clone", "-q", "origin.git", "other")
     other = tmp_path / "other"
@@ -83,7 +80,7 @@ def test_submodule_off_pin_refuses(repos, tmp_path):
     git(here, "submodule", "add", "-q", str(tmp_path / "data"), "inputs")
     git(here, "commit", "-qm", "inputs")
     git(here, "push", "-q", "origin", "HEAD:main")
-    check_up_to_date()  # at the pinned commit
+    check_up_to_date()
     commit(here / "inputs", "d2")
     with pytest.raises(StaleCheckoutError, match="submodule inputs"):
         check_up_to_date()

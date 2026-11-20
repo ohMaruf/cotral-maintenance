@@ -25,3 +25,10 @@ line, 0-4 m above the ground) is re-rendered from tiles at 4x. Its box comes fro
 
 Navy upright-rectangle detector on the clean bands: recall 14/36, 7.8 false alarms per band. Signs seen from
 behind, backlit or shaded have no navy left; fences, cars and other blue signs do. Not usable as a gate.
+
+## Tiles only where the sidewalk is (`sidewalk_tiles.py`)
+
+The tiles a sign standing on each sidewalk spot (20-80 m, every 2 m, 3/8/14 m right) would fall in, against the
+far band's rectangle, on the same 39 photos: band 6.4 tiles (zoom 4), sidewalk-only 5.9; same 36/39 coverage.
+A zoom-4 tile is 22.5° x 22.5°, the far sidewalk ~8° tall: sky and asphalt mostly share the sidewalk's tiles,
+so excluding them saves few tiles. They do cost image tokens, which cropping to the sidewalk saves.

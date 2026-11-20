@@ -17,6 +17,7 @@ from cotral_maintenance.settings import GoogleKey, Paths, load_profile
 from cotral_maintenance.tiles import MapTilesClient
 
 FULL_PX = 1254
+BAND_SCALE = 3.9
 CASES = [
     {"run": "test-nvfp4-11", "stop": "f13310", "photo": 1, "sign_px": 157},
     {"run": "test-nvfp4-11", "stop": "f306", "photo": 6, "sign_latlon": (42.148483, 12.114685)},
@@ -81,17 +82,26 @@ def main() -> int:
             name = f"{case['stop']}_{case['photo']}"
             full.save(out / f"{name}_full.png")
             full.crop(crop).save(out / f"{name}_crop.png")
-            for kind, offset, size in (("full", (0, 0), (FULL_PX, FULL_PX)),
-                                       ("crop", crop[:2], (crop[2] - crop[0], crop[3] - crop[1]))):
+            b0, b1 = cam.bearing_of(box[0]), cam.bearing_of(box[2])
+            fov = (b1 - b0) % 360
+            band_cam = Camera((0.0, 0.0), (b0 + fov / 2) % 360, fov,
+                              (cam.elevation_of(box[1]) + cam.elevation_of(box[3])) / 2,
+                              int((box[2] - box[0]) * BAND_SCALE), int((box[3] - box[1]) * BAND_SCALE))
+            render_view(tiles, g, band_cam.heading, band_cam.pitch, band_cam.fov, band_cam.width,
+                        band_cam.height).save(out / f"{name}_crop4x.png")
+            for kind, view, offset, size in (
+                    ("full", full_cam, (0, 0), (FULL_PX, FULL_PX)),
+                    ("crop", full_cam, crop[:2], (crop[2] - crop[0], crop[3] - crop[1])),
+                    ("crop4x", band_cam, (0, 0), (band_cam.width, band_cam.height))):
                 j, text = answer(client, reference, out / f"{name}_{kind}.png")
                 verdict = "no answer"
                 if j is not None and j.get("sign") and all(isinstance(j.get(c), (int, float)) for c in "xy"):
                     px = offset[0] + j["x"] / 1000 * size[0]
-                    miss = abs((full_cam.bearing_of(px) - bearing + 180) % 360 - 180)
+                    miss = abs((view.bearing_of(px) - bearing + 180) % 360 - 180)
                     verdict = f"said yes, {miss:.1f}° from the sign: {'ON THE SIGN' if miss <= 1.5 else 'elsewhere'}"
                 elif j is not None:
                     verdict = "said no sign"
-                print(f"{name} {kind}: {verdict}   reply: {text.strip()[:120]!r}")
+                print(f"{name} {kind:6s}: {verdict}   reply: {text.strip()[:120]!r}")
     return 0
 
 

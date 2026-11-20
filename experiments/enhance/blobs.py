@@ -21,11 +21,10 @@ from cotral_blue import navy_weight  # noqa: E402
 W_MIN, AREA = 0.35, (3, 400)
 
 
-def blobs(rgb: np.ndarray) -> list[tuple[float, float, int]]:
-    mask = navy_weight(rgb) > W_MIN
+def components(mask: np.ndarray):
+    """(ys, xs) of each 4-connected component of a boolean mask."""
     h, w = mask.shape
     seen = np.zeros_like(mask)
-    out = []
     for y0, x0 in zip(*np.nonzero(mask)):
         if seen[y0, x0]:
             continue
@@ -38,7 +37,13 @@ def blobs(rgb: np.ndarray) -> list[tuple[float, float, int]]:
                 if 0 <= yy < h and 0 <= xx < w and mask[yy, xx] and not seen[yy, xx]:
                     seen[yy, xx] = True
                     q.append((yy, xx))
-        ys, xs = np.array(pts).T
+        yield np.array(pts).T
+
+
+def blobs(rgb: np.ndarray) -> list[tuple[float, float, int]]:
+    out = []
+    for ys, xs in components(navy_weight(rgb) > W_MIN):
+        pts = xs
         bh, bw = np.ptp(ys) + 1, np.ptp(xs) + 1
         # compact: a sign, not a shadow band or a stretch of sky
         if AREA[0] <= len(pts) <= AREA[1] and len(pts) >= 0.35 * bh * bw and bw <= 40 and bh <= 40:

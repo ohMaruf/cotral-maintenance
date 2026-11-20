@@ -12,3 +12,16 @@ f306 (sign at -44 m, missed in run 11 sweep photo 6).
   (`render.render_view`, 16 tiles) shows the f13310 sign as a clean saturated blue panel; in the Static API
   photo it is a grey-blue smudge in block artefacts. f306 gains little (back of the sign / backlit).
   At 3x (1920 px, 36 tiles) the f13310 sign shows its "cotral" logo and the benches.
+
+## Selective tiling: the far band (`far_band.py`)
+
+A sweep stays a Static API photo; only its far right-hand sidewalk (20-80 m away, 3-14 m right of the centre
+line, 0-4 m above the ground) is re-rendered from tiles at 4x. Its box comes from the path geometry alone.
+- Wide photos of found stops with the sign 20-70 m away (9 runs): the sign is inside the band in 36/39;
+  6.7 tiles per photo (a full 640x640 tile render: 16). The 3 misses are f9388, where the path passes twice.
+- f13310 opening photo 1: band 313x69 px -> 1250x276, 10 tiles; the Cotral panel and the benches are plain.
+
+## Classic CV on the bands (`band_detect.py`)
+
+Navy upright-rectangle detector on the clean bands: recall 14/36, 7.8 false alarms per band. Signs seen from
+behind, backlit or shaded have no navy left; fences, cars and other blue signs do. Not usable as a gate.

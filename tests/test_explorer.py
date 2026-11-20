@@ -955,3 +955,44 @@ def test_a_scan_reply_carries_the_sign_and_what_stands_in_front():
     assert parse_scan('{"sign": false}') == ScanReply(None, [])
     assert parse_scan('{"sign": false, "cover": [[1, "a"], 5]}') == ScanReply(None, [])
     assert parse_scan('{"sign": true}') is None and parse_scan("no") is None
+
+
+def osm_start_world():
+    world = straight_world()
+    s = world.starts[0]
+    world.starts = [Placed("OSM bus stop", "osm_ref", s.lat, s.lon, s.along, s.offset)]
+    return world
+
+
+def test_an_osm_start_keeps_the_search_near_it_until_its_sidewalk_is_seen_close(tmp_path):
+    s = scanning_session(tmp_path, FakeScanner(cover_photos={2}))
+    s.__init__(osm_start_world(), s.run_dir, s.image_cache, s.metadata, s.fetch_image, s.confirmer, s.tile_source,
+               scanner=s.scanner)
+    s.balance_m = math.inf
+    s.begin()
+    gap = min((a for a, st in zip(s.cells, s.state, strict=True) if abs(a) <= 25 and st == "blocked"), key=abs)
+    with pytest.raises(ToolError, match=re.escape("OpenStreetMap position") + ".*" +
+                       re.escape(f"Sweep at {gap:+.0f} m first: the sidewalk there is blocked")):
+        s.sweep(at_m=-90)
+    assert len(s.photos) == 2
+    while True:
+        try:
+            s.sweep(at_m=-90)
+            break
+        except ToolError as error:
+            spot = float(re.search(r"Sweep at ([+-]\d+) m first", str(error)).group(1))
+            s.sweep(at_m=spot)
+    assert s.photos[-1].along == pytest.approx(-75, abs=6)
+
+
+def test_a_places_start_doesnt_hold_the_search_near_it(tmp_path):
+    s = scanning_session(tmp_path, FakeScanner(cover_photos={2}))
+    s.balance_m = math.inf
+    s.begin()
+    s.sweep(at_m=-90)
+    assert s.photos[-1].along == pytest.approx(-75, abs=6)
+
+
+def test_the_briefing_gives_the_measured_odds_of_the_start(tmp_path):
+    s = make_session(tmp_path, osm_start_world())
+    assert "Of 504 checked stops with a start like this one, 55% within 10 m, 74% within 25 m" in s.begin().text

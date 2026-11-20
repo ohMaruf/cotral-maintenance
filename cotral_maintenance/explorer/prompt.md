@@ -24,7 +24,8 @@ other tools and no other source of information.
 - Where the briefing says SAME ROAD TWICE, the bus passes the same place twice. Each pass has its own right-hand
   sidewalk: a position far along the path (say +180 m) can be physically right next to the start.
 - The starting positions are estimates, often 10-50 m off, sometimes 100-200 m, ahead or behind with equal
-  odds. OpenStreetMap hints are stop-like objects mapped by volunteers: a good reason to look there, never proof.
+  odds. An OpenStreetMap start is the most accurate: the stop is usually within 10 m of it, so the sidewalk within
+  25 m of it is searched first, and sweeps farther away are refused until it is seen close. OpenStreetMap hints are stop-like objects mapped by volunteers: a good reason to look there, never proof.
 - "Other stops nearby" are different stops: never submit their sign.
 - Unscanned stretches have no Street View: you cannot see them.
 - CORNERS: no view sees round a corner of the path. The sidewalk just past a bend is exactly where a stop often

@@ -59,6 +59,7 @@ SCAN_RANGE_M = (5.0, 40.0)
 CLOSE_M = 30.0
 SWEEP_STANDOFF_M = 15.0
 SWEEP_TARGET_M = 15.0
+OSM_ZONE_M = 25.0
 SCAN_OFFSETS_M = (3.0, 8.0, 14.0)
 SCAN_TOP_M = 4.0
 SCAN_MARGIN_PX = 12
@@ -499,7 +500,18 @@ class Session:
         lo, hi = self.world.limits
         if not lo - 20 <= at_m <= hi + 20:
             raise ToolError(f"{_m(at_m)} is outside the search limits ({_m(lo)} to {_m(hi)})")
+        self._refuse_outside_osm_zone(at_m)
         self._refuse_if_unbalanced(at_m)
+        options, error = self._sweep_options(at_m, facing, scan)
+        if not options:
+            raise error
+        _, total, _, _, f, pano, along, heading, camera = max(options, key=lambda o: o[:4])
+        if not total:
+            self._refuse_nothing_new(camera, at_m)
+        self.sweeps += 1
+        return self._shoot(pano, heading, SWEEP_FOV, 0.0, f"sweep_{f}", along=along, shot=self.sweeps)
+
+    def _sweep_options(self, at_m: float, facing: str | None, scan: str | None) -> tuple[list[tuple], ToolError | None]:
         outward = "behind" if at_m < 0 else "ahead"
         order = [facing] if facing else [outward, "behind" if outward == "ahead" else "ahead"]
         options, error = [], None
@@ -517,13 +529,21 @@ class Session:
             gain = self._gain(camera, along)
             near = sum(1 for i in gain if abs(self.cells[i] - at_m) <= SWEEP_TARGET_M)
             options.append((target in gain, bool(gain), near > 0, -len(options), f, pano, along, heading, camera))
-        if not options:
-            raise error
-        _, total, _, _, f, pano, along, heading, camera = max(options, key=lambda o: o[:4])
-        if not total:
-            self._refuse_nothing_new(camera, at_m)
-        self.sweeps += 1
-        return self._shoot(pano, heading, SWEEP_FOV, 0.0, f"sweep_{f}", along=along, shot=self.sweeps)
+        return options, error
+
+    def _refuse_outside_osm_zone(self, at_m: float) -> None:
+        start = self.world.starts[0]
+        if not start.kind.startswith("osm") or abs(at_m - start.along) <= OSM_ZONE_M + SWEEP_STANDOFF_M:
+            return
+        open_cells = sorted((i for i, a in enumerate(self.cells) if abs(a - start.along) <= OSM_ZONE_M
+                             and self.state[i] not in ("seen_close", "hidden", "unscanned")),
+                            key=lambda i: abs(self.cells[i] - start.along))
+        for i in open_cells:
+            options, _ = self._sweep_options(self.cells[i], None, None)
+            if any(o[0] for o in options):
+                raise ToolError(f"the start is an OpenStreetMap position, usually within 10 m of the stop: the sidewalk "
+                                f"within {OSM_ZONE_M:.0f} m of it is searched first. Sweep at {_m(self.cells[i])} first: "
+                                f"the sidewalk there is {self.state[i].replace('_', ' ')}.")
 
     def looked_out_to(self, side: int) -> float:
         cells = sorted((abs(a), st) for a, st in zip(self.cells, self.state, strict=True) if a * side > 0)
@@ -1163,8 +1183,13 @@ class Session:
                  "places": "Google Places: often 10-50 m off",
                  "gtfs": "the timetable's position: often 25-100 m off, sometimes on the wrong side of the road"}
         first = w.starts[0]
+        spread = SPREAD["osm" if first.kind.startswith("osm") else first.kind if first.kind in SPREAD else "gtfs"]
+        share, odds = 0.0, []
+        for ring, part in spread[:3]:
+            share += part
+            odds.append(f"{share:.0%} within {ring} m")
         lines.append(f"THE START (0 m) is the most accurate position we have: {first.label} ({trust[first.kind]}). "
-                     f"Look there first.")
+                     f"Of 504 checked stops with a start like this one, {', '.join(odds)}. Look there first.")
         if len(w.starts) > 1:
             lines.append("Other, less accurate positions: " + "; ".join(
                 f"{s.label} at {_m(s.along)}, {abs(s.offset):.0f} m {_side(s.offset)} of the path centre line"

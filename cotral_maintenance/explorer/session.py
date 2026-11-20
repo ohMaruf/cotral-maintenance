@@ -50,7 +50,7 @@ SECOND_VIEW_RANGE = (0.6, 1.6)  # ... from this much to this much of the estimat
 SECOND_VIEW_FOV = 30.0
 RING_START_M = {"osm": 25.0, "places": 50.0, "gtfs": 50.0}
 RING_STEP_M = 25.0
-MAX_OPENINGS = 4
+MAX_OPENINGS = 5
 RING_EVERY = 2
 RING_PROBE_M = 10.0
 MAX_CALLS = 100
@@ -871,12 +871,22 @@ class Session:
 
     def _anchors(self) -> list[tuple[float, str]]:
         name = self.world.stop.name.strip().lower()
+        partners = [o for o in self.world.others if o.label.split(" ", 1)[-1].strip().lower() == name]
+        ids = {o.ref for o in partners if o.ref}
+        partner_osm = [h for h in self.world.hints
+                       if (h.ref and h.ref in ids) or h.label.split("'", 1)[-1].rstrip("'").strip().lower() == name]
         out = [(st.along, f"{st.label}, another estimate of this stop's position") for st in self.world.starts[1:]]
-        out += [(o.along, f"across the road from {o.label}, the same-name stop of the other direction")
-                for o in self.world.others if o.label.split(" ", 1)[-1].strip().lower() == name]
+        out += [(h.along, f"across the road from {h.label}{' ' + h.ref if h.ref else ''}, the same-name stop of the "
+                          f"other direction in OpenStreetMap") for h in partner_osm]
+        out += [(o.along, f"across the road from {o.label}, the same-name stop of the other direction (timetable "
+                          f"position)") for o in partners]
         out += [(o.along, f"across the road from {o.label}") for o in self.world.found if o.kind == "found_partner"]
         lo, hi = self.world.limits
-        return [(a, label) for a, label in out if lo <= a <= hi]
+        kept: list[tuple[float, str]] = []
+        for a, label in out:
+            if lo <= a <= hi and all(abs(a - k) >= SWEEP_TARGET_M for k, _ in kept):
+                kept.append((a, label))
+        return kept
 
     def _opening(self) -> tuple[list[tuple[Photo, str]], list[str], list[Photo]]:
         start = self.world.starts[0].along

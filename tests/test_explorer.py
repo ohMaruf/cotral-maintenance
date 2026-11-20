@@ -1062,11 +1062,25 @@ def test_a_likely_position_already_seen_close_gets_no_opening_of_its_own(tmp_pat
     assert s.explore_used == 2
 
 
-def test_at_most_four_opening_photos(tmp_path):
+def test_at_most_five_opening_photos(tmp_path):
     s = scanning_session(tmp_path, FakeScanner())
     world = misplaced_osm_world()
-    world.others += [Placed("f3 Test stop", "stop", *FRAME.to_latlon(150.0, 9.0), -150.0, -9.0, "f3")]
+    world.others += [Placed("f3 Test stop", "stop", *FRAME.to_latlon(150.0, 9.0), -150.0, -9.0, "f3"),
+                     Placed("f4 Test stop", "stop", *FRAME.to_latlon(220.0, 9.0), -80.0, -9.0, "f4")]
     s.__init__(world, s.run_dir, s.image_cache, s.metadata, s.fetch_image, s.confirmer, s.tile_source,
                scanner=s.scanner)
     s.begin()
-    assert s.explore_used == 4
+    assert s.explore_used == 5
+
+
+def test_the_other_directions_osm_node_gets_an_opening_and_close_spots_share_one(tmp_path):
+    s = scanning_session(tmp_path, FakeScanner())
+    world = misplaced_osm_world()
+    world.hints = [Placed("OSM bus stop 'Test stop'", "bus_stop", *FRAME.to_latlon(360.0, 6.0), 60.0, -6.0, "f2"),
+                   Placed("OSM bus stop 'Test stop'", "bus_stop", *FRAME.to_latlon(430.0, 6.0), 130.0, -6.0, "f2")]
+    s.__init__(world, s.run_dir, s.image_cache, s.metadata, s.fetch_image, s.confirmer, s.tile_source,
+               scanner=s.scanner)
+    anchors = [round(a) for a, _ in s._anchors()]
+    assert anchors == [100, 60, 130]
+    result = s.begin()
+    assert "in OpenStreetMap" in result.text and s.explore_used == 5

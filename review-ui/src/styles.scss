@@ -5,10 +5,8 @@
 @use '@fontsource/ibm-plex-mono/latin-500.css' as mono-500;
 @use '@fontsource/ibm-plex-mono/latin-600.css' as mono-600;
 @use 'theme' as *;
-@use 'legacy';
 
 @include theme-properties;
-@include legacy.legacy-properties;
 
 *,
 *::before,
@@ -69,6 +67,11 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: $color-accent;
 }
 
 input[type='text'],

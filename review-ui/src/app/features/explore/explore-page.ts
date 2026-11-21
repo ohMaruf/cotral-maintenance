@@ -136,10 +136,7 @@ export class ExplorePage {
       .map((photo, i, all) => ({
         photo,
         later: photo.index > used,
-        label: towardLabel(photo, all),
-        groupStart: groupOf(photo) !== null && groupOf(all[i - 1]) !== groupOf(photo),
-        groupEnd: groupOf(photo) !== null && groupOf(all[i + 1]) !== groupOf(photo),
-        groupTag: groupTag(photo),
+        caption: caption(photo, towardLabel(photo, all)),
       }));
   });
   protected readonly stopPhotos = computed(() => {
@@ -273,12 +270,13 @@ export class ExplorePage {
   }
 }
 
-function groupOf(photo: ExplorationPhoto | undefined): string | null {
-  if (!photo) return null;
-  if (photo.toward === 'stop_photo') return 'stop';
-  return photo.shot > 0 ? `sweep${photo.shot}` : null;
-}
-
-function groupTag(photo: ExplorationPhoto): string {
-  return photo.toward === 'stop_photo' ? 'Stop photos' : `Sweep ${photo.shot}`;
+function caption(photo: ExplorationPhoto, toward: string): string {
+  const numbered =
+    photo.toward !== 'stop_photo' && photo.shot > 0
+      ? toward.replace(/^sweep/, `sweep ${photo.shot}`)
+      : toward;
+  const parts = [`Photo ${photo.index}`, numbered];
+  if (photo.source === 'tiles') parts.push('tiles');
+  if (photo.opening) parts.push('opening');
+  return parts.join(' · ');
 }

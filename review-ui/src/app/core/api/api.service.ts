@@ -22,7 +22,6 @@ import {
 
 const BASE = '/api';
 
-/** Typed client for the review BFF. Every failure surfaces as an ApiError. */
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private readonly http = inject(HttpClient);
@@ -31,12 +30,10 @@ export class ApiService {
     return this.get<Catalog>('/catalog');
   }
 
-  /** The run being reviewed: its size, outcomes, billing and profiles. */
   run(): Observable<RunInfo> {
     return this.get<RunInfo>('/run');
   }
 
-  /** The run's final table: ranked stops first, then those that need review. */
   results(): Observable<ResultRow[]> {
     return this.get<ResultRow[]>('/results');
   }
@@ -67,13 +64,11 @@ export class ApiService {
       .pipe(catchError((e) => throwError(() => toApiError(e))));
   }
 
-  /** All runs, or only those of one harness version. */
   explorations(harness?: string): Observable<ExplorationSummary[]> {
     const query = harness ? `?harness=${encodeURIComponent(harness)}` : '';
     return this.get<ExplorationSummary[]>(`/explorations${query}`);
   }
 
-  /** The harness versions present, newest first ("unversioned" last), with their run counts. */
   harnessVersions(): Observable<HarnessVersion[]> {
     return this.get<HarnessVersion[]>('/explorations/harness-versions');
   }
@@ -90,7 +85,6 @@ export class ApiService {
     return this.get<ShapeVerdict[]>('/shape-check/verdicts');
   }
 
-  /** Replaces the stop's verdict and note (last write wins). */
   putShapeVerdict(stopId: string, body: ShapeVerdictRequest): Observable<ShapeVerdict> {
     return this.http
       .put<ShapeVerdict>(`${BASE}/shape-check/verdicts/${encodeURIComponent(stopId)}`, body)

@@ -1,9 +1,10 @@
 <div class="layout">
   @if (check.isLoading() && !check.hasValue()) {
-    <app-state-message class="full" kind="loading" title="Loading the shape check…" />
+    <app-state-message class="full" page kind="loading" title="Loading the shape check…" />
   } @else if (error(); as err) {
     <app-state-message
       class="full"
+      page
       kind="error"
       title="Could not load the shape check"
       [message]="err.message"
@@ -13,6 +14,7 @@
   } @else if (stops().length === 0) {
     <app-state-message
       class="full"
+      page
       kind="empty"
       title="No stops to check"
       message="The shape check contains no stops."
@@ -97,6 +99,7 @@
 
     <section class="map-col">
       <app-geo-map
+        bleed
         label="Map of the stop, its positions and the GTFS shapes"
         [layers]="layers()"
         [bounds]="bounds()"
@@ -259,9 +262,7 @@
             <button type="button" class="btn quiet" (click)="move(-1)">
               <kbd>←</kbd> Previous
             </button>
-            <button type="button" class="btn quiet" (click)="move(1)">
-              Next <kbd>→</kbd>
-            </button>
+            <button type="button" class="btn quiet" (click)="move(1)">Next <kbd>→</kbd></button>
           </div>
         </div>
       </section>

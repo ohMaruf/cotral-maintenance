@@ -72,26 +72,8 @@ $chrome: $header-height + $control-height * 2 + $space-3 + $space-2 + $space-5;
 }
 
 .photos app-photo-grid {
-  display: block;
   width: 100cqw;
   height: 100cqh;
-}
-
-.photos ::ng-deep {
-  ul {
-    height: 100%;
-    grid-auto-rows: minmax(0, 1fr);
-  }
-
-  li {
-    min-height: 0;
-  }
-
-  .thumb {
-    height: 100%;
-    aspect-ratio: auto;
-    border-radius: $radius-sm;
-  }
 }
 
 .actions {

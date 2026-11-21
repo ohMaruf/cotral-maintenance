@@ -68,6 +68,7 @@
 
           <div class="map-wrap">
             <app-geo-map
+              bleed
               label="Map of the path, candidates and photos of this run"
               [layers]="layers()"
               [bounds]="bounds()"
@@ -143,31 +144,18 @@
 
             <ol class="film" aria-label="Photos in the order taken">
               @for (p of photos(); track p.photo.index) {
-                <li [class.group-start]="p.groupStart" [class.group-end]="p.groupEnd">
-                  @if (p.groupStart) {
-                    <span class="group-tag">{{ p.groupTag }}</span>
-                  }
+                <li>
                   <button
                     type="button"
                     class="frame"
                     [class.later]="p.later"
                     [class.current]="current()?.photos?.includes(p.photo.index)"
                     [attr.aria-current]="current()?.photos?.includes(p.photo.index) ? 'true' : null"
+                    [title]="p.caption"
                     (click)="goToPhoto(p.photo.index)"
                   >
-                    <img [src]="p.photo.url" alt="" loading="lazy" />
-                    <span class="cap">
-                      <strong>Photo {{ p.photo.index }}</strong>
-                      <span class="toward">{{ p.label }}</span>
-                      @if (p.photo.source === 'tiles') {
-                        <span class="tiles-tag" title="Rendered from Map Tiles">tiles</span>
-                      }
-                      @if (p.photo.opening) {
-                        <span class="opening" title="Taken before the model's first turn"
-                          >opening</span
-                        >
-                      }
-                    </span>
+                    <img [src]="p.photo.url" alt="" decoding="async" />
+                    <span class="cap">{{ p.caption }}</span>
                   </button>
                 </li>
               }

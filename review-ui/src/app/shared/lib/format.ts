@@ -1,6 +1,5 @@
 import { Photo } from '../../core/api/api.types';
 
-/** Every score is 0..1: two decimals ("0.82"); a dash for a missing value. */
 export function formatScore(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '–';
   return value.toFixed(2);
@@ -28,7 +27,6 @@ export function mapsUrl(lat: number, lon: number): string {
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** "2025-06" -> "Jun 2025"; anything unparsable is returned as is. */
 export function formatImageryDate(date: string | null): string {
   if (!date) return 'unknown';
   const m = /^(\d{4})-(\d{2})/.exec(date);
@@ -36,7 +34,6 @@ export function formatImageryDate(date: string | null): string {
   return m && month ? `${month} ${m[1]}` : date;
 }
 
-/** One-line caption pieces for a photo: description, distance, heading. */
 export function photoDetails(photo: Photo): string[] {
   return [formatDistance(photo.distance_m), formatHeading(photo.heading)].filter(
     (p): p is string => p !== null,

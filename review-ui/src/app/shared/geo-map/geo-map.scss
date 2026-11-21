@@ -3,6 +3,17 @@
 app-geo-map {
   display: block;
   min-height: 16rem;
+  isolation: isolate;
+
+  &.bleed {
+    height: 100%;
+    min-height: 0;
+
+    .geo-map {
+      border: 0;
+      border-radius: 0;
+    }
+  }
 }
 
 .geo-map {

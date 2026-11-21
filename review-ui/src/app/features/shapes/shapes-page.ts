@@ -66,9 +66,9 @@ export class ShapesPage {
     this.check.hasValue() ? this.check.value().min_offset_m : 0,
   );
 
-    protected readonly filter = signal<string | null>(null);
+  protected readonly filter = signal<string | null>(null);
   protected readonly filterOptions = computed(() => flagsPresent(this.stops()));
-    protected readonly visible = computed(() => filterByFlag(this.stops(), this.filter()));
+  protected readonly visible = computed(() => filterByFlag(this.stops(), this.filter()));
   protected readonly selected = computed<ShapeStop | null>(() => {
     const stops = this.visible();
     return stops.find((s) => s.id === this.stopId()) ?? stops[0] ?? null;
@@ -185,7 +185,7 @@ export class ShapesPage {
     saveToggles(this.toggles());
   }
 
-    protected move(delta: 1 | -1): void {
+  protected move(delta: 1 | -1): void {
     const stops = this.visible();
     const current = this.selected();
     if (!current || stops.length === 0) return;

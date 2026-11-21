@@ -405,27 +405,15 @@ describe('ExplorePage', () => {
       expect(q('app-event-detail')!.textContent).toContain('1/12 sweeps used');
     });
 
-    it('groups the two photos of a sweep and words each photo', async () => {
+    it('numbers the sweep in the caption of each photo', async () => {
       await open({ runId: 'n1', runs: sweepRuns, run: sweepExploration() });
       const items = qa('.film li');
-      expect(items.map((li) => li.classList.contains('group-start'))).toEqual([
-        true,
-        false,
-        false,
-        false,
-      ]);
-      expect(items.map((li) => li.classList.contains('group-end'))).toEqual([
-        false,
-        true,
-        false,
-        false,
-      ]);
-      expect(items[0].querySelector('.group-tag')!.textContent).toContain('Sweep 1');
+      expect(items[0].querySelector('.group-tag')).toBeNull();
       const captions = items.map((li) =>
         li.querySelector('.cap')!.textContent!.replace(/\s+/g, ' '),
       );
-      expect(captions[0]).toContain('sweep ahead-right');
-      expect(captions[1]).toContain('sweep behind-right');
+      expect(captions[0]).toContain('sweep 1 ahead-right');
+      expect(captions[1]).toContain('sweep 1 behind-right');
       expect(captions[2]).toContain('zoom ×8 of photo 1');
       expect(captions[3]).toContain('confirm');
     });
@@ -571,35 +559,14 @@ describe('ExplorePage', () => {
       expect(q('app-event-detail')!.textContent).toContain('/12 images used');
     });
 
-    it('shows single-photo sweeps as groups of one and the stop photos as a group', async () => {
+    it('numbers single-photo sweeps and labels the stop photos', async () => {
       await open({ runId: 'i1', runs: imageRuns, run: imagesExploration() });
       const items = qa('.film li');
-      expect(items.map((li) => li.classList.contains('group-start'))).toEqual([
-        true,
-        true,
-        false,
-        true,
-        false,
-      ]);
-      expect(items.map((li) => li.classList.contains('group-end'))).toEqual([
-        true,
-        true,
-        false,
-        false,
-        true,
-      ]);
-      expect(items.map((li) => li.querySelector('.group-tag')?.textContent?.trim())).toEqual([
-        'Sweep 1',
-        'Sweep 2',
-        undefined,
-        'Stop photos',
-        undefined,
-      ]);
       const captions = items.map((li) =>
         li.querySelector('.cap')!.textContent!.replace(/\s+/g, ' '),
       );
-      expect(captions[0]).toContain('sweep ahead-right');
-      expect(captions[1]).toContain('sweep behind-right');
+      expect(captions[0]).toContain('sweep 1 ahead-right');
+      expect(captions[1]).toContain('sweep 2 behind-right');
       expect(captions[3]).toContain('stop photo');
     });
 
@@ -741,9 +708,9 @@ describe('ExplorePage', () => {
     await open({ runId: 'f1', event: '2' });
     const frames = qa('.film .frame');
     expect(frames.map((f) => f.textContent!.replace(/\s+/g, ' ').trim())).toEqual([
-      'Photo 1forwardopening',
-      'Photo 2forwardopening',
-      'Photo 3across',
+      'Photo 1 · forward · opening',
+      'Photo 2 · forward · opening',
+      'Photo 3 · across',
     ]);
     expect(frames[0].getAttribute('aria-current')).toBeNull();
     expect(frames[2].classList.contains('later')).toBe(true);

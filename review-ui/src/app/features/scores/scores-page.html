@@ -21,11 +21,13 @@
     >
       <span note class="note">
         @if (models().length === 1) {
-          <span>Model <span class="mono">{{ models()[0].label }}</span></span>
+          <span
+            >Model <span class="mono">{{ models()[0].label }}</span></span
+          >
         }
         <span class="legend">
-          <span class="swatch" aria-hidden="true"></span>Models disagree by 2 levels or more (0.5 for
-          probabilities)
+          <span class="swatch" aria-hidden="true"></span>Models disagree by 2 levels or more (0.5
+          for probabilities)
         </span>
       </span>
     </app-list-toolbar>
@@ -45,7 +47,9 @@
           </caption>
           <thead>
             <tr class="top">
-              <th scope="col" [attr.rowspan]="models().length > 1 ? 2 : 1" class="stop-col">Stop</th>
+              <th scope="col" [attr.rowspan]="models().length > 1 ? 2 : 1" class="stop-col">
+                Stop
+              </th>
               <th scope="col" [attr.rowspan]="models().length > 1 ? 2 : 1">Photos</th>
               @for (cat of categories(); track cat.key) {
                 @if (models().length > 1) {
@@ -138,11 +142,7 @@
                   />
                 </td>
                 @for (group of row.categories; track group.category.key) {
-                  @for (
-                    cell of group.cells;
-                    track cell.model.key;
-                    let first = $first
-                  ) {
+                  @for (cell of group.cells; track cell.model.key; let first = $first) {
                     <td
                       class="score num"
                       [class.disagree]="group.disagree"

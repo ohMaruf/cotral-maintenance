@@ -11,7 +11,9 @@
     />
   } @else if (run(); as run) {
     <header class="run" aria-label="The run">
-      <h1>Run <span class="mono">{{ run.name }}</span></h1>
+      <h1>
+        Run <span class="mono">{{ run.name }}</span>
+      </h1>
       <p class="facts">
         <span>{{ run.stops }} stops</span>
         <span>
@@ -33,7 +35,8 @@
           <dd>
             @for (profile of profiles(); track profile.name) {
               <span class="mono profile" [attr.title]="profile.description">
-                {{ profile.name }}@if (profile.count > 1) {
+                {{ profile.name }}
+                @if (profile.count > 1) {
                   <span class="times"> ×{{ profile.count }}</span>
                 }
               </span>
@@ -137,9 +140,12 @@
               <tr [class.review]="item.row.needs_review">
                 <td class="rank-col num rank">{{ item.row.rank ?? '–' }}</td>
                 <th scope="row" class="stop-col">
-                  <a class="name" [attr.title]="item.row.name" [routerLink]="['/explore', item.row.stop_id]">{{
-                    item.row.name
-                  }}</a>
+                  <a
+                    class="name"
+                    [attr.title]="item.row.name"
+                    [routerLink]="['/explore', item.row.stop_id]"
+                    >{{ item.row.name }}</a
+                  >
                   <span class="stop-plate">{{ item.row.stop_id }}</span>
                   <span class="meta">
                     <app-badge [tone]="item.status.tone">{{ item.status.label }}</app-badge>

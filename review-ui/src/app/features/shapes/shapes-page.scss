@@ -184,16 +184,6 @@
   position: relative;
   min-width: 0;
   min-height: 0;
-
-  app-geo-map {
-    height: 100%;
-    isolation: isolate;
-  }
-
-  app-geo-map ::ng-deep .geo-map {
-    border: 0;
-    border-radius: 0;
-  }
 }
 
 .toggles,
@@ -225,7 +215,7 @@
 }
 
 .legend {
-  bottom: $space-4;
+  bottom: $space-5;
 
   summary {
     padding: $space-1 $space-2;
@@ -235,6 +225,10 @@
     &:focus-visible {
       @include focus-ring;
     }
+  }
+
+  &:not([open]) ul {
+    display: none;
   }
 
   ul {

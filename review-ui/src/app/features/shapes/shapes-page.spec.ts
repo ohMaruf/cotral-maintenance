@@ -62,9 +62,7 @@ describe('ShapesPage', () => {
   it('lists the stops in order with the progress line', async () => {
     await open({ stopId: 'b', verdicts: [verdict('a', { verdict: 'off_route' })] });
     expect(qa('.list .stop .stop-plate').map((s) => s.textContent)).toEqual(['a', 'b', 'c']);
-    expect(q('.progress')!.textContent!.replace(/\s+/g, ' ').trim()).toBe(
-      '3 stops · 1 judged',
-    );
+    expect(q('.progress')!.textContent!.replace(/\s+/g, ' ').trim()).toBe('3 stops · 1 judged');
     const items = qa('.list .stop');
     expect(items[0].textContent).toContain('off route');
     expect(items[1].getAttribute('aria-current')).toBe('true');
@@ -152,7 +150,12 @@ describe('ShapesPage', () => {
     };
     const chips = () => qa('.filters .seg');
     const chip = (label: string) =>
-      chips().find((c) => c.textContent!.replace(/\s+/g, ' ').trim().startsWith(label + ' '))!;
+      chips().find((c) =>
+        c
+          .textContent!.replace(/\s+/g, ' ')
+          .trim()
+          .startsWith(label + ' '),
+      )!;
     const listed = () => qa('.list .stop .stop-plate').map((s) => s.textContent);
 
     it('shows the flags as text in the list and in the detail', async () => {

@@ -25,11 +25,17 @@
           <app-rater-field />
           @if (store.progress(); as p) {
             <p class="progress" role="status">
-              <span><strong>{{ p.judged }}</strong> judged</span>
+              <span
+                ><strong>{{ p.judged }}</strong> judged</span
+              >
               @if (p.skipped) {
-                <span><strong>{{ p.skipped }}</strong> skipped</span>
+                <span
+                  ><strong>{{ p.skipped }}</strong> skipped</span
+                >
               }
-              <span><strong>{{ p.remaining }}</strong> left</span>
+              <span
+                ><strong>{{ p.remaining }}</strong> left</span
+              >
             </p>
           }
         </header>
@@ -48,6 +54,7 @@
                 <app-stop-header [stop]="stop" [level]="2" />
                 <div class="photos">
                   <app-photo-grid
+                    fill
                     [photos]="stop.photos"
                     [stopName]="stop.name"
                     (photoSelected)="openPhoto(stop, $event)"

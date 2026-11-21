@@ -57,10 +57,6 @@ table {
     font-size: $text-sm;
   }
 
-  tbody th {
-    border-bottom-color: $color-border;
-  }
-
   tbody tr:last-child td,
   tbody tr:last-child th {
     border-bottom: 0;

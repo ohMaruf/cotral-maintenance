@@ -46,7 +46,10 @@ export class RunList {
           run,
           outcome: outcomeInfo(run.outcome),
           budget: budgetLabel(run.budget_used, run.budget_max, run.budget_unit),
-          errors: `${formatMeters(run.err_gtfs_m)} → ${formatMeters(run.err_found_m)}`,
+          errors:
+            run.err_gtfs_m === null && run.err_found_m === null
+              ? ''
+              : `${formatMeters(run.err_gtfs_m)} → ${formatMeters(run.err_found_m)}`,
           model: run.model && run.model !== defaultModel ? run.model : null,
         })),
       };

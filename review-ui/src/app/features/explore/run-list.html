@@ -37,9 +37,11 @@
                 <span class="name">{{ item.run.name }}</span>
                 <span class="meta">
                   <span>{{ item.budget }}</span>
-                  <span title="Error: GTFS → verified, then submitted → verified">{{
-                    item.errors
-                  }}</span>
+                  @if (item.errors) {
+                    <span title="Error: GTFS → verified, then submitted → verified">{{
+                      item.errors
+                    }}</span>
+                  }
                   @if (item.model) {
                     <span class="mono">{{ item.model }}</span>
                   }

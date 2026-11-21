@@ -1,14 +1,9 @@
-/**
- * Minimal RFC 4180 parser: comma separated, fields may be quoted with `""` as the
- * escaped quote, and quoted fields may contain commas and line breaks. Handles
- * `\n`, `\r\n` and a leading BOM. Blank lines are skipped.
- */
 export function parseCsv(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = '';
   let quoted = false;
-  let started = false; // anything seen on this row (distinguishes a blank line)
+  let started = false;
 
   const endField = () => {
     row.push(field);
@@ -57,7 +52,6 @@ export function parseCsv(text: string): string[][] {
   return rows;
 }
 
-/** Rows as objects keyed by the header row; short rows get empty strings. */
 export function parseCsvRecords(text: string): Record<string, string>[] {
   const [header, ...body] = parseCsv(text);
   if (!header) return [];
@@ -69,7 +63,6 @@ export function parseCsvRecords(text: string): Record<string, string>[] {
   });
 }
 
-/** Serialises one field the way the old shape-check page did. */
 export function csvField(value: string): string {
   return /[",\n\r]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
 }

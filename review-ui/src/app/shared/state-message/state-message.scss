@@ -4,6 +4,10 @@
   display: block;
 }
 
+:host(.page) .state {
+  padding: $space-4 $space-5;
+}
+
 .state {
   display: flex;
   flex-wrap: wrap;

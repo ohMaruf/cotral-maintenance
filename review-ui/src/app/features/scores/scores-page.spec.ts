@@ -40,7 +40,7 @@ describe('ScoresPage', () => {
 
   it('highlights a category where the models disagree by 0.5 or more', () => {
     const disagree = el.querySelectorAll('tbody tr:first-child td.disagree');
-    expect(disagree).toHaveLength(2); // Alpha shelter: 0.1 vs 0.8
+    expect(disagree).toHaveLength(2);
     expect(el.querySelectorAll('tbody tr:nth-child(2) td.disagree')).toHaveLength(0);
   });
 

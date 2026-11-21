@@ -109,10 +109,6 @@ table {
     background: $color-bg;
   }
 
-  tbody th {
-    border-bottom-color: $color-border;
-  }
-
   tbody tr:last-child td,
   tbody tr:last-child th {
     border-bottom: 0;

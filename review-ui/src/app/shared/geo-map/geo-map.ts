@@ -4,6 +4,7 @@ import {
   DestroyRef,
   ElementRef,
   ViewEncapsulation,
+  booleanAttribute,
   afterNextRender,
   effect,
   inject,
@@ -79,6 +80,7 @@ export function createLeafletLayer(layer: MapLayer, onClick: (id: string) => voi
   selector: 'app-geo-map',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
+  host: { '[class.bleed]': 'bleed()' },
   template: '<div #container class="geo-map" role="application" [attr.aria-label]="label()"></div>',
   styleUrl: './geo-map.scss',
 })
@@ -88,6 +90,7 @@ export class GeoMap {
   readonly fitPadding = input(40);
   readonly fitMaxZoom = input(19);
   readonly label = input('Map');
+  readonly bleed = input(false, { transform: booleanAttribute });
   readonly layerClick = output<string>();
 
   private readonly container = viewChild.required<ElementRef<HTMLElement>>('container');

@@ -3,14 +3,7 @@ import { MapLayer } from '../../shared/geo-map/map-layers';
 import { buildOsmFeatureLayers } from '../../shared/geo-map/osm-features';
 import { distanceM } from '../../shared/lib/geo';
 
-export const ROUTE_COLORS = [
-  '#3d8bd9',
-  '#e0a030',
-  '#27b3a4',
-  '#d96fa8',
-  '#8fb83a',
-  '#9a8cf0',
-];
+export const ROUTE_COLORS = ['#3d8bd9', '#e0a030', '#27b3a4', '#d96fa8', '#8fb83a', '#9a8cf0'];
 
 function cssColor(name: string, fallback: string): string {
   const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();

@@ -1,6 +1,5 @@
 import { Category, Model, ScoreMap, StopDetail } from '../../core/api/api.types';
 
-/** Sort column: one model, or the mean over the models that scored the stop. */
 export interface SortKey {
   category: string;
   model: string | 'mean';
@@ -33,10 +32,6 @@ export function sortValue(
     : scoreOf(stop.scores, key.model, key.category);
 }
 
-/**
- * Stable sort by a score. Stops without a value always come last, whatever the
- * direction. Ties keep their incoming order.
- */
 export function sortStops(
   stops: readonly StopDetail[],
   key: SortKey,
@@ -55,7 +50,6 @@ export function sortStops(
     .map((x) => x.stop);
 }
 
-/** Case-insensitive substring match on stop name or id. */
 export function filterStops(stops: readonly StopDetail[], query: string): StopDetail[] {
   const q = query.trim().toLowerCase();
   if (!q) return [...stops];
@@ -64,12 +58,10 @@ export function filterStops(stops: readonly StopDetail[], query: string): StopDe
   );
 }
 
-/** URL form of a sort key: "shelter:clef" or "shelter:mean". */
 export function serializeSort(key: SortKey): string {
   return `${key.category}:${key.model}`;
 }
 
-/** Parses a URL sort param; null unless it names a known category and model (or mean). */
 export function parseSort(
   raw: string | null | undefined,
   categories: readonly Category[],

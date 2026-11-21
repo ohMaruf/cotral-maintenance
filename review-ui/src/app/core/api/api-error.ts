@@ -2,7 +2,6 @@ import { HttpErrorResponse } from '@angular/common/http';
 
 export type ApiErrorKind = 'not_found' | 'conflict' | 'invalid' | 'server' | 'network';
 
-/** Status-aware error raised by ApiService for every failed request. */
 export class ApiError extends Error {
   constructor(
     readonly kind: ApiErrorKind,
@@ -14,7 +13,6 @@ export class ApiError extends Error {
   }
 }
 
-/** FastAPI errors are `{detail: string}` or, for 422, `{detail: [{msg, loc}]}`. */
 function detailMessage(body: unknown): string | null {
   if (typeof body !== 'object' || body === null || !('detail' in body)) return null;
   const detail = (body as { detail: unknown }).detail;

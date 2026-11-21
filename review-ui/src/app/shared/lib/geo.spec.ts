@@ -19,7 +19,7 @@ describe('geo', () => {
 
   it('computes the distance between two points', () => {
     expect(distanceM(ROME, ROME)).toBe(0);
-    // One degree of latitude is about 111.2 km.
+
     expect(distanceM([0, 0], [1, 0])).toBeCloseTo(111_195, -2);
   });
 
@@ -46,7 +46,7 @@ describe('geo', () => {
       for (const p of cone.slice(1)) expect(distanceM(ROME, p)).toBeCloseTo(25, 2);
       const first = cone[1];
       const last = cone[5];
-      // Heading 90 (east) with 110 deg fov: edges at 35 and 145 degrees.
+
       const midEast = destination(ROME, 35, 25);
       expect(first[0]).toBeCloseTo(midEast[0], 8);
       expect(first[1]).toBeCloseTo(midEast[1], 8);
@@ -64,8 +64,8 @@ describe('geo', () => {
 
     it('handles headings that wrap past north', () => {
       const cone = viewCone(ROME, 350, 60, 25, 2);
-      expect(cone[1][1]).toBeLessThan(ROME[1]); // 320 deg: north-west
-      expect(cone[3][1]).toBeGreaterThan(ROME[1]); // 20 deg: north-east
+      expect(cone[1][1]).toBeLessThan(ROME[1]);
+      expect(cone[3][1]).toBeGreaterThan(ROME[1]);
     });
   });
 });
@@ -80,7 +80,6 @@ describe('bearingBetween', () => {
 });
 
 describe('pathArrows', () => {
-  // ~111 m per 0.001° of latitude: a 222 m line going north, then 111 m east
   const path: [number, number][] = [
     [41.0, 12.0],
     [41.002, 12.0],

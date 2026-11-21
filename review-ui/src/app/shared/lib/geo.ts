@@ -3,12 +3,10 @@ import { LatLon } from '../../core/api/api.types';
 const EARTH_RADIUS_M = 6_371_000;
 const RAD = Math.PI / 180;
 
-/** Compass bearing in [0, 360). */
 export function normalizeBearing(degrees: number): number {
   return ((degrees % 360) + 360) % 360;
 }
 
-/** Point reached from `from` after `distanceM` metres on a compass `bearing` (great circle). */
 export function destination(from: LatLon, bearing: number, distanceM: number): LatLon {
   const lat1 = from[0] * RAD;
   const lon1 = from[1] * RAD;
@@ -26,7 +24,6 @@ export function destination(from: LatLon, bearing: number, distanceM: number): L
   return [lat2 / RAD, ((((lon2 / RAD) % 360) + 540) % 360) - 180];
 }
 
-/** Distance in metres (haversine). */
 export function distanceM(a: LatLon, b: LatLon): number {
   const dLat = (b[0] - a[0]) * RAD;
   const dLon = (b[1] - a[1]) * RAD;
@@ -35,10 +32,6 @@ export function distanceM(a: LatLon, b: LatLon): number {
   return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-/**
- * Polygon of a camera's view: the apex at the camera, then an arc of radius
- * `radiusM` from heading - fov/2 to heading + fov/2. Not closed (Leaflet closes it).
- */
 export function viewCone(
   origin: LatLon,
   heading: number,
@@ -55,7 +48,6 @@ export function viewCone(
   return points;
 }
 
-/** Initial compass bearing from `a` to `b`, in [0, 360). */
 export function bearingBetween(a: LatLon, b: LatLon): number {
   const dLon = (b[1] - a[1]) * RAD;
   const y = Math.sin(dLon) * Math.cos(b[0] * RAD);
@@ -68,14 +60,10 @@ export function bearingBetween(a: LatLon, b: LatLon): number {
 export interface PathArrow {
   lat: number;
   lon: number;
-  /** Direction of travel at this point. */
+
   bearing: number;
 }
 
-/**
- * Direction marks along a polyline: one every `spacingM` metres of path, the first half a
- * spacing in, at most `max` (the spacing grows to fit). Empty for fewer than two points.
- */
 export function pathArrows(points: LatLon[], spacingM: number, max = 40): PathArrow[] {
   const lengths: number[] = [];
   let total = 0;

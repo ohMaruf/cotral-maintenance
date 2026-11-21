@@ -155,14 +155,17 @@
   }
 
   th {
-    position: sticky;
-    top: 0;
-    z-index: $z-base;
-    border-bottom-color: $color-border-strong;
     background: $color-bg;
     color: $color-text-muted;
     font-weight: $weight-medium;
     white-space: nowrap;
+  }
+
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: $z-base;
+    border-bottom-color: $color-border-strong;
   }
 
   th.num,

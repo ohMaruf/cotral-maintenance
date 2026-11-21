@@ -11,78 +11,56 @@
     />
   } @else if (run(); as run) {
     <header class="run" aria-label="The run">
-      <h1>
-        Run <span class="mono">{{ run.name }}</span>
-      </h1>
-      <dl class="facts">
-        <div>
-          <dt>Stops</dt>
-          <dd>{{ run.stops }}</dd>
-        </div>
-        <div>
-          <dt>Explored</dt>
-          <dd class="statuses">
-            @for (s of explored(); track s.status) {
-              <app-badge [tone]="s.status === 'found' ? 'ok' : 'neutral'"
-                >{{ s.count }} {{ s.status.replaceAll('_', ' ') }}</app-badge
-              >
-            } @empty {
-              <span>none yet</span>
-            }
-          </dd>
-        </div>
-        <div>
-          <dt>Scored</dt>
-          <dd>{{ run.scored }}</dd>
-        </div>
-        <div>
-          <dt>Needs review</dt>
-          <dd>{{ review() }}</dd>
-        </div>
-        <div>
+      <h1>Run <span class="mono">{{ run.name }}</span></h1>
+      <p class="facts">
+        <span>{{ run.stops }} stops</span>
+        <span>
+          @for (s of explored(); track s.status; let last = $last) {
+            {{ s.count }} {{ s.status.replaceAll('_', ' ') }}{{ last ? '' : ',' }}
+          } @empty {
+            not explored yet
+          }
+        </span>
+        <span>{{ run.scored }} scored</span>
+        <span>{{ review() }} need review</span>
+      </p>
+      <details class="details">
+        <summary>Run details</summary>
+        <dl>
           <dt>Billed</dt>
           <dd>{{ billed() }}</dd>
-        </div>
-        <div>
-          <dt>{{ run.profiles.length === 1 ? 'Profile' : 'Profiles' }}</dt>
+          <dt>{{ profiles().length === 1 ? 'Profile' : 'Profiles' }}</dt>
           <dd>
-            @for (profile of run.profiles; track profile.key) {
-              <span class="mono profile" [attr.title]="profile.description">{{
-                profile.name
-              }}</span>
+            @for (profile of profiles(); track profile.name) {
+              <span class="mono profile" [attr.title]="profile.description">
+                {{ profile.name }}@if (profile.count > 1) {
+                  <span class="times"> ×{{ profile.count }}</span>
+                }
+              </span>
             } @empty {
-              <span>not recorded</span>
+              not recorded
             }
           </dd>
-        </div>
-      </dl>
+        </dl>
+      </details>
     </header>
 
-    <div class="toolbar">
-      <div class="field">
-        <label for="result-filter">Filter by name or id</label>
-        <input
-          id="result-filter"
-          type="search"
-          autocomplete="off"
-          placeholder="e.g. Tivoli or f00077"
-          [value]="query()"
-          (input)="setQuery($any($event.target).value)"
-        />
-      </div>
-      <div class="field">
-        <label for="result-show">Show</label>
-        <select id="result-show" [value]="showing()" (change)="setShow($any($event.target).value)">
-          @for (s of shows; track s.value) {
-            <option [value]="s.value" [selected]="s.value === showing()">{{ s.label }}</option>
-          }
-        </select>
-      </div>
-      <p class="count" role="status">Showing {{ items().length }} of {{ total() }} stops</p>
-      @if (sortKey()) {
-        <button type="button" class="btn" (click)="clearSort()">Clear sort</button>
-      }
-    </div>
+    <app-list-toolbar
+      inputId="result-filter"
+      [query]="query()"
+      [shown]="items().length"
+      [total]="total()"
+      [sorted]="!!sortKey()"
+      (queryChange)="setQuery($event)"
+      (sortCleared)="clearSort()"
+    >
+      <label class="visually-hidden" for="result-show">Show</label>
+      <select id="result-show" [value]="showing()" (change)="setShow($any($event.target).value)">
+        @for (s of shows; track s.value) {
+          <option [value]="s.value" [selected]="s.value === showing()">{{ s.label }}</option>
+        }
+      </select>
+    </app-list-toolbar>
 
     @if (items().length === 0) {
       <app-state-message
@@ -101,11 +79,11 @@
           <caption class="visually-hidden">
             The run's stops, worst condition first, with their photos and scores. Scores run from 0
             (bad) to 1 (good); the present columns and Visible are probabilities; Shelter and
-            Seating are rated only where the stop has one, and say missing where it does not.
+            Seating are rated only where the stop has one, and say none where it does not.
           </caption>
           <thead>
             <tr>
-              <th scope="col" [attr.aria-sort]="sortState('rank')">
+              <th scope="col" class="num rank-col" [attr.aria-sort]="sortState('rank')">
                 <button
                   type="button"
                   class="sort"
@@ -115,7 +93,7 @@
                   Rank<span aria-hidden="true" class="arrow"></span>
                 </button>
               </th>
-              <th scope="col" class="sticky stop-col" [attr.aria-sort]="sortState('name')">
+              <th scope="col" class="stop-col" [attr.aria-sort]="sortState('name')">
                 <button
                   type="button"
                   class="sort"
@@ -126,14 +104,14 @@
                 </button>
               </th>
               <th scope="col">Photos</th>
-              <th scope="col">Status</th>
               @for (col of columns; track col.key) {
-                <th scope="col" [attr.aria-sort]="sortState(col.key)">
+                <th scope="col" class="num" [attr.aria-sort]="sortState(col.key)">
                   <button
                     type="button"
                     class="sort"
+                    [attr.title]="col.title"
+                    [attr.aria-label]="'Sort by ' + col.title"
                     [attr.data-state]="sortState(col.key)"
-                    [attr.aria-label]="'Sort by ' + col.label"
                     (click)="setSort(col.key)"
                   >
                     {{ col.label }}<span aria-hidden="true" class="arrow"></span>
@@ -141,7 +119,7 @@
                 </th>
               }
               <th scope="col">Missing</th>
-              <th scope="col" [attr.aria-sort]="sortState('distance')">
+              <th scope="col" class="num" [attr.aria-sort]="sortState('distance')">
                 <button
                   type="button"
                   class="sort"
@@ -157,14 +135,23 @@
           <tbody>
             @for (item of items(); track item.row.stop_id) {
               <tr [class.review]="item.row.needs_review">
-                <td class="rank mono">{{ item.row.rank ?? '–' }}</td>
-                <th scope="row" class="sticky stop-col">
-                  <a class="name" [routerLink]="['/explore', item.row.stop_id]">{{
+                <td class="rank-col num rank">{{ item.row.rank ?? '–' }}</td>
+                <th scope="row" class="stop-col">
+                  <a class="name" [attr.title]="item.row.name" [routerLink]="['/explore', item.row.stop_id]">{{
                     item.row.name
                   }}</a>
-                  <span class="mono id">{{ item.row.stop_id }}</span>
-                  @if (item.evidence) {
-                    <span class="evidence">{{ item.evidence }}</span>
+                  <span class="stop-plate">{{ item.row.stop_id }}</span>
+                  <span class="meta">
+                    <app-badge [tone]="item.status.tone">{{ item.status.label }}</app-badge>
+                    @if (item.evidence) {
+                      <span>{{ item.evidence }}</span>
+                    }
+                    @if (item.date) {
+                      <span>{{ item.date }}</span>
+                    }
+                  </span>
+                  @if (item.row.review_reason) {
+                    <span class="reason">{{ item.row.review_reason }}</span>
                   }
                 </th>
                 <td class="photos">
@@ -189,8 +176,8 @@
                             alt=""
                             loading="lazy"
                             decoding="async"
-                            width="96"
-                            height="96"
+                            width="160"
+                            height="120"
                           />
                         </button>
                       </li>
@@ -199,30 +186,21 @@
                     }
                   </ul>
                 </td>
-                <td class="status">
-                  <app-badge [tone]="item.status.tone">{{ item.status.label }}</app-badge>
-                  @if (item.row.review_reason) {
-                    <span class="reason">{{ item.row.review_reason }}</span>
-                  }
-                  @if (item.date) {
-                    <span class="reason">Imagery {{ item.date }}</span>
-                  }
-                </td>
                 @for (col of columns; track col.key; let i = $index) {
-                  <td class="score">
+                  <td class="score num">
                     @if (item.gone[i]) {
-                      <span class="gone" [attr.aria-label]="col.label + ': missing'">missing</span>
+                      <span class="gone" [attr.aria-label]="col.label + ': none'">none</span>
                     } @else {
                       <app-score-bar
                         [value]="item.scores[i]"
                         [kind]="col.kind"
-                        [label]="col.label"
+                        [label]="col.title"
                       />
                     }
                   </td>
                 }
                 <td class="missing">{{ item.missing }}</td>
-                <td class="nowrap mono">{{ item.moved }}</td>
+                <td class="num mono">{{ item.moved }}</td>
               </tr>
             }
           </tbody>

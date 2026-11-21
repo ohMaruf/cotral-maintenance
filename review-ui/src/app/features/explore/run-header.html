@@ -1,33 +1,30 @@
 <header class="head">
-  <div class="title">
-    <h1>
-      <span class="mono">{{ run().stop_id }}</span> · {{ run().name }}
-    </h1>
+  <div class="line1">
+    <span class="stop-plate">{{ run().stop_id }}</span>
+    <h1>{{ run().name }}</h1>
     <app-badge [tone]="outcome().tone">{{ outcome().label }}</app-badge>
     @if (run().outcome_reason; as reason) {
       <span class="reason">{{ reason }}</span>
     }
-    <span class="harness" aria-label="Explorer harness">
-      <app-badge tone="neutral">{{ version() }}</app-badge>
-      @if (commit(); as commit) {
-        <span class="mono" title="Git commit of the harness">{{ commit }}</span>
-      }
-      @if (run().harness.git_dirty) {
-        <app-badge tone="warn"
-          ><span title="Uncommitted changes when the run started">dirty</span></app-badge
-        >
-      }
-      @if (models(); as models) {
-        <span class="mono" title="Explorer and confirmer models">{{ models }}</span>
-      }
-    </span>
   </div>
-  <dl class="facts">
-    <div>
-      <dt>Model</dt>
-      <dd class="mono">{{ run().model ?? '–' }}</dd>
-    </div>
-    <div>
+  <p class="line2" aria-label="Explorer harness">
+    <span>{{ version() }}</span>
+    @if (commit(); as commit) {
+      <span class="mono" title="Git commit of the harness">{{ commit }}</span>
+    }
+    @if (run().harness.git_dirty) {
+      <span class="dirty" title="Uncommitted changes when the run started">dirty</span>
+    }
+    @if (run().model; as model) {
+      <span class="mono">{{ model }}</span>
+    }
+    <span>{{ run().turns }} {{ run().turns === 1 ? 'turn' : 'turns' }}</span>
+    <span>{{ duration() }}</span>
+    <span>{{ images() }}</span>
+  </p>
+  <details class="more">
+    <summary>Run details</summary>
+    <dl class="facts">
       <dt>Budget used</dt>
       <dd>
         {{ budget() }}
@@ -35,54 +32,34 @@
           · {{ tiles }}
         }
       </dd>
-    </div>
-    <div>
       <dt>Billed</dt>
       <dd>{{ billed() }}</dd>
-    </div>
-    @if (start(); as start) {
-      <div>
+      @if (start(); as start) {
         <dt>Start</dt>
         <dd>{{ start }}</dd>
-      </div>
-    }
-    <div>
+      }
       <dt>Error GTFS → verified</dt>
       <dd>{{ gtfsError() }}</dd>
-    </div>
-    <div>
       <dt>Error found → verified</dt>
       <dd>{{ foundError() }}</dd>
-    </div>
-    <div>
       <dt>Started</dt>
       <dd>{{ started() }}</dd>
-    </div>
-    <div>
       <dt>Finished</dt>
       <dd>{{ finished() }}</dd>
-    </div>
-    <div>
-      <dt>Turns</dt>
-      <dd>{{ run().turns }}</dd>
-    </div>
-    <div>
       <dt>Panorama date</dt>
       <dd>{{ run().scan_date ?? '–' }}</dd>
-    </div>
-    <div>
-      <dt>Duration</dt>
-      <dd>{{ duration() }}</dd>
-    </div>
-    <div>
       <dt>Searched</dt>
       <dd class="mono">{{ limits() }}</dd>
-    </div>
-  </dl>
-  @if (run().report; as report) {
-    <details class="report" [open]="!longReport()">
-      <summary>The model's closing words</summary>
-      <p>{{ report }}</p>
-    </details>
-  }
+      @if (models(); as models) {
+        <dt>Models</dt>
+        <dd>{{ models }}</dd>
+      }
+    </dl>
+    @if (run().report; as report) {
+      <details class="report" [open]="!longReport()">
+        <summary>The model's closing words</summary>
+        <p>{{ report }}</p>
+      </details>
+    }
+  </details>
 </header>

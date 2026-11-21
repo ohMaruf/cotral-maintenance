@@ -12,8 +12,12 @@ import { buildOsmFeatureLayers } from '../../shared/geo-map/osm-features';
 
 export const CONE_RADIUS_M = 25;
 const ARROW_SPACING_M = 60;
-const PATH_COLOR = '#26c6da';
-const CURRENT_COLOR = '#ff6d00';
+
+function themeColor(name: string): string {
+  if (typeof document === 'undefined') return 'currentColor';
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || 'currentColor';
+}
 
 export const CANDIDATE_STATUSES = [
   'spotted',
@@ -30,19 +34,14 @@ export const PIN_LETTERS: Record<PositionKind, string> = {
 };
 
 export interface ExploreMapState {
-  /** Photos taken so far (`photos_used` of the current event); later ones are faded. */
   photosUsed: number;
-  /** Photos taken by the current event, highlighted. */
   currentPhotos: number[];
-  /** Draw the OSM feature pins; on when omitted. */
   showOsmFeatures?: boolean;
 }
 
 export function photoLayerId(index: number): string {
   return `photo-${index}`;
 }
-
-/** Inverse of photoLayerId; null for any other layer id. */
 export function photoIndexOfLayer(id: string): number | null {
   const m = /^photo-(\d+)$/.exec(id);
   return m ? Number(m[1]) : null;
@@ -62,21 +61,20 @@ export function candidateTooltip(c: ExplorationCandidate): string {
   parts.push(`basis: ${c.basis.replaceAll('_', ' ')}`);
   return parts.join(' · ');
 }
-
-/** Everything the explore map draws, in z-order. Pure. */
 export function buildExploreLayers(run: Exploration, state: ExploreMapState): MapLayer[] {
   const layers: MapLayer[] = [];
+  const pathColor = themeColor('--color-accent');
+  const currentColor = themeColor('--pin-current');
+  const coneColor = themeColor('--color-border-strong');
   const photos = [...run.photo_list].sort((a, b) => a.index - b.index);
   const taken = photos.filter((p) => p.index <= state.photosUsed);
   const later = photos.filter((p) => p.index > state.photosUsed);
-
-  // The bus's path with direction-of-travel arrows, below everything else.
   if (run.path.length > 1) {
     layers.push({
       type: 'polyline',
       id: 'path',
       points: run.path,
-      color: PATH_COLOR,
+      color: pathColor,
       weight: 4,
       opacity: 0.8,
       tooltip: 'The bus path (direction of travel →)',
@@ -89,14 +87,12 @@ export function buildExploreLayers(run: Exploration, state: ExploreMapState): Ma
         lon: a.lon,
         text: '➤',
         className: 'arrow',
-        color: PATH_COLOR,
+        color: pathColor,
         rotateDeg: a.bearing - 90,
         size: 14,
       });
     });
   }
-
-  // View cones: later photos first so earlier ones sit on top, current last.
   const cone = (p: ExplorationPhoto): MapLayer => {
     const current = state.currentPhotos.includes(p.index);
     const future = p.index > state.photosUsed;
@@ -104,17 +100,15 @@ export function buildExploreLayers(run: Exploration, state: ExploreMapState): Ma
       type: 'polygon',
       id: `cone-${p.index}`,
       points: viewCone(photoPoint(p), p.heading, p.fov, CONE_RADIUS_M),
-      color: current ? CURRENT_COLOR : '#ffeb3b',
+      color: current ? currentColor : coneColor,
       weight: current ? 2 : 1,
-      opacity: future ? 0.3 : 0.9,
-      fillOpacity: current ? 0.4 : future ? 0.05 : 0.18,
+      opacity: current ? 1 : future ? 0.3 : 0.6,
+      fillOpacity: current ? 0.35 : future ? 0.02 : 0.08,
     };
   };
   const isCurrent = (p: ExplorationPhoto) => state.currentPhotos.includes(p.index);
   for (const p of [...later, ...taken].filter((p) => !isCurrent(p))) layers.push(cone(p));
   for (const p of photos.filter(isCurrent)) layers.push(cone(p));
-
-  // OSM features sit below the position pins (negative z-offset) and the photos.
   if (state.showOsmFeatures ?? true) layers.push(...buildOsmFeatureLayers(run.osm_features));
 
   for (const pos of run.positions) {
@@ -159,8 +153,6 @@ export function buildExploreLayers(run: Exploration, state: ExploreMapState): Ma
   }
   return layers;
 }
-
-/** Every position, photo and candidate location: the view to fit for a run (not the whole path). */
 export function exploreBounds(run: Exploration): LatLon[] {
   return [
     ...run.positions.map(toLatLon),

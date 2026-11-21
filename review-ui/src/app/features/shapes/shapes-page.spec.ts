@@ -61,14 +61,14 @@ describe('ShapesPage', () => {
 
   it('lists the stops in order with the progress line', async () => {
     await open({ stopId: 'b', verdicts: [verdict('a', { verdict: 'off_route' })] });
-    expect(qa('.list .stop .mono').map((s) => s.textContent)).toEqual(['a', 'b', 'c']);
+    expect(qa('.list .stop .stop-plate').map((s) => s.textContent)).toEqual(['a', 'b', 'c']);
     expect(q('.progress')!.textContent!.replace(/\s+/g, ' ').trim()).toBe(
-      '3 stops to check · 1 judged',
+      '3 stops · 1 judged',
     );
     const items = qa('.list .stop');
     expect(items[0].textContent).toContain('off route');
     expect(items[1].getAttribute('aria-current')).toBe('true');
-    expect(items[1].textContent).toContain('83.4 m · Stop b');
+    expect(items[1].textContent).toContain('83 m');
     expect(items[1].textContent).not.toContain('# b');
   });
 
@@ -80,10 +80,11 @@ describe('ShapesPage', () => {
   it('shows the stop details, routes and external links', async () => {
     await open({ stopId: 'a' });
     const d = q('.detail')!;
-    expect(d.querySelector('h1')!.textContent).toContain('a · Stop a');
+    expect(d.querySelector('h1')!.textContent).toContain('Stop a');
+    expect(d.querySelector('h1 .stop-plate')!.textContent).toBe('a');
     const meta = d.textContent!.replace(/\s+/g, ' ');
-    expect(meta).toContain('Verifier moved it 83.4 m · sign: yes');
-    expect(meta).toMatch(/Distance to V: G \d+ m · P \d+ m/);
+    expect(meta).toContain('Moved 83 m by the verifier · sign yes');
+    expect(meta).toMatch(/Places \d+ m from V/);
     const rows = [...d.querySelectorAll('tbody tr')].map((r) =>
       r.textContent!.replace(/\s+/g, ' ').trim(),
     );
@@ -119,7 +120,7 @@ describe('ShapesPage', () => {
     check.stops[0] = shapeStop('a', { has_sign: '', comments: 'bench only', routes: [] });
     await open({ stopId: 'a', check });
     const text = q('.detail')!.textContent!.replace(/\s+/g, ' ');
-    expect(text).toContain('sign: ? · bench only');
+    expect(text).toContain('sign ? · bench only');
     expect(text).toContain('No shape for the trips');
   });
 
@@ -149,27 +150,36 @@ describe('ShapesPage', () => {
       check.stops[3] = shapeStop('d', { flags: ['weird'] });
       return check;
     };
-    const chips = () => qa('.filters .chip');
-    const chip = (label: string) => chips().find((c) => c.textContent!.trim() === label)!;
-    const listed = () => qa('.list .stop .mono').map((s) => s.textContent);
+    const chips = () => qa('.filters .seg');
+    const chip = (label: string) =>
+      chips().find((c) => c.textContent!.replace(/\s+/g, ' ').trim().startsWith(label + ' '))!;
+    const listed = () => qa('.list .stop .stop-plate').map((s) => s.textContent);
 
-    it('shows the flags as badges in the list and in the detail', async () => {
+    it('shows the flags as text in the list and in the detail', async () => {
       await open({ stopId: 'a', check: mixed() });
-      expect(qa('.list .stop')[0].querySelectorAll('.flag').length).toBe(2);
-      expect(qa('.list .stop')[0].textContent).toContain('Moved ≥ 50 m');
-      expect(qa('.list .stop')[0].textContent).toContain('Left of path');
+      expect(qa('.list .stop')[0].querySelector('.flags')!.textContent).toBe(
+        'Moved ≥ 50 m · Left of path',
+      );
       expect(qa('.list .stop')[3].textContent).toContain('weird');
-      expect(q('.flag-row')!.textContent).toContain('Left of path');
+      expect(q('.flag-row')!.textContent).toBe('Left of path');
+    });
+
+    it('does not repeat the active filter flag on the rows', async () => {
+      await open({ stopId: 'a', check: mixed() });
+      chip('Moved ≥ 50 m').click();
+      fixture.detectChanges();
+      expect(qa('.list .stop')[0].querySelector('.flags')!.textContent).toBe('Left of path');
+      expect(qa('.list .stop')[1].querySelector('.flags')).toBeNull();
     });
 
     it('offers All and one toggle per flag present, in contract order', async () => {
       await open({ stopId: 'a', check: mixed() });
-      expect(chips().map((c) => c.textContent!.trim())).toEqual([
-        'All',
-        'Moved ≥ 50 m',
-        'Left of path',
-        'On a detour',
-        'weird',
+      expect(chips().map((c) => c.textContent!.replace(/\s+/g, ' ').trim())).toEqual([
+        'All 4',
+        'Moved ≥ 50 m 2',
+        'Left of path 1',
+        'On a detour 1',
+        'weird 1',
       ]);
       expect(chips().map((c) => c.getAttribute('aria-pressed'))).toEqual([
         'true',
@@ -183,11 +193,11 @@ describe('ShapesPage', () => {
     it('filters the list and counts the filtered stops', async () => {
       await open({ stopId: 'a', check: mixed(), verdicts: [verdict('b'), verdict('c')] });
       const progress = () => q('.progress')!.textContent!.replace(/\s+/g, ' ').trim();
-      expect(progress()).toBe('4 stops to check · 2 judged');
+      expect(progress()).toBe('4 stops · 2 judged');
       chip('Moved ≥ 50 m').click();
       fixture.detectChanges();
       expect(listed()).toEqual(['a', 'c']);
-      expect(progress()).toBe('2 stops to check · 1 judged');
+      expect(progress()).toBe('2 stops · 1 judged');
       expect(chip('Moved ≥ 50 m').getAttribute('aria-pressed')).toBe('true');
       chip('All').click();
       fixture.detectChanges();
@@ -280,14 +290,13 @@ describe('ShapesPage', () => {
       const req = put('a');
       expect(req.request.method).toBe('PUT');
       expect(req.request.body).toEqual({ verdict: 'on_route', note: 'kept', rater: 'Ana' });
-      // Optimistic: visible before the server answers.
       fixture.detectChanges();
       expect(pressed()).toEqual(['true', 'false', 'false']);
       expect(q('.progress')!.textContent).toContain('1 judged');
       req.flush(verdict('a', { note: 'kept', rater: 'Ana' }));
       await settle();
       expect(pressed()).toEqual(['true', 'false', 'false']);
-      expect(q('.list .stop .badge')!.textContent).toContain('on route');
+      expect(q('.list .stop .verdict-word')!.textContent).toContain('on route');
       expect(q('[role=alert]')).toBeNull();
     });
 
@@ -421,7 +430,6 @@ describe('ShapesPage', () => {
       const file = new File([csv], 'old.csv', { type: 'text/csv' });
       Object.defineProperty(input, 'files', { value: [file], configurable: true });
       input.dispatchEvent(new Event('change'));
-      // Reading the file is async; wait for the PUTs to be issued.
       await vi.waitFor(() => expect(http.match(() => false)).toBeDefined());
       await new Promise((r) => setTimeout(r, 20));
     }

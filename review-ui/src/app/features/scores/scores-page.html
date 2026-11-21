@@ -10,27 +10,25 @@
       (action)="reload()"
     />
   } @else {
-    <div class="toolbar">
-      <div class="field">
-        <label for="stop-filter">Filter by name or id</label>
-        <input
-          id="stop-filter"
-          type="search"
-          autocomplete="off"
-          placeholder="e.g. Tivoli or f00077"
-          [value]="query()"
-          (input)="setQuery($any($event.target).value)"
-        />
-      </div>
-      <p class="count" role="status">Showing {{ rows().length }} of {{ total() }} stops</p>
-      @if (sortKey()) {
-        <button type="button" class="btn" (click)="clearSort()">Clear sort</button>
-      }
-      <p class="legend">
-        <span class="swatch" aria-hidden="true"></span> Models disagree by ≥ 2 levels (≥ 0.5 for
-        probabilities)
-      </p>
-    </div>
+    <app-list-toolbar
+      inputId="stop-filter"
+      [query]="query()"
+      [shown]="rows().length"
+      [total]="total()"
+      [sorted]="!!sortKey()"
+      (queryChange)="setQuery($event)"
+      (sortCleared)="clearSort()"
+    >
+      <span note class="note">
+        @if (models().length === 1) {
+          <span>Model <span class="mono">{{ models()[0].label }}</span></span>
+        }
+        <span class="legend">
+          <span class="swatch" aria-hidden="true"></span>Models disagree by 2 levels or more (0.5 for
+          probabilities)
+        </span>
+      </span>
+    </app-list-toolbar>
 
     @if (rows().length === 0) {
       <app-state-message
@@ -47,19 +45,17 @@
           </caption>
           <thead>
             <tr class="top">
-              <th scope="col" rowspan="2" class="sticky stop-col">Stop</th>
-              <th scope="col" rowspan="2">Imagery</th>
-              <th scope="col" rowspan="2">Location</th>
-              <th scope="col" rowspan="2">Photos</th>
+              <th scope="col" [attr.rowspan]="models().length > 1 ? 2 : 1" class="stop-col">Stop</th>
+              <th scope="col" [attr.rowspan]="models().length > 1 ? 2 : 1">Photos</th>
               @for (cat of categories(); track cat.key) {
-                <th
-                  scope="colgroup"
-                  class="group"
-                  [attr.colspan]="models().length"
-                  [attr.aria-sort]="sortState(cat.key, 'mean')"
-                >
-                  <span class="cat-label" [attr.title]="cat.description">{{ cat.label }}</span>
-                  @if (models().length > 1) {
+                @if (models().length > 1) {
+                  <th
+                    scope="colgroup"
+                    class="group"
+                    [attr.colspan]="models().length"
+                    [attr.aria-sort]="sortState(cat.key, 'mean')"
+                  >
+                    <span class="cat-label" [attr.title]="cat.description">{{ cat.label }}</span>
                     <button
                       type="button"
                       class="sort mean"
@@ -69,42 +65,70 @@
                     >
                       mean<span aria-hidden="true" class="arrow"></span>
                     </button>
-                  }
-                </th>
-              }
-            </tr>
-            <tr class="sub">
-              @for (cat of categories(); track cat.key) {
-                @for (model of models(); track model.key) {
-                  <th scope="col" [attr.aria-sort]="sortState(cat.key, model.key)">
+                  </th>
+                } @else {
+                  <th
+                    scope="col"
+                    class="num"
+                    [attr.aria-sort]="sortState(cat.key, models()[0].key)"
+                  >
                     <button
                       type="button"
                       class="sort"
-                      [attr.title]="model.description"
-                      [attr.aria-label]="'Sort by ' + cat.label + ', ' + model.label"
-                      [attr.data-state]="sortState(cat.key, model.key)"
-                      (click)="setSort(cat.key, model.key)"
+                      [attr.title]="cat.description"
+                      [attr.aria-label]="'Sort by ' + cat.label + ', ' + models()[0].label"
+                      [attr.data-state]="sortState(cat.key, models()[0].key)"
+                      (click)="setSort(cat.key, models()[0].key)"
                     >
-                      {{ model.label }}<span aria-hidden="true" class="arrow"></span>
+                      {{ cat.label }}<span aria-hidden="true" class="arrow"></span>
                     </button>
                   </th>
                 }
               }
             </tr>
+            @if (models().length > 1) {
+              <tr class="sub">
+                @for (cat of categories(); track cat.key) {
+                  @for (model of models(); track model.key; let first = $first) {
+                    <th
+                      scope="col"
+                      class="num"
+                      [class.first]="first"
+                      [attr.aria-sort]="sortState(cat.key, model.key)"
+                    >
+                      <button
+                        type="button"
+                        class="sort model"
+                        [attr.title]="model.description"
+                        [attr.aria-label]="'Sort by ' + cat.label + ', ' + model.label"
+                        [attr.data-state]="sortState(cat.key, model.key)"
+                        (click)="setSort(cat.key, model.key)"
+                      >
+                        {{ model.label }}<span aria-hidden="true" class="arrow"></span>
+                      </button>
+                    </th>
+                  }
+                }
+              </tr>
+            }
           </thead>
           <tbody>
             @for (row of rows(); track row.stop.stop_id) {
               <tr>
-                <th scope="row" class="sticky stop-col">
-                  <span class="name">{{ row.stop.name }}</span>
-                  <span class="mono id">{{ row.stop.stop_id }}</span>
+                <th scope="row" class="stop-col">
+                  <span class="name" [attr.title]="row.stop.name">{{ row.stop.name }}</span>
+                  <span class="stop-plate">{{ row.stop.stop_id }}</span>
+                  <span class="meta">
+                    <span>{{ row.date }}</span>
+                    <a
+                      [href]="row.map"
+                      [attr.title]="row.coords"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      >map<span class="visually-hidden"> (opens Google Maps)</span></a
+                    >
+                  </span>
                 </th>
-                <td class="nowrap">{{ row.date }}</td>
-                <td class="nowrap">
-                  <a [href]="row.map" target="_blank" rel="noopener noreferrer" class="mono"
-                    >{{ row.coords }}<span class="visually-hidden"> (opens Google Maps)</span></a
-                  >
-                </td>
                 <td class="photos">
                   <app-photo-grid
                     size="sm"
@@ -117,14 +141,12 @@
                   @for (
                     cell of group.cells;
                     track cell.model.key;
-                    let first = $first;
-                    let last = $last
+                    let first = $first
                   ) {
                     <td
-                      class="score"
+                      class="score num"
                       [class.disagree]="group.disagree"
-                      [class.first]="first"
-                      [class.last]="last"
+                      [class.first]="first && models().length > 1"
                     >
                       <app-score-bar
                         [value]="cell.value"

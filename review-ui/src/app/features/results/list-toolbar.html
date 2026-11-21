@@ -1,0 +1,19 @@
+<div class="toolbar">
+  <label class="visually-hidden" [for]="inputId()">Filter by name or id</label>
+  <input
+    [id]="inputId()"
+    type="search"
+    autocomplete="off"
+    placeholder="Filter by name or id"
+    [value]="query()"
+    (input)="queryChange.emit($any($event.target).value)"
+  />
+  <ng-content />
+  <div class="end">
+    <ng-content select="[note]" />
+    @if (sorted()) {
+      <button type="button" class="btn quiet" (click)="sortCleared.emit()">Clear sort</button>
+    }
+    <p class="count" role="status">{{ shown() }} of {{ total() }}</p>
+  </div>
+</div>

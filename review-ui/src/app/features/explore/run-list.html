@@ -9,10 +9,15 @@
           (click)="toggle(group.version)"
         >
           <span class="chev" aria-hidden="true">{{ group.open ? '▾' : '▸' }}</span>
-          <span class="mono version">{{ group.label }}</span>
-          <span class="muted"
-            >{{ group.count }} {{ group.count === 1 ? 'run' : 'runs' }} · {{ group.summary }}</span
-          >
+          <span class="head-text">
+            <span class="head-line"
+              ><span class="mono version">{{ group.label }}</span> · {{ group.count }}
+              {{ group.count === 1 ? 'run' : 'runs' }} · {{ group.found }} found</span
+            >
+            @if (group.model) {
+              <span class="mono head-model">{{ group.model }}</span>
+            }
+          </span>
         </button>
       </h2>
       @if (group.open) {
@@ -26,7 +31,7 @@
                 [attr.aria-current]="item.run.run_id === selectedId() ? 'true' : null"
               >
                 <span class="top">
-                  <span class="id mono">{{ item.run.stop_id }}</span>
+                  <span class="stop-plate">{{ item.run.stop_id }}</span>
                   <app-badge [tone]="item.outcome.tone">{{ item.outcome.label }}</app-badge>
                 </span>
                 <span class="name">{{ item.run.name }}</span>
@@ -35,8 +40,8 @@
                   <span title="Error: GTFS → verified, then submitted → verified">{{
                     item.errors
                   }}</span>
-                  @if (item.run.model) {
-                    <span class="mono">{{ item.run.model }}</span>
+                  @if (item.model) {
+                    <span class="mono">{{ item.model }}</span>
                   }
                 </span>
               </a>

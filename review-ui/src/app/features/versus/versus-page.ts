@@ -31,7 +31,6 @@ interface RevealRow {
   category: Category;
   left: RevealCell[];
   right: RevealCell[];
-  /** Models disagree about this category for at least one of the stops. */
   disagree: boolean;
 }
 
@@ -111,7 +110,6 @@ export class VersusPage {
     });
     this.store.start();
     effect(() => {
-      // Move focus to "Next pair" once the scores are revealed, so Enter continues.
       if (this.store.phase() === 'revealed') this.nextButton()?.nativeElement.focus();
     });
   }

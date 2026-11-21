@@ -23,9 +23,9 @@ describe('PhotoViewer', () => {
   afterEach(() => TestBed.inject(Dialog).closeAll());
 
   it('opens at the given photo with a visible caption incl. copyright', () => {
-    expect(q('.count')?.textContent).toContain('Photo 2 of 3');
+    expect(q('.count')?.textContent).toContain('2 / 3');
+    expect(q('.desc')?.textContent).toContain('Photo 2 of a');
     const caption = q('.caption')!.textContent!;
-    expect(caption).toContain('Photo 2 of a');
     expect(caption).toContain('48 m');
     expect(caption).toContain('180° S');
     expect(caption).toContain('© Google');
@@ -35,12 +35,12 @@ describe('PhotoViewer', () => {
     press('ArrowRight');
     press('ArrowRight');
     await tick();
-    expect(q('.count')?.textContent).toContain('Photo 3 of 3');
+    expect(q('.count')?.textContent).toContain('3 / 3');
     press('ArrowLeft');
     press('ArrowLeft');
     press('ArrowLeft');
     await tick();
-    expect(q('.count')?.textContent).toContain('Photo 1 of 3');
+    expect(q('.count')?.textContent).toContain('1 / 3');
   });
 
   it('zooms with + / - and resets with 0', async () => {

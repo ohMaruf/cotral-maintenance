@@ -10,15 +10,9 @@ export interface ImportRequest {
 
 export interface ImportPlan {
   requests: ImportRequest[];
-  /** Rows without a verdict or note, or for a stop that is not in the check. */
   skipped: number;
 }
 
-/**
- * Plans the import of a CSV exported by the old page (`stop_id,offset_m,verdict,
- * note,...`) or by the BFF: one request per row that has a verdict or a note, for a
- * stop in `knownIds`. An unrecognised verdict is dropped (the note is still kept).
- */
 export function planImport(
   csv: string,
   knownIds: ReadonlySet<string>,

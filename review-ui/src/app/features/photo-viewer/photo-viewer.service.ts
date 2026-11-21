@@ -2,7 +2,6 @@ import { Dialog } from '@angular/cdk/dialog';
 import { Injectable, inject } from '@angular/core';
 import { Photo } from '../../core/api/api.types';
 
-/** Opens the photo viewer modal; the component is lazy-loaded on first use. */
 @Injectable({ providedIn: 'root' })
 export class PhotoViewerService {
   private readonly dialog = inject(Dialog);

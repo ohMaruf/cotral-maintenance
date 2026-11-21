@@ -19,6 +19,7 @@ import { PhotoGrid } from '../../shared/photo-grid/photo-grid';
 import { ScoreBar } from '../../shared/score-bar/score-bar';
 import { StateMessage } from '../../shared/state-message/state-message';
 import { formatCoordinates, formatImageryDate, mapsUrl } from '../../shared/lib/format';
+import { ListToolbar } from '../results/list-toolbar';
 import { PhotoViewerService } from '../photo-viewer/photo-viewer.service';
 
 interface Cell {
@@ -41,11 +42,10 @@ interface Row {
   categories: CategoryCells[];
 }
 
-/** Table of every stop with both models' scores. Sort and filter live in the URL. */
 @Component({
   selector: 'app-scores-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PhotoGrid, ScoreBar, StateMessage],
+  imports: [ListToolbar, PhotoGrid, ScoreBar, StateMessage],
   templateUrl: './scores-page.html',
   styleUrl: './scores-page.scss',
 })
@@ -54,7 +54,6 @@ export class ScoresPage {
   private readonly router = inject(Router);
   private readonly viewer = inject(PhotoViewerService);
 
-  // Bound from the query string by withComponentInputBinding().
   readonly sort = input<string | undefined>();
   readonly dir = input<string | undefined>();
   readonly q = input<string | undefined>();
@@ -117,11 +116,9 @@ export class ScoresPage {
     });
   }
 
-  /** Clicking the active column flips the direction; a new column starts worst-first. */
   protected setSort(category: string, model: string): void {
     const current = this.sortKey();
     const same = current?.category === category && current.model === model;
-    // Worst (lowest) first by default; clicking the active column flips it.
     const dir: SortDirection = same && this.direction() === 'asc' ? 'desc' : 'asc';
     void this.router.navigate([], {
       queryParams: { sort: serializeSort({ category, model }), dir },
@@ -138,7 +135,6 @@ export class ScoresPage {
     });
   }
 
-  /** aria-sort / indicator state for a column. */
   protected sortState(category: string, model: string): 'ascending' | 'descending' | 'none' {
     const k = this.sortKey();
     if (!k || k.category !== category || k.model !== model) return 'none';

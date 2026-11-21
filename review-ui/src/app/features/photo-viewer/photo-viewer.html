@@ -1,10 +1,8 @@
 <div class="viewer">
   <header class="bar">
     <div class="title">
-      <strong>{{ data.stopName }}</strong>
-      <span class="count" aria-live="polite"
-        >Photo {{ index() + 1 }} of {{ data.photos.length }}</span
-      >
+      <span class="desc">{{ photo().description }}</span>
+      <span class="count" aria-live="polite">{{ index() + 1 }} / {{ data.photos.length }}</span>
     </div>
     <div class="tools" role="group" aria-label="Zoom">
       <button type="button" class="tool" aria-label="Zoom out (minus key)" (click)="zoomOut()">
@@ -18,7 +16,7 @@
       </button>
     </div>
     <button type="button" class="tool close" aria-label="Close viewer (Escape)" (click)="close()">
-      ✕
+      Close
     </button>
   </header>
 
@@ -64,7 +62,6 @@
   </div>
 
   <p class="caption">
-    <span class="desc">{{ photo().description }}</span>
     @if (distance()) {
       <span>Distance {{ distance() }}</span>
     }
@@ -92,7 +89,7 @@
     }
   </ul>
   <p class="hint">
-    Wheel or pinch to zoom, drag to pan, double-click to zoom or reset. Keys:
+    Wheel or pinch to zoom, drag to pan, double-click to zoom or reset ·
     <kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd> <kbd>←</kbd> <kbd>→</kbd> <kbd>Esc</kbd>
   </p>
 </div>

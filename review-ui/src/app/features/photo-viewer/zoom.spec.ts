@@ -4,7 +4,6 @@ const size = { w: 800, h: 600 };
 
 describe('zoom', () => {
   it('keeps the point under the cursor fixed', () => {
-    // Content point under (100, 50) before and after zooming 2x.
     const v = zoomAt(IDENTITY, 2, 100, 50, size);
     expect(v.scale).toBe(2);
     const contentBefore = { x: 100, y: 50 };

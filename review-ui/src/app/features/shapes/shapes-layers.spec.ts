@@ -115,7 +115,7 @@ describe('buildShapeLayers', () => {
 
   it('draws a dashed white line from G to V and the pins above everything', () => {
     const link = lines(layers).find((l) => l.id === 'gtfs-to-verified')!;
-    expect(link.color).toBe('#ffffff');
+    expect(link.color).toBe('white');
     expect(link.dashArray).toBeDefined();
     expect(link.points).toEqual([stop.gtfs, stop.truth]);
     const pins = markers(layers).filter((m) => m.id.startsWith('pin-'));

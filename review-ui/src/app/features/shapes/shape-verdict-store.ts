@@ -25,12 +25,6 @@ function entryOf(v: ShapeVerdict): VerdictEntry {
   return { verdict: v.verdict, note: v.note };
 }
 
-/**
- * Verdicts for the shape check. Edits show at once (optimistic) and are saved with
- * a PUT; when the newest save for a stop fails, the stop goes back to the last state
- * the server confirmed and the error is shown. Notes save on blur and, while typing,
- * after a short pause.
- */
 @Injectable()
 export class ShapeVerdictStore {
   private readonly api = inject(ApiService);
@@ -44,12 +38,10 @@ export class ShapeVerdictStore {
 
   readonly loaded = signal(false);
   readonly loadError = signal<string | null>(null);
-  /** The last failed save, with the stop it belongs to. */
   readonly saveError = signal<{ stopId: string; message: string } | null>(null);
   private readonly _saving = signal<ReadonlySet<string>>(new Set());
   readonly saving = this._saving.asReadonly();
 
-  /** Stops that have a verdict. */
   readonly judged = computed(
     () => Object.values(this._entries()).filter((e) => e.verdict !== null).length,
   );
@@ -71,7 +63,6 @@ export class ShapeVerdictStore {
           entries[v.stop_id] = entryOf(v);
           this.confirmed.set(v.stop_id, entryOf(v));
         }
-        // Keep edits made while loading.
         this._entries.update((current) => ({ ...entries, ...current }));
         this.loaded.set(true);
       },
@@ -85,7 +76,6 @@ export class ShapeVerdictStore {
     this.save(stopId);
   }
 
-  /** Called on every keystroke: shown at once, saved after a pause. */
   setNote(stopId: string, note: string): void {
     this.edit(stopId, { ...this.entry(stopId), note });
     this.cancelTimer(stopId);
@@ -98,7 +88,6 @@ export class ShapeVerdictStore {
     );
   }
 
-  /** Saves a pending note now (textarea blur). */
   flushNote(stopId: string): void {
     if (!this.timers.has(stopId)) return;
     this.cancelTimer(stopId);
@@ -109,7 +98,6 @@ export class ShapeVerdictStore {
     this.saveError.set(null);
   }
 
-  /** PUTs every row of an exported CSV that has a verdict or a note for a known stop. */
   async importCsv(csv: string, knownIds: ReadonlySet<string>): Promise<ImportResult> {
     const plan = planImport(csv, knownIds, this.rater.payload());
     const outcomes = await lastValueFrom(
@@ -157,7 +145,6 @@ export class ShapeVerdictStore {
         if (this.latest.get(stopId) === id) this.markSaving(stopId, false);
       },
       error: (e) => {
-        // A newer edit supersedes this save; only the newest one rolls back.
         if (this.latest.get(stopId) !== id) return;
         this.markSaving(stopId, false);
         this.edit(stopId, this.confirmed.get(stopId) ?? EMPTY);

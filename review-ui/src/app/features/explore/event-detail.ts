@@ -41,11 +41,6 @@ function photoFacts(p: ExplorationPhoto, all: ExplorationPhoto[]): Fact[] {
   ];
 }
 
-/**
- * One event in full: the model's words for a thought; for a tool call its name, arguments
- * and full result, the photos taken, and the candidate's checklist (and the confirmer's note) for answer_checklist and confirm.
- * Unknown kinds get the same generic treatment, plus the raw request and response.
- */
 @Component({
   selector: 'app-event-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -55,7 +50,6 @@ function photoFacts(p: ExplorationPhoto, all: ExplorationPhoto[]): Fact[] {
 export class EventDetail {
   readonly event = input.required<ExplorationEvent>();
   readonly run = input.required<Exploration>();
-  /** A photo (by index) was clicked: open it full size. */
   readonly photoOpen = output<number>();
 
   protected readonly answers = CHECKLIST_ANSWERS;
@@ -72,14 +66,11 @@ export class EventDetail {
       .map((photo) => ({ photo, facts: photoFacts(photo, this.run().photo_list) })),
   );
 
-  /** The candidate an answer_checklist call is about (by its `candidate` argument). */
   protected readonly candidate = computed<ExplorationCandidate | null>(() => {
     const e = this.event();
-    // answer_checklist (old runs) or confirm (the independent confirmer's checklist).
     if (e.kind !== 'answer_checklist' && e.kind !== 'confirm') return null;
     const request = e.raw.request as { candidate?: unknown } | null;
     const c = this.run().candidates.find((c) => c.index === Number(request?.candidate)) ?? null;
-    // An old run's confirm only took a photo: it has no checklist to show.
     return e.kind === 'confirm' && c && !c.confirmer_note && Object.keys(c.checklist).length === 0
       ? null
       : c;
@@ -89,8 +80,6 @@ export class EventDetail {
     return c ? checklistRows(c.checklist) : [];
   });
 
-  // Raw JSON can be large: format it only while its section is open. The open state
-  // survives stepping to the next event, which is what you want when comparing.
   protected readonly requestOpen = signal(false);
   protected readonly responseOpen = signal(false);
   protected readonly requestJson = computed(() =>

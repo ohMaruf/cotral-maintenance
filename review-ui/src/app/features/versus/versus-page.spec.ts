@@ -58,7 +58,7 @@ describe('VersusPage flow', () => {
     TestBed.inject(RaterService).set('Ana');
     await open();
 
-    q('.card .choose')!.click();
+    q('.actions .choose')!.click();
     const post = http.expectOne('/api/judgments');
     expect(post.request.method).toBe('POST');
     expect(post.request.body).toMatchObject({ left: 'a', right: 'b', winner: 'a', rater: 'Ana' });
@@ -69,13 +69,12 @@ describe('VersusPage flow', () => {
 
     expect(q('.reveal')).not.toBeNull();
     expect(el.querySelectorAll('.reveal tbody tr')).toHaveLength(CATALOG.categories.length);
-    expect(q('.card.picked')?.textContent).toContain('Stop a');
+    expect(q('.choose.picked')?.textContent).toContain('Left');
     const chips = [...el.querySelectorAll('.chip')].map((c) => c.textContent?.trim());
     expect(chips[0]).toContain('Clef agrees');
     expect(chips[1]).toContain('Gemma agrees');
     expect(q('.progress')?.textContent).toContain('2');
-    // Choice buttons are locked after the choice.
-    expect(q('.card .choose')?.hasAttribute('disabled')).toBe(true);
+    expect(q('.actions .choose')?.hasAttribute('disabled')).toBe(true);
 
     press('Enter');
     http
@@ -93,7 +92,6 @@ describe('VersusPage flow', () => {
     expect(post.request.body.winner).toBe('b');
     post.flush(judgmentResponse('a', 'b', 'b'), { status: 201, statusText: 'Created' });
     await settle();
-    // Disagreement: models say the left stop needs more maintenance.
     expect(q('.chip')?.textContent).toContain('Clef disagrees');
 
     press('Enter');
@@ -176,9 +174,8 @@ describe('VersusPage flow', () => {
     press('ArrowRight');
     press('s');
     http.expectNone('/api/judgments');
-    // The viewer itself handled the arrow key: it moved to photo 2.
     await new Promise((r) => setTimeout(r));
-    expect(document.querySelector('.count')?.textContent).toContain('Photo 2 of 4');
+    expect(document.querySelector('.count')?.textContent).toContain('2 / 4');
 
     TestBed.inject(Dialog).closeAll();
     press('ArrowLeft');

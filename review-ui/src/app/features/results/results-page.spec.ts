@@ -61,17 +61,17 @@ describe('ResultsPage', () => {
   const names = () => [...el.querySelectorAll('tbody th .name')].map((n) => n.textContent?.trim());
   const text = (selector: string) => el.querySelector(selector)!.textContent!.replace(/\s+/g, ' ');
 
-  it('shows the run: size, outcomes, scored, review count, billing and profile', () => {
+  it('shows the run in one line, with billing and profiles under details', () => {
     const head = text('header.run');
     expect(head).toContain('smoke-local');
-    expect(head).toContain('Stops4');
+    expect(head).toContain('4 stops');
     expect(head).toContain('2 found');
     expect(head).toContain('1 not found');
     expect(head).toContain('1 no imagery');
-    expect(head).toContain('Scored2');
-    expect(head).toContain('Needs review1');
-    expect(head).toContain('6 Static, 40 tiles');
-    expect(head).toContain('local-smoke-gguf');
+    expect(head).toContain('2 scored');
+    expect(head).toContain('1 need review');
+    expect(text('header.run details')).toContain('6 Static, 40 tiles');
+    expect(text('header.run details')).toContain('local-smoke-gguf');
   });
 
   it('lists the stops in the run order with rank, scores and a link to the exploration', () => {
@@ -80,17 +80,17 @@ describe('ResultsPage', () => {
     expect(first.querySelector('.rank')!.textContent).toBe('1');
     expect(first.querySelectorAll('td.score')).toHaveLength(9);
     expect(first.querySelector('a.name')!.getAttribute('href')).toBe('/explore/a');
-    expect(first.querySelector('.nowrap')!.textContent).toContain('42.4 m');
+    expect(first.querySelector('td.mono')!.textContent).toContain('42.4 m');
     expect(el.querySelectorAll('tbody tr')[2].querySelector('.rank')!.textContent).toBe('–');
   });
 
-  it('says missing for a shelter the stop lacks, and lists what is missing', () => {
+  it('says none for a shelter the stop lacks, and lists what is missing', () => {
     const [alpha, beta, gamma] = [...el.querySelectorAll('tbody tr')];
     expect(alpha.querySelector('td.missing')!.textContent).toContain('none');
     expect(alpha.querySelectorAll('td.score .gone')).toHaveLength(0);
     expect(beta.querySelector('td.missing')!.textContent).toContain('shelter');
     expect(beta.querySelectorAll('td.score .gone')).toHaveLength(1);
-    expect(beta.querySelector('td.score .gone')!.textContent).toContain('missing');
+    expect(beta.querySelector('td.score .gone')!.textContent).toContain('none');
     expect(gamma.querySelector('td.missing')!.textContent).toContain('–');
   });
 
@@ -125,7 +125,7 @@ describe('ResultsPage', () => {
     fixture.componentRef.setInput('q', 'bet');
     await fixture.whenStable();
     expect(names()).toEqual(['Beta']);
-    expect(text('.count')).toContain('Showing 1 of 3 stops');
+    expect(text('.count')).toContain('1 of 3');
   });
 
   it('sorts by a score with missing values last, and flips the direction', async () => {

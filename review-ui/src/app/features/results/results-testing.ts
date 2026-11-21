@@ -1,6 +1,5 @@
 import { ResultRow, RunInfo } from '../../core/api/api.types';
 
-/** A ranked, found and scored row; override what a test is about. */
 export function resultRow(id: string, overrides: Partial<ResultRow> = {}): ResultRow {
   return {
     rank: 1,

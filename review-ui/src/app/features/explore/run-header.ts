@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { Exploration } from '../../core/api/api.types';
 import {
   billedLabel,
+  budgetLabel,
   budgetDetail,
   formatMeters,
   formatTimestamp,
@@ -15,10 +16,8 @@ import {
 } from '../../shared/lib/explore-format';
 import { Badge } from '../../shared/badge/badge';
 
-/** Reports longer than this start collapsed. */
 export const LONG_REPORT_CHARS = 400;
 
-/** Exploration summary: stop, outcome and reason, model, errors, timing, limits and the model's closing words. */
 @Component({
   selector: 'app-run-header',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -31,6 +30,9 @@ export class RunHeader {
 
   protected readonly outcome = computed(() => outcomeInfo(this.run().outcome));
   protected readonly budget = computed(() => budgetDetail(this.run()));
+  protected readonly images = computed(() =>
+    budgetLabel(this.run().budget_used, this.run().budget_max, this.run().budget_unit),
+  );
   protected readonly billed = computed(() => billedLabel(this.run()));
   protected readonly version = computed(() => versionLabel(this.run().harness.version));
   protected readonly commit = computed(() => shortCommit(this.run().harness.git_commit));

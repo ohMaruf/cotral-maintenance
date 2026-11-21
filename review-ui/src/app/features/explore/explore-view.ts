@@ -6,19 +6,16 @@ import {
 } from '../../core/api/api.types';
 import { UNVERSIONED } from '../../shared/lib/explore-format';
 
-/** The `?event=N` query param: a positive integer seq, else null. */
 export function parseSeq(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined || value === '') return null;
   const n = Number(value);
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-/** Events in exact `seq` order (the contract promises it; this guards the UI). */
 export function orderedEvents(run: Exploration): ExplorationEvent[] {
   return [...run.event_list].sort((a, b) => a.seq - b.seq);
 }
 
-/** The requested event, or the first when the param is missing or unknown. */
 export function currentEvent(
   events: ExplorationEvent[],
   seq: number | null,
@@ -28,7 +25,6 @@ export function currentEvent(
 
 export type EventStep = 'prev' | 'next' | 'first' | 'last';
 
-/** The seq to move to, or null when there is nowhere to go (already at the end). */
 export function stepSeq(
   events: ExplorationEvent[],
   current: ExplorationEvent | null,
@@ -45,15 +41,10 @@ export function stepSeq(
   return target === i ? null : events[target].seq;
 }
 
-/** The event that took this photo. */
 export function eventOfPhoto(events: ExplorationEvent[], photo: number): ExplorationEvent | null {
   return events.find((e) => e.photos.includes(photo)) ?? null;
 }
 
-/**
- * The seq of the next (or previous) event that took photos, counted from the current
- * event; null when there is none that way.
- */
 export function stepPhotoSeq(
   events: ExplorationEvent[],
   current: ExplorationEvent | null,
@@ -74,7 +65,6 @@ export function photoByIndex(run: Exploration, index: number | null): Exploratio
   return index === null ? null : (run.photo_list.find((p) => p.index === index) ?? null);
 }
 
-/** The run `delta` places away in the list, or null at the ends or when unknown. */
 export function adjacentRun(
   runs: ExplorationSummary[],
   runId: string | null,
@@ -86,7 +76,6 @@ export function adjacentRun(
   return runs[i + delta] ?? null;
 }
 
-/** Newest version first, compared numerically per dotted part ("0.10" > "0.9"); "unversioned" (or unparsable) last. */
 export function compareVersions(a: string, b: string): number {
   const parse = (v: string): number[] | null => {
     const parts = v.split('.').map((p) => (/^\d+$/.test(p) ? Number(p) : NaN));
@@ -108,7 +97,6 @@ export interface RunGroup {
   found: number;
 }
 
-/** The runs by harness version, newest version first; runs keep their order within a group. */
 export function groupRuns(runs: ExplorationSummary[]): RunGroup[] {
   const byVersion = new Map<string, ExplorationSummary[]>();
   for (const run of runs) {
@@ -125,7 +113,6 @@ export function groupRuns(runs: ExplorationSummary[]): RunGroup[] {
     }));
 }
 
-/** The runs in the order the list shows them (grouped, newest version first), optionally of one version. */
 export function visibleRuns(
   runs: ExplorationSummary[],
   harness: string | null,

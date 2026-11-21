@@ -1,0 +1,29 @@
+@use 'theme' as *;
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $space-2 $space-3;
+}
+
+input {
+  @include field;
+  width: 18rem;
+  max-width: 100%;
+}
+
+.end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $space-3;
+  margin-left: auto;
+  color: $color-text-muted;
+  font-size: $text-sm;
+}
+
+.count {
+  margin: 0;
+  @include tabular;
+}

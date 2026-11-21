@@ -14,22 +14,21 @@ export type ScoreKey =
 export interface ScoreColumn {
   key: ScoreKey;
   label: string;
+  title: string;
   kind: CategoryKind;
-  /** The element this column rates; its cell says "missing" when the stop lacks it. */
   element?: 'shelter' | 'seating';
 }
 
-/** The scores of a result row, in display order. */
 export const SCORE_COLUMNS: readonly ScoreColumn[] = [
-  { key: 'condition', label: 'Condition', kind: 'condition' },
-  { key: 'has_shelter', label: 'Shelter present', kind: 'probability' },
-  { key: 'shelter', label: 'Shelter', kind: 'condition', element: 'shelter' },
-  { key: 'has_seating', label: 'Seating present', kind: 'probability' },
-  { key: 'seating', label: 'Seating', kind: 'condition', element: 'seating' },
-  { key: 'waiting_area', label: 'Waiting area', kind: 'condition' },
-  { key: 'accessibility', label: 'Access', kind: 'condition' },
-  { key: 'has_lamp', label: 'Street lamp', kind: 'probability' },
-  { key: 'stop_visible', label: 'Visible', kind: 'probability' },
+  { key: 'condition', label: 'Condition', title: 'Condition', kind: 'condition' },
+  { key: 'has_shelter', label: 'Has shelter', title: 'Shelter present', kind: 'probability' },
+  { key: 'shelter', label: 'Shelter', title: 'Shelter', kind: 'condition', element: 'shelter' },
+  { key: 'has_seating', label: 'Has seat', title: 'Seating present', kind: 'probability' },
+  { key: 'seating', label: 'Seating', title: 'Seating', kind: 'condition', element: 'seating' },
+  { key: 'waiting_area', label: 'Waiting', title: 'Waiting area', kind: 'condition' },
+  { key: 'accessibility', label: 'Access', title: 'Accessibility', kind: 'condition' },
+  { key: 'has_lamp', label: 'Has lamp', title: 'Street lamp', kind: 'probability' },
+  { key: 'stop_visible', label: 'Visible', title: 'Stop visible', kind: 'probability' },
 ];
 
 export type SortKey = 'rank' | 'name' | 'distance' | ScoreKey;
@@ -51,12 +50,10 @@ export function parseShow(raw: string | null | undefined): Show {
   return raw === 'ranked' || raw === 'review' ? raw : 'all';
 }
 
-/** The direction a column starts with: names, ranks and scores (0 is bad) upwards, worst first; moves furthest first. */
 export function defaultDirection(key: SortKey): SortDirection {
   return key === 'distance' ? 'desc' : 'asc';
 }
 
-/** "shelter, seating": what the stop lacks; "none" when it lacks nothing, "–" until it is scored. */
 export function missingText(missing: readonly string[] | null): string {
   if (missing === null) return '–';
   return missing.length ? missing.join(', ') : 'none';
@@ -84,10 +81,6 @@ function valueOf(row: ResultRow, key: SortKey): number | string | null {
   }
 }
 
-/**
- * Stable sort by a column. Rows without a value always come last, whatever the direction;
- * ties keep their incoming order (the run's own ranking).
- */
 export function sortRows(
   rows: readonly ResultRow[],
   key: SortKey,
@@ -108,7 +101,6 @@ export function sortRows(
 
 const STATUS_ORDER = ['found', 'not_found', 'no_imagery', 'error'];
 
-/** "found 5 · not found 1": the run's explorations by status, known statuses first. */
 export function exploredSummary(
   explored: RunInfo['explored'],
 ): { status: string; count: number }[] {
@@ -119,7 +111,6 @@ export function exploredSummary(
   return [...known, ...other].map((status) => ({ status, count: explored[status] }));
 }
 
-/** "6 Static, 40 tiles": billed requests by API; "nothing billed" for none. */
 export function billedSummary(billed: RunInfo['billed']): string {
   const parts = Object.entries(billed)
     .filter(([, n]) => n > 0)

@@ -90,7 +90,6 @@ describe('buildExploreLayers', () => {
     );
     expect(arrows.length).toBeGreaterThan(0);
     expect(arrows.every((a) => a.text === '➤' && a.className === 'arrow')).toBe(true);
-    // the path runs north-east: bearing ~45, drawn at bearing - 90
     expect(arrows[0].rotateDeg).toBeGreaterThan(-60);
     expect(arrows[0].rotateDeg).toBeLessThan(-20);
   });

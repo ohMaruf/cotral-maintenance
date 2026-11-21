@@ -3,9 +3,7 @@ import { ExplorationEvent } from '../../core/api/api.types';
 export interface EventKindInfo {
   label: string;
   glyph: string;
-  /** The model's own words, not a tool call. */
   thought: boolean;
-  /** A refused or failed call, shown in the danger colour. */
   danger: boolean;
 }
 
@@ -29,7 +27,6 @@ const KINDS: Record<string, { label: string; glyph: string }> = {
   tool_error: { label: 'Refused call', glyph: '⚠' },
 };
 
-/** Label and glyph of an event kind; unknown kinds are shown as they are. */
 export function eventKindInfo(kind: string, error: string | null = null): EventKindInfo {
   const known = KINDS[kind];
   return {
@@ -40,7 +37,6 @@ export function eventKindInfo(kind: string, error: string | null = null): EventK
   };
 }
 
-/** A tool's arguments as key/value rows; non-objects (or none) give no rows. */
 export function argRows(request: unknown): { key: string; value: string }[] {
   if (request === null || typeof request !== 'object' || Array.isArray(request)) return [];
   return Object.entries(request as Record<string, unknown>)
@@ -48,12 +44,10 @@ export function argRows(request: unknown): { key: string; value: string }[] {
     .map(([key, v]) => ({ key, value: typeof v === 'string' ? v : JSON.stringify(v) }));
 }
 
-/** The one-line summary of an event for the timeline. */
 export function timelineLine(event: ExplorationEvent): string {
   return event.summary.replace(/\s+/g, ' ').trim();
 }
 
-/** A tool call's text result, whatever the raw response is. */
 export function resultText(event: ExplorationEvent): string {
   const response = event.raw.response;
   if (response === null || response === undefined) return '';
@@ -62,7 +56,6 @@ export function resultText(event: ExplorationEvent): string {
 
 const CHECK_ORDER: Record<string, number> = { yes: 0, unsure: 1, no: 2 };
 
-/** Checklist answers, "yes" first; the stop's own features keep their order within an answer. */
 export function checklistRows(
   checklist: Record<string, string>,
 ): { feature: string; answer: string }[] {

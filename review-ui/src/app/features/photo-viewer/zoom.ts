@@ -1,6 +1,5 @@
 export interface ViewState {
   scale: number;
-  /** Translation in px, relative to the stage centre. */
   x: number;
   y: number;
 }
@@ -14,7 +13,6 @@ export const MIN_SCALE = 1;
 export const MAX_SCALE = 8;
 export const IDENTITY: ViewState = { scale: 1, x: 0, y: 0 };
 
-/** Keeps the image from being dragged away: at scale 1 there is nothing to pan. */
 export function clampView(view: ViewState, size: Size): ViewState {
   const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, view.scale));
   const maxX = (size.w * (scale - 1)) / 2;
@@ -26,10 +24,6 @@ export function clampView(view: ViewState, size: Size): ViewState {
   };
 }
 
-/**
- * Multiplies the scale by `factor` keeping the content point under (cx, cy)
- * fixed. (cx, cy) is relative to the stage centre; the transform origin is the centre.
- */
 export function zoomAt(
   view: ViewState,
   factor: number,

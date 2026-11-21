@@ -91,7 +91,8 @@ describe('ExplorePage', () => {
     expect(items[0].textContent).toContain('Stop f1');
     expect(items[0].textContent).toContain('3/14 photos');
     expect(items[0].textContent).toContain('40.0 m → 6.5 m');
-    expect(items[0].textContent).toContain('claude-haiku-5-5');
+    expect(items[0].textContent).not.toContain('claude-haiku-5-5');
+    expect(q('app-run-list .head-model')!.textContent).toContain('claude-haiku-5-5');
     expect(items[1].textContent).toContain('weird outcome');
     expect(items[2].textContent).toContain('No imagery');
     expect(items[2].textContent).toContain('0/14 photos');
@@ -151,7 +152,7 @@ describe('ExplorePage', () => {
     const head = q('app-run-header')!.textContent!.replace(/\s+/g, ' ');
     expect(head).toContain('No imagery');
     expect(head).toContain('no Street View from 2024 on along the path');
-    expect(head).toContain('Turns0');
+    expect(head).toContain('0 turns');
     expect(q('app-run-header details.report')).toBeNull();
   });
 
@@ -268,7 +269,7 @@ describe('ExplorePage', () => {
     await settle();
     press('.');
     expect(navigate).not.toHaveBeenCalled();
-    expect(q('.hint')!.textContent).toContain('previous / next photo');
+    expect(q('.keys .hint')!.textContent).toContain('previous / next photo');
   });
 
   it('moves between runs with [ and ], dropping the event', async () => {
@@ -323,7 +324,7 @@ describe('ExplorePage', () => {
     const rows = [...d.querySelectorAll('.args > div')].map((r) =>
       r.textContent!.replace(/\s+/g, ' ').trim(),
     );
-    expect(rows).toEqual(['from_m5', 'towardforward']); // the null argument is left out
+    expect(rows).toEqual(['from_m5', 'towardforward']);
     const result = d.querySelector<HTMLElement>('pre.result')!;
     expect(result.textContent).toBe('PHOTO 3: from the panorama at +5 m\nsecond line');
   });
@@ -462,16 +463,13 @@ describe('ExplorePage', () => {
         b.textContent!.replace(/\s+/g, ' ').trim(),
       );
       expect(heads).toEqual([
-        expect.stringContaining('v0.7.01 run · 0/1 found'),
-        expect.stringContaining('v0.6.02 runs · 1/2 found'),
-        expect.stringContaining('unversioned1 run · 1/1 found'),
+        expect.stringContaining('v0.7.0 · 1 run · 0 found'),
+        expect.stringContaining('v0.6.0 · 2 runs · 1 found'),
+        expect.stringContaining('unversioned · 1 run · 1 found'),
       ]);
-      expect(qa('app-run-list .run').map((a) => a.querySelector('.id')!.textContent)).toEqual([
-        'b1',
-        'a1',
-        'a2',
-        'u1',
-      ]);
+      expect(
+        qa('app-run-list .run').map((a) => a.querySelector('.stop-plate')!.textContent),
+      ).toEqual(['b1', 'a1', 'a2', 'u1']);
       qa('.group-head .toggle')[1].click();
       fixture.detectChanges();
       expect(qa('app-run-list .run')).toHaveLength(2);
@@ -480,10 +478,9 @@ describe('ExplorePage', () => {
 
     it('filters by the harness query param and keeps it when moving between runs', async () => {
       await open({ runId: 'a1', runs: versioned, harness: '0.6.0' });
-      expect(qa('app-run-list .run').map((a) => a.querySelector('.id')!.textContent)).toEqual([
-        'a1',
-        'a2',
-      ]);
+      expect(
+        qa('app-run-list .run').map((a) => a.querySelector('.stop-plate')!.textContent),
+      ).toEqual(['a1', 'a2']);
       press(']');
       expect(navigate).toHaveBeenLastCalledWith(['/explore', 'a2'], {
         queryParams: { harness: '0.6.0' },
@@ -748,7 +745,7 @@ describe('ExplorePage', () => {
       'Photo 2forwardopening',
       'Photo 3across',
     ]);
-    expect(frames[0].getAttribute('aria-current')).toBeNull(); // event 2 took no photo
+    expect(frames[0].getAttribute('aria-current')).toBeNull();
     expect(frames[2].classList.contains('later')).toBe(true);
     frames[2].click();
     expect(navigate).toHaveBeenLastCalledWith(
@@ -775,7 +772,7 @@ describe('ExplorePage', () => {
       .flush({ detail: 'record has an unknown layout' }, { status: 422, statusText: 'x' });
     await settle();
     expect(q('[role=alert]')!.textContent).toContain('record has an unknown layout');
-    expect(q('app-run-list')).not.toBeNull(); // the list stays usable
+    expect(q('app-run-list')).not.toBeNull();
   });
 
   it('shows an empty state without runs', async () => {

@@ -7,8 +7,6 @@ import { RaterService } from '../../core/services/rater.service';
 import { Choice } from './agreement';
 
 export type Phase = 'loading' | 'error' | 'choosing' | 'submitting' | 'revealed' | 'done';
-
-/** State machine for the Versus page: show a pair, record a choice, reveal scores, repeat. */
 @Injectable()
 export class VersusStore {
   private readonly api = inject(ApiService);
@@ -20,16 +18,12 @@ export class VersusStore {
   readonly progress = signal<Progress | null>(null);
   readonly result = signal<JudgmentResponse | null>(null);
   readonly choice = signal<Choice | null>(null);
-  /** Fatal load error (phase 'error'). */
   readonly loadError = signal<ApiError | null>(null);
-  /** Non-fatal message shown above the pair (failed POST, lost race). */
   readonly notice = signal<string | null>(null);
 
   readonly canChoose = computed(() => this.phase() === 'choosing');
 
   private shownAt = 0;
-
-  /** Loads the catalog (once) and the first pair. */
   start(): void {
     this.phase.set('loading');
     this.loadError.set(null);
@@ -41,8 +35,6 @@ export class VersusStore {
       error: (e: ApiError) => this.fail(e),
     });
   }
-
-  /** Records the rater's choice, then reveals both stops' scores. */
   choose(choice: Choice): void {
     const pair = this.pair();
     if (!pair || this.phase() !== 'choosing') return;
@@ -68,7 +60,6 @@ export class VersusStore {
         },
         error: (e: ApiError) => {
           if (e.kind === 'conflict') {
-            // Someone judged this pair first: move on without revealing anything.
             this.notice.set('That pair was just judged by someone else. Here is a new one.');
             this.loadNext();
           } else {
@@ -78,8 +69,6 @@ export class VersusStore {
         },
       });
   }
-
-  /** Fetches the next unjudged pair (from the revealed state, or after a 409). */
   next(): void {
     if (this.phase() !== 'revealed') return;
     this.notice.set(null);

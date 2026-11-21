@@ -78,7 +78,6 @@ export const UNVERSIONED_HARNESS: Harness = {
   confirmer_model: null,
 };
 
-/** The harness block of a 0.6 run. */
 export function harness(version = '0.6.0', overrides: Partial<Harness> = {}): Harness {
   return {
     version,
@@ -129,10 +128,6 @@ export function summary(
   };
 }
 
-/**
- * Six events: begin (two opening photos), a thought, a look (photo 3), a refused call, the
- * checklist of candidate 1, then an unknown kind. A short bus path, two candidates.
- */
 export function exploration(runId = 'f1', overrides: Partial<Exploration> = {}): Exploration {
   return {
     ...summary(runId),
@@ -211,10 +206,6 @@ export function exploration(runId = 'f1', overrides: Partial<Exploration> = {}):
   };
 }
 
-/**
- * A sweep-harness run: the opening sweep (photos 1-2), a zoom into photo 1 (photo 3), a
- * confirmation (photo 4) whose candidate carries the confirmer's note. 12 sweeps, 1 used.
- */
 export function sweepExploration(runId = 'n1', overrides: Partial<Exploration> = {}): Exploration {
   return exploration(runId, {
     photos: 4,
@@ -259,11 +250,6 @@ export function sweepExploration(runId = 'n1', overrides: Partial<Exploration> =
   });
 }
 
-/**
- * An images-harness run: two single-photo sweeps (photos 1-2), a zoom into photo 2 (photo 3)
- * that the candidate was confirmed on (no confirm photo), then the two stop photos (4-5, the
- * second one from the cache). 3 of 12 images used, 4 billed.
- */
 export function imagesExploration(runId = 'i1', overrides: Partial<Exploration> = {}): Exploration {
   const shot = { width: 640, height: 640, billed: true, opening: false };
   return exploration(runId, {

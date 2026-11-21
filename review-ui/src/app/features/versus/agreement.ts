@@ -1,6 +1,4 @@
 import { ScoreMap } from '../../core/api/api.types';
-
-/** The catalog category stops are ranked by: the scorer's computed condition, 0 (bad) .. 1 (good). */
 export const OVERALL_CATEGORY = 'condition';
 
 export type Side = 'left' | 'right';
@@ -11,11 +9,6 @@ export type Agreement =
   | { kind: 'tie'; left: number; right: number }
   | { kind: 'no-pick' }
   | { kind: 'no-score' };
-
-/**
- * Whether a model's overall condition ranks the stops the way the rater chose:
- * the stop picked as needing maintenance more has the lower condition.
- */
 export function modelAgreement(
   leftScores: ScoreMap,
   rightScores: ScoreMap,

@@ -50,12 +50,11 @@ describe('explore-view', () => {
 
   it('finds the event that took a photo', () => {
     expect(eventOfPhoto(events, 3)?.seq).toBe(3);
-    expect(eventOfPhoto(events, 2)?.seq).toBe(1); // begin took two
+    expect(eventOfPhoto(events, 2)?.seq).toBe(1);
     expect(eventOfPhoto(events, 9)).toBeNull();
   });
 
   it('steps to the next and previous event that took photos', () => {
-    // photos are taken by events 1 (begin) and 3 (look)
     expect(stepPhotoSeq(events, events[0], 'next')).toBe(3);
     expect(stepPhotoSeq(events, events[1], 'next')).toBe(3);
     expect(stepPhotoSeq(events, events[1], 'previous')).toBe(1);

@@ -14,7 +14,6 @@ import { ApiError, toApiError } from '../../core/api/api-error';
 import { ApiService } from '../../core/api/api.service';
 import { ShapeStop, ShapeVerdictValue } from '../../core/api/api.types';
 import { ShortcutService } from '../../core/services/shortcut.service';
-import { Badge } from '../../shared/badge/badge';
 import { GeoMap } from '../../shared/geo-map/geo-map';
 import { OSM_LEGEND, featureCode } from '../../shared/geo-map/osm-features';
 import { StateMessage } from '../../shared/state-message/state-message';
@@ -40,14 +39,10 @@ import {
   verdictTone,
 } from './shapes-layers';
 
-/**
- * Visual check of GTFS shapes against the verified stop positions. The stop is in
- * the path (`/shapes/:stopId`); verdicts are stored by the BFF.
- */
 @Component({
   selector: 'app-shapes-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Badge, RaterField, GeoMap, RouterLink, StateMessage],
+  imports: [RaterField, GeoMap, RouterLink, StateMessage],
   providers: [ShapeVerdictStore],
   templateUrl: './shapes-page.html',
   styleUrl: './shapes-page.scss',
@@ -56,8 +51,6 @@ export class ShapesPage {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
   protected readonly store = inject(ShapeVerdictStore);
-
-  // Bound from the route by withComponentInputBinding().
   readonly stopId = input<string | undefined>();
 
   protected readonly verdictButtons = VERDICTS;
@@ -73,11 +66,9 @@ export class ShapesPage {
     this.check.hasValue() ? this.check.value().min_offset_m : 0,
   );
 
-  /** The active flag filter; null is "All". */
-  protected readonly filter = signal<string | null>(null);
+    protected readonly filter = signal<string | null>(null);
   protected readonly filterOptions = computed(() => flagsPresent(this.stops()));
-  /** The stops the list, the progress line and the navigation work on. */
-  protected readonly visible = computed(() => filterByFlag(this.stops(), this.filter()));
+    protected readonly visible = computed(() => filterByFlag(this.stops(), this.filter()));
   protected readonly selected = computed<ShapeStop | null>(() => {
     const stops = this.visible();
     return stops.find((s) => s.id === this.stopId()) ?? stops[0] ?? null;
@@ -97,8 +88,11 @@ export class ShapesPage {
       return {
         stop,
         short: shortName(stop.name),
-        flags: stop.flags.map((f) => flagLabel(f, this.minOffset())),
-        badge: info ? { label: info.short, tone: verdictTone(info.value) } : null,
+        metres: Math.round(stop.offset_m),
+        flags: stop.flags
+          .filter((f) => f !== this.filter())
+          .map((f) => flagLabel(f, this.minOffset())),
+        verdict: info ? { label: info.short, tone: verdictTone(info.value) } : null,
       };
     }),
   );
@@ -118,8 +112,9 @@ export class ShapesPage {
     return {
       stop: s,
       short: shortName(s.name),
-      distances: distancesToVerified(s),
-      flags: s.flags.map((f) => flagLabel(f, this.minOffset())),
+      metres: Math.round(s.offset_m),
+      places: distancesToVerified(s).find((x) => x.key === 'P')?.m ?? null,
+      flags: s.flags.filter((f) => f !== 'moved').map((f) => flagLabel(f, this.minOffset())),
       features: nearbyFeatures(s),
       routes: s.routes.map((route, i) => ({
         route,
@@ -156,9 +151,6 @@ export class ShapesPage {
       '2': () => this.verdict('off_route'),
       '3': () => this.verdict('unclear'),
     });
-
-    // No stop in the URL, or the stop is filtered out: open the first visible one
-    // (without adding a history entry).
     effect(() => {
       const first = this.visible()[0];
       const id = this.stopId();
@@ -180,6 +172,10 @@ export class ShapesPage {
     return featureCode(kind);
   }
 
+  protected flagCount(flag: string): number {
+    return filterByFlag(this.stops(), flag).length;
+  }
+
   protected setFilter(flag: string | null): void {
     this.filter.set(flag);
   }
@@ -189,8 +185,7 @@ export class ShapesPage {
     saveToggles(this.toggles());
   }
 
-  /** Previous / next stop in the (filtered) list, wrapping around like the old page. */
-  protected move(delta: 1 | -1): void {
+    protected move(delta: 1 | -1): void {
     const stops = this.visible();
     const current = this.selected();
     if (!current || stops.length === 0) return;
@@ -217,7 +212,7 @@ export class ShapesPage {
   protected async onImport(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    input.value = ''; // so the same file can be chosen again
+    input.value = '';
     if (!file) return;
     this.importing.set(true);
     this.importMessage.set(null);

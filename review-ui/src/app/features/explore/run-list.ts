@@ -15,9 +15,9 @@ interface Item {
   outcome: { label: string; tone: 'ok' | 'warn' | 'bad' | 'neutral' };
   budget: string;
   errors: string;
+  model: string | null;
 }
 
-/** The runs, grouped by harness version (newest first, each group collapsible); links so each opens in its own tab. */
 @Component({
   selector: 'app-run-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -28,25 +28,29 @@ interface Item {
 export class RunList {
   readonly runs = input.required<ExplorationSummary[]>();
   readonly selectedId = input<string | null>(null);
-  /** The version filter, kept in the links so it survives opening a run. */
   readonly harness = input<string | null>(null);
 
   private readonly collapsed = signal<ReadonlySet<string>>(new Set());
 
   protected readonly groups = computed(() =>
-    groupRuns(this.runs()).map((g) => ({
-      version: g.version,
-      label: versionLabel(g.version),
-      summary: `${g.found}/${g.runs.length} found`,
-      count: g.runs.length,
-      open: !this.collapsed().has(g.version),
-      items: g.runs.map((run): Item => ({
-        run,
-        outcome: outcomeInfo(run.outcome),
-        budget: budgetLabel(run.budget_used, run.budget_max, run.budget_unit),
-        errors: `${formatMeters(run.err_gtfs_m)} → ${formatMeters(run.err_found_m)}`,
-      })),
-    })),
+    groupRuns(this.runs()).map((g) => {
+      const defaultModel = commonModel(g.runs);
+      return {
+        version: g.version,
+        model: defaultModel,
+        label: versionLabel(g.version),
+        found: g.found,
+        count: g.runs.length,
+        open: !this.collapsed().has(g.version),
+        items: g.runs.map((run): Item => ({
+          run,
+          outcome: outcomeInfo(run.outcome),
+          budget: budgetLabel(run.budget_used, run.budget_max, run.budget_unit),
+          errors: `${formatMeters(run.err_gtfs_m)} → ${formatMeters(run.err_found_m)}`,
+          model: run.model && run.model !== defaultModel ? run.model : null,
+        })),
+      };
+    }),
   );
 
   protected readonly query = computed(() => (this.harness() ? { harness: this.harness() } : {}));
@@ -58,4 +62,18 @@ export class RunList {
       return next;
     });
   }
+}
+
+function commonModel(runs: ExplorationSummary[]): string | null {
+  const counts = new Map<string, number>();
+  for (const { model } of runs) if (model) counts.set(model, (counts.get(model) ?? 0) + 1);
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [model, count] of counts) {
+    if (count > bestCount) {
+      best = model;
+      bestCount = count;
+    }
+  }
+  return best;
 }

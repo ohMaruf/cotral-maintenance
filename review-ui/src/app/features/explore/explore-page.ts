@@ -61,11 +61,6 @@ const CANDIDATE_LEGEND = [
 
 const FEATURES_KEY = 'explore.osmFeatures';
 
-/**
- * Replays one exploration run step by step: the map of the bus path, candidates and where
- * each photo was taken and looked, a filmstrip, a timeline of the model's thoughts and
- * tool calls in exact order, and the selected event in full. The run is in the path and the event (its `seq`) in `?event=N`.
- */
 @Component({
   selector: 'app-explore-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -78,10 +73,8 @@ export class ExplorePage {
   private readonly router = inject(Router);
   private readonly viewer = inject(PhotoViewerService);
 
-  // Bound from the route and query string by withComponentInputBinding().
   readonly runId = input<string | undefined>();
   readonly event = input<string | undefined>();
-  /** `?harness=0.6.0`: only the runs of that harness version. */
   readonly harness = input<string | undefined>();
 
   protected readonly legend = LEGEND;
@@ -102,7 +95,6 @@ export class ExplorePage {
     this.run.error() ? toApiError(this.run.error()) : null,
   );
   protected readonly allRuns = computed(() => this.runs.value() ?? []);
-  /** The runs as listed: of the filtered version, grouped, newest version first. */
   protected readonly runList = computed(() => visibleRuns(this.allRuns(), this.harness() || null));
   protected readonly versionOptions = computed(() => {
     const groups = groupRuns(this.allRuns());
@@ -145,14 +137,11 @@ export class ExplorePage {
         photo,
         later: photo.index > used,
         label: towardLabel(photo, all),
-        // The photos of one group (the two of an old sweep, or the stop photos) sit together
-        // under one tag; a single-photo sweep is a group of one.
         groupStart: groupOf(photo) !== null && groupOf(all[i - 1]) !== groupOf(photo),
         groupEnd: groupOf(photo) !== null && groupOf(all[i + 1]) !== groupOf(photo),
         groupTag: groupTag(photo),
       }));
   });
-  /** The harness's photos of the found stop, shown above the strip. */
   protected readonly stopPhotos = computed(() => {
     const run = this.loadedRun();
     if (!run) return [];
@@ -190,7 +179,6 @@ export class ExplorePage {
       ']': () => this.stepRun(1),
     });
 
-    // No run in the URL: open the first one (without adding a history entry).
     effect(() => {
       const first = this.runList()[0];
       if (first && !this.runId()) {
@@ -201,7 +189,6 @@ export class ExplorePage {
       }
     });
 
-    // Keep the selected timeline row in view while stepping with the keyboard.
     effect(() => {
       const seq = this.current()?.seq;
       const el = this.rowEls().find((r) => r.nativeElement.dataset['seq'] === String(seq));
@@ -236,7 +223,6 @@ export class ExplorePage {
     if (seq !== null) this.goTo(seq);
   }
 
-  /** Jump to the next / previous event that took photos. */
   protected stepPhoto(direction: 'next' | 'previous'): void {
     const seq = stepPhotoSeq(this.events(), this.current(), direction);
     if (seq !== null) this.goTo(seq);
@@ -251,7 +237,6 @@ export class ExplorePage {
       : this.router.navigate(['/explore', target.run_id]));
   }
 
-  /** The version filter lives in the URL; the run and event are kept when it changes. */
   protected setHarness(version: string): void {
     const id = this.runId();
     void this.router.navigate(id ? ['/explore', id] : ['/explore'], {
@@ -265,13 +250,11 @@ export class ExplorePage {
     return harness ? { harness } : {};
   }
 
-  /** Navigation extras that keep the version filter. */
   private harnessQuery(): { queryParams?: { harness: string } } {
     const harness = this.harness();
     return harness ? { queryParams: { harness } } : {};
   }
 
-  /** The filmstrip: jump to the event that took this photo. */
   protected goToPhoto(index: number): void {
     const e = eventOfPhoto(this.events(), index);
     if (e) this.goTo(e.seq);
@@ -290,7 +273,6 @@ export class ExplorePage {
   }
 }
 
-/** What a photo is grouped by in the strip: its sweep, or the stop photos; null for others. */
 function groupOf(photo: ExplorationPhoto | undefined): string | null {
   if (!photo) return null;
   if (photo.toward === 'stop_photo') return 'stop';

@@ -1,5 +1,4 @@
 <section class="page">
-  <app-rater-field />
   @switch (store.phase()) {
     @case ('error') {
       <app-state-message
@@ -22,18 +21,15 @@
         <app-state-message kind="loading" title="Loading the next pair…" />
       } @else {
         <header class="bar">
-          <h1 class="heading">Which stop needs maintenance more?</h1>
+          <h1 class="question">Which stop needs maintenance more?</h1>
+          <app-rater-field />
           @if (store.progress(); as p) {
             <p class="progress" role="status">
-              <span
-                ><strong>{{ p.judged }}</strong> judged</span
-              >
+              <span><strong>{{ p.judged }}</strong> judged</span>
               @if (p.skipped) {
-                <span>{{ p.skipped }} skipped</span>
+                <span><strong>{{ p.skipped }}</strong> skipped</span>
               }
-              <span
-                ><strong>{{ p.remaining }}</strong> remaining</span
-              >
+              <span><strong>{{ p.remaining }}</strong> left</span>
             </p>
           }
         </header>
@@ -46,58 +42,54 @@
           @for (sideKey of ['left', 'right']; track sideKey) {
             @if (side($any(sideKey)); as stop) {
               <article
-                class="card"
-                [class.picked]="store.choice() === sideKey"
+                class="side"
                 [attr.aria-label]="(sideKey === 'left' ? 'Left' : 'Right') + ' stop: ' + stop.name"
               >
                 <app-stop-header [stop]="stop" [level]="2" />
-                <app-photo-grid
-                  [photos]="stop.photos"
-                  [stopName]="stop.name"
-                  (photoSelected)="openPhoto(stop, $event)"
-                />
-                <button
-                  type="button"
-                  class="btn primary choose"
-                  [disabled]="!store.canChoose()"
-                  (click)="pick($any(sideKey))"
-                >
-                  @if (sideKey === 'left') {
-                    <kbd aria-hidden="true">←</kbd>
-                  }
-                  This one needs maintenance more
-                  @if (sideKey === 'right') {
-                    <kbd aria-hidden="true">→</kbd>
-                  }
-                </button>
-                @if (store.choice() === sideKey) {
-                  <span class="badge">Your pick</span>
-                }
+                <div class="photos">
+                  <app-photo-grid
+                    [photos]="stop.photos"
+                    [stopName]="stop.name"
+                    (photoSelected)="openPhoto(stop, $event)"
+                  />
+                </div>
               </article>
             }
           }
         </div>
 
         <div class="actions">
+          <button
+            type="button"
+            class="btn choose"
+            [class.picked]="store.choice() === 'left'"
+            [disabled]="!store.canChoose()"
+            (click)="pick('left')"
+          >
+            <kbd aria-hidden="true">←</kbd> Left needs it more
+          </button>
+          <button
+            type="button"
+            class="btn choose"
+            [class.picked]="store.choice() === 'skip'"
+            [disabled]="!store.canChoose()"
+            (click)="pick('skip')"
+          >
+            Can't tell <kbd aria-hidden="true">S</kbd>
+          </button>
+          <button
+            type="button"
+            class="btn choose"
+            [class.picked]="store.choice() === 'right'"
+            [disabled]="!store.canChoose()"
+            (click)="pick('right')"
+          >
+            Right needs it more <kbd aria-hidden="true">→</kbd>
+          </button>
           @if (store.phase() === 'revealed') {
-            <button #nextButton type="button" class="btn primary" (click)="store.next()">
+            <button #nextButton type="button" class="btn primary next" (click)="store.next()">
               Next pair <kbd aria-hidden="true">Enter</kbd>
             </button>
-            @if (store.choice() === 'skip') {
-              <span class="muted">You marked this pair as can't tell.</span>
-            }
-          } @else {
-            <button
-              type="button"
-              class="btn"
-              [disabled]="!store.canChoose()"
-              (click)="pick('skip')"
-            >
-              <kbd aria-hidden="true">S</kbd> Can't tell
-            </button>
-            <span class="muted"
-              >Keys: <kbd>←</kbd> left, <kbd>→</kbd> right, <kbd>S</kbd> can't tell</span
-            >
           }
         </div>
 
@@ -122,23 +114,23 @@
                     <th
                       scope="colgroup"
                       [attr.colspan]="r.models.length"
-                      class="side"
-                      [class.picked]="store.choice() === 'left'"
+                      class="side-head"
+                      [class.picked-col]="store.choice() === 'left'"
                     >
                       Left: {{ side('left')?.name }}
                       @if (store.choice() === 'left') {
-                        <span class="badge">Your pick</span>
+                        <span class="mark">your pick</span>
                       }
                     </th>
                     <th
                       scope="colgroup"
                       [attr.colspan]="r.models.length"
-                      class="side"
-                      [class.picked]="store.choice() === 'right'"
+                      class="side-head"
+                      [class.picked-col]="store.choice() === 'right'"
                     >
                       Right: {{ side('right')?.name }}
                       @if (store.choice() === 'right') {
-                        <span class="badge">Your pick</span>
+                        <span class="mark">your pick</span>
                       }
                     </th>
                   </tr>
@@ -147,7 +139,7 @@
                       @for (m of r.models; track m.key) {
                         <th
                           scope="col"
-                          [class.picked]="store.choice() === s"
+                          [class.picked-col]="store.choice() === s"
                           [attr.title]="m.description"
                         >
                           {{ m.label }}
@@ -166,7 +158,7 @@
                         }
                       </th>
                       @for (cell of row.left; track cell.model.key) {
-                        <td [class.picked]="store.choice() === 'left'">
+                        <td [class.picked-col]="store.choice() === 'left'">
                           <app-score-bar
                             [value]="cell.value"
                             [kind]="row.category.kind"
@@ -176,7 +168,7 @@
                         </td>
                       }
                       @for (cell of row.right; track cell.model.key) {
-                        <td [class.picked]="store.choice() === 'right'">
+                        <td [class.picked-col]="store.choice() === 'right'">
                           <app-score-bar
                             [value]="cell.value"
                             [kind]="row.category.kind"

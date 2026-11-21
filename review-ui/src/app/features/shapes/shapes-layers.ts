@@ -3,13 +3,24 @@ import { MapLayer } from '../../shared/geo-map/map-layers';
 import { buildOsmFeatureLayers } from '../../shared/geo-map/osm-features';
 import { distanceM } from '../../shared/lib/geo';
 
-export const ROUTE_COLORS = ['#4285f4', '#a142f4', '#00acc1', '#f06292', '#7cb342', '#ff7043'];
+export const ROUTE_COLORS = [
+  '#3d8bd9',
+  '#e0a030',
+  '#27b3a4',
+  '#d96fa8',
+  '#8fb83a',
+  '#9a8cf0',
+];
+
+function cssColor(name: string, fallback: string): string {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
 
 export function routeColor(index: number): string {
   return ROUTE_COLORS[index % ROUTE_COLORS.length];
 }
 
-/** Which map layers are drawn. */
 export interface LayerToggles {
   raw: boolean;
   snapped: boolean;
@@ -26,7 +37,6 @@ export const TOGGLE_LABELS: { key: keyof LayerToggles; label: string }[] = [
 
 const TOGGLES_KEY = 'shapes.layers';
 
-/** Saved toggles, defaulting anything missing or unreadable to on. */
 export function loadToggles(): LayerToggles {
   try {
     const saved: unknown = JSON.parse(localStorage.getItem(TOGGLES_KEY) ?? 'null');
@@ -37,7 +47,7 @@ export function loadToggles(): LayerToggles {
       return { raw: pick('raw'), snapped: pick('snapped'), features: pick('features') };
     }
   } catch {
-    // storage unavailable or corrupt: use the defaults
+    return { ...DEFAULT_TOGGLES };
   }
   return { ...DEFAULT_TOGGLES };
 }
@@ -46,17 +56,10 @@ export function saveToggles(toggles: LayerToggles): void {
   try {
     localStorage.setItem(TOGGLES_KEY, JSON.stringify(toggles));
   } catch {
-    // storage unavailable: the toggles just do not persist
+    return;
   }
 }
 
-/**
- * Everything the shapes map draws for one stop, in z-order. Pure.
- *
- * With a snapped path, the raw GTFS shape is a thin dashed line and the snapped
- * path the main one; without, the raw shape is drawn solid (it is then the only
- * line, so it shows while either line toggle is on). Arrows come from the raw shape.
- */
 export function buildShapeLayers(
   stop: ShapeStop,
   toggles: LayerToggles = DEFAULT_TOGGLES,
@@ -137,7 +140,7 @@ export function buildShapeLayers(
     type: 'polyline',
     id: 'gtfs-to-verified',
     points: [stop.gtfs, stop.truth],
-    color: '#ffffff',
+    color: cssColor('--pin-ring', 'white'),
     weight: 1.5,
     dashArray: '4 4',
   });
@@ -157,14 +160,12 @@ export function buildShapeLayers(
   return layers;
 }
 
-/** G, V and P when it exists. */
 export function shapeBounds(stop: ShapeStop): LatLon[] {
   const points = [stop.gtfs, stop.truth];
   if (stop.places) points.push(stop.places);
   return points;
 }
 
-/** Distance in whole metres from each of G and P (when present) to V. */
 export function distancesToVerified(stop: ShapeStop): { key: 'G' | 'P'; m: number }[] {
   const out: { key: 'G' | 'P'; m: number }[] = [
     { key: 'G', m: Math.round(distanceM(stop.gtfs, stop.truth)) },
@@ -181,15 +182,14 @@ export function mapsSearchUrl(p: LatLon): string {
   return `https://www.google.com/maps/search/?api=1&query=${p[0]},${p[1]}`;
 }
 
-/** The stop name without the trailing " # f1234" id the feed appends. */
 export function shortName(name: string): string {
   return name.replace(/ # .*/, '');
 }
 
 export const VERDICTS: { value: ShapeVerdictValue; key: string; label: string; short: string }[] = [
-  { value: 'on_route', key: '1', label: '1 · V on route', short: 'on route' },
-  { value: 'off_route', key: '2', label: '2 · V off route', short: 'off route' },
-  { value: 'unclear', key: '3', label: '3 · Unclear', short: 'unclear' },
+  { value: 'on_route', key: '1', label: 'On route', short: 'on route' },
+  { value: 'off_route', key: '2', label: 'Off route', short: 'off route' },
+  { value: 'unclear', key: '3', label: 'Unclear', short: 'unclear' },
 ];
 
 export function verdictTone(v: ShapeVerdictValue): 'ok' | 'bad' | 'warn' {
@@ -198,7 +198,6 @@ export function verdictTone(v: ShapeVerdictValue): 'ok' | 'bad' | 'warn' {
 
 const FLAG_ORDER = ['moved', 'left_of_path', 'far_from_path', 'on_detour'];
 
-/** Human label of a flag; unknown flags are shown as-is. */
 export function flagLabel(flag: string, minOffsetM: number): string {
   switch (flag) {
     case 'moved':
@@ -214,7 +213,6 @@ export function flagLabel(flag: string, minOffsetM: number): string {
   }
 }
 
-/** Flags present in the data: the known ones in contract order, then unknown ones alphabetically. */
 export function flagsPresent(stops: readonly ShapeStop[]): string[] {
   const present = new Set(stops.flatMap((s) => s.flags));
   const known = FLAG_ORDER.filter((f) => present.has(f));
@@ -222,12 +220,10 @@ export function flagsPresent(stops: readonly ShapeStop[]): string[] {
   return [...known, ...unknown];
 }
 
-/** The stops carrying `flag`, in order; all of them when `flag` is null. */
 export function filterByFlag(stops: readonly ShapeStop[], flag: string | null): ShapeStop[] {
   return flag === null ? [...stops] : stops.filter((s) => s.flags.includes(flag));
 }
 
-/** "4.2 m right"; "–" when the route has no snapped path. */
 export function truthPathText(route: {
   truth_path_m: number | null;
   truth_path_side: string | null;
@@ -238,7 +234,6 @@ export function truthPathText(route: {
 
 export const FEATURE_RADIUS_M = 200;
 
-/** OSM features within 200 m of V, nearest first, with whole-metre distances. */
 export function nearbyFeatures(
   stop: ShapeStop,
 ): { feature: OsmFeature; m: number; text: string }[] {

@@ -1,66 +1,96 @@
+@use 'theme' as *;
+
 .head {
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  position: relative;
+  padding: $space-2 $space-4;
+  border-bottom: $border-width solid $color-border;
 }
 
-.title {
+.line1 {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-3);
+  gap: $space-2;
+  min-width: 0;
+  padding-right: 6rem;
 
   h1 {
-    font-size: var(--text-lg);
-    overflow-wrap: anywhere;
-  }
-}
-
-.facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-5);
-  margin: var(--space-2) 0 0;
-
-  dt {
-    color: var(--color-text-muted);
-    font-size: var(--text-xs);
-  }
-
-  dd {
-    margin: 0;
-    font-size: var(--text-sm);
-    font-weight: 600;
+    min-width: 0;
+    font-size: $text-lg;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
 .reason {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
+  min-width: 0;
+  color: $color-text-muted;
+  font-size: $text-sm;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.report {
-  margin-top: var(--space-2);
-  font-size: var(--text-sm);
+.line2 {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+  color: $color-text-muted;
+  font-size: $text-sm;
+  @include tabular;
 
-  summary {
+  > span + span::before {
+    content: '·';
+    padding: 0 $space-1;
+  }
+}
+
+.dirty {
+  color: $color-warn;
+}
+
+.more {
+  font-size: $text-sm;
+
+  > summary {
+    position: absolute;
+    top: $space-2;
+    right: $space-4;
+    color: $color-text-muted;
     cursor: pointer;
-    font-weight: 600;
+
+    &:hover {
+      color: $color-text;
+    }
+  }
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: $space-1 $space-4;
+  margin: $space-2 0 0;
+
+  dt {
+    color: $color-text-muted;
   }
 
-  p {
-    margin: var(--space-1) 0 0;
-    white-space: pre-wrap;
+  dd {
+    margin: 0;
     overflow-wrap: anywhere;
   }
 }
 
-.harness {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-2);
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
+.report {
+  margin-top: $space-2;
+
+  summary {
+    cursor: pointer;
+  }
+
+  p {
+    margin: $space-1 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
 }

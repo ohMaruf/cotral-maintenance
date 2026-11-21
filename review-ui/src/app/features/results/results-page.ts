@@ -10,6 +10,7 @@ import { formatMeters, outcomeInfo } from '../../shared/lib/explore-format';
 import { formatImageryDate } from '../../shared/lib/format';
 import { ScoreBar } from '../../shared/score-bar/score-bar';
 import { StateMessage } from '../../shared/state-message/state-message';
+import { ListToolbar } from './list-toolbar';
 import { PhotoViewerService } from '../photo-viewer/photo-viewer.service';
 import {
   SCORE_COLUMNS,
@@ -34,7 +35,6 @@ interface Item {
   date: string;
   photos: Photo[];
   scores: (number | undefined)[];
-  /** Per score column: the stop lacks the element it rates. */
   gone: boolean[];
   missing: string;
 }
@@ -45,7 +45,6 @@ const SHOWS: { value: Show; label: string }[] = [
   { value: 'review', label: 'Needs review' },
 ];
 
-/** The photo viewer wants Photo objects; a result row only has the URLs (all Street View). */
 function viewerPhotos(row: ResultRow): Photo[] {
   return row.photos.map((url, i) => ({
     view: `stop_photo_${i + 1}`,
@@ -58,14 +57,10 @@ function viewerPhotos(row: ResultRow): Photo[] {
   }));
 }
 
-/**
- * The run's results: its header (size, outcomes, billing, profiles) and the ranked table of
- * every stop, with its photos and scores. Sort, filter and "needs review" live in the URL.
- */
 @Component({
   selector: 'app-results-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Badge, RouterLink, ScoreBar, StateMessage],
+  imports: [Badge, ListToolbar, RouterLink, ScoreBar, StateMessage],
   templateUrl: './results-page.html',
   styleUrl: './results-page.scss',
 })
@@ -74,7 +69,6 @@ export class ResultsPage {
   private readonly router = inject(Router);
   private readonly viewer = inject(PhotoViewerService);
 
-  // Bound from the query string by withComponentInputBinding().
   readonly sort = input<string | undefined>();
   readonly dir = input<string | undefined>();
   readonly show = input<string | undefined>();
@@ -89,6 +83,15 @@ export class ResultsPage {
   );
   protected readonly run = computed(() => this.data.value()?.run ?? null);
   protected readonly explored = computed(() => exploredSummary(this.run()?.explored ?? {}));
+  protected readonly profiles = computed(() => {
+    const counts = new Map<string, { name: string; description: string; count: number }>();
+    for (const p of this.run()?.profiles ?? []) {
+      const seen = counts.get(p.name);
+      if (seen) seen.count += 1;
+      else counts.set(p.name, { name: p.name, description: p.description, count: 1 });
+    }
+    return [...counts.values()];
+  });
   protected readonly billed = computed(() => billedSummary(this.run()?.billed ?? {}));
   protected readonly review = computed(
     () => this.data.value()?.rows.filter((r) => r.needs_review).length ?? 0,
@@ -139,7 +142,6 @@ export class ResultsPage {
     this.navigate({ show: value === 'all' ? null : value });
   }
 
-  /** Clicking the active column flips the direction; a new column starts with its default. */
   protected setSort(key: SortKey): void {
     const flip = this.sortKey() === key;
     const dir: SortDirection = flip
@@ -154,7 +156,6 @@ export class ResultsPage {
     this.navigate({ sort: null, dir: null });
   }
 
-  /** aria-sort / indicator state for a column. */
   protected sortState(key: SortKey): 'ascending' | 'descending' | 'none' {
     if (this.sortKey() !== key) return 'none';
     return this.direction() === 'asc' ? 'ascending' : 'descending';

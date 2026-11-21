@@ -1,116 +1,109 @@
+@use 'theme' as *;
+
 .detail {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  gap: $space-4;
+  padding: $space-3 0 $space-4;
+
+  > section,
+  > header {
+    padding: 0 $space-4;
+  }
+
+  > section.photo-block {
+    padding: 0;
+  }
 }
 
 h2 {
-  font-size: var(--text-lg);
+  font-size: $text-base;
 }
 
 h3 {
-  font-size: var(--text-md);
-}
-
-.sub {
-  margin-top: var(--space-3);
-}
-
-.glyph {
-  color: var(--color-accent-strong);
+  margin-bottom: $space-1;
 }
 
 .summary {
-  margin-top: var(--space-1);
+  margin-top: $space-1;
   overflow-wrap: anywhere;
 }
 
 .muted {
-  color: var(--color-text-muted);
-  font-weight: 400;
+  color: $color-text-muted;
+  font-weight: $weight-regular;
 }
 
 code {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
+  font-family: $font-mono;
+  font-size: $text-sm;
 }
 
 .photo-block {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
-  gap: var(--space-4);
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: $space-2;
 }
 
 .photo-btn {
   display: block;
+  width: 100%;
   padding: 0;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background: var(--color-viewer-bg);
+  border: 0;
+  background: $color-viewer-bg;
   cursor: zoom-in;
-  overflow: hidden;
 
   img {
     width: 100%;
+    max-height: 28rem;
     height: auto;
-    aspect-ratio: 1;
     object-fit: contain;
   }
 }
 
+.photo-meta {
+  padding: 0 $space-4;
+}
+
 .facts {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-1) var(--space-3);
-  margin: var(--space-2) 0 0;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: $space-1 $space-4;
+  margin: $space-1 0 0;
+  font-size: $text-sm;
 
   dt {
-    color: var(--color-text-muted);
-    font-size: var(--text-xs);
+    color: $color-text-muted;
+    font-size: $text-xs;
   }
 
   dd {
     margin: 0;
-    font-size: var(--text-sm);
-    font-weight: 600;
     overflow-wrap: anywhere;
-  }
-
-  &.inline {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2) var(--space-5);
   }
 }
 
 .copyright {
-  margin-top: var(--space-2);
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
+  margin-top: $space-2;
+  color: $color-text-faint;
+  font-size: $text-xs;
 }
 
 .danger {
-  color: var(--color-danger);
+  color: $color-danger;
 }
 
 .used {
-  margin-left: var(--space-2);
-  font-size: var(--text-sm);
+  margin-left: $space-2;
+  font-size: $text-sm;
 }
 
 .thought {
   margin: 0;
-  padding: var(--space-3) var(--space-4);
-  border-left: 3px solid var(--color-accent);
-  background: var(--color-surface-2);
-  font-size: var(--text-md);
-  font-style: italic;
-  line-height: 1.5;
+  padding: 0 $space-4;
+  color: $color-text-muted;
+  font-size: $text-base;
+  line-height: $leading-normal;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -118,16 +111,16 @@ code {
 .args {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
-  gap: var(--space-1) var(--space-3);
-  margin: var(--space-2) 0 0;
-  font-size: var(--text-sm);
+  gap: $space-1 $space-3;
+  margin: 0;
+  font-size: $text-sm;
 
   div {
     display: contents;
   }
 
   dt {
-    color: var(--color-text-muted);
+    color: $color-text-muted;
   }
 
   dd {
@@ -137,95 +130,78 @@ code {
 }
 
 .result {
-  margin: var(--space-2) 0 0;
-  padding: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-2);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
+  margin: 0;
+  padding: $space-2 $space-3;
+  background: $color-surface-2;
+  font-family: $font-mono;
+  font-size: $text-sm;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 
   &.danger-box {
-    border-color: var(--color-danger);
-    background: var(--color-danger-bg);
+    background: $color-danger-bg;
+    color: $color-danger;
   }
 }
 
 .checklist {
-  margin-top: var(--space-2);
-  border-collapse: collapse;
-  font-size: var(--text-sm);
+  @include data-table;
+  font-size: $text-sm;
 
   th,
   td {
-    padding: 2px var(--space-3);
-    border: 1px solid var(--color-border);
     text-align: center;
   }
 
   thead th {
-    background: var(--color-surface-2);
     text-transform: capitalize;
   }
 
   tbody th {
-    font-weight: 400;
+    font-weight: $weight-regular;
     text-align: left;
   }
 
   td.on.yes {
-    background: var(--color-ok-bg);
-    color: var(--color-ok);
+    color: $color-ok;
   }
 
   td.on.no {
-    background: var(--color-surface-2);
-    color: var(--color-text-muted);
+    color: $color-text-muted;
   }
 
   td.on.unsure {
-    background: var(--color-warn-bg);
-    color: var(--color-warn-border);
+    color: $color-warn;
   }
 }
 
 .raw {
-  margin-top: var(--space-2);
+  font-size: $text-sm;
 
   summary {
+    color: $color-text-muted;
     cursor: pointer;
-    font-weight: 600;
   }
 }
 
 .json {
   max-height: 22rem;
-  margin: var(--space-2) 0 0;
-  padding: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-2);
-  font-size: var(--text-xs);
+  margin: $space-1 0 $space-2;
+  padding: $space-2 $space-3;
+  background: $color-surface-2;
+  font-size: $text-xs;
   overflow: auto;
 }
 
-@media (max-width: 900px) {
-  .photo-block {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 .confirmer-note {
-  margin: 0 0 var(--space-2);
+  margin: 0 0 $space-2;
 }
 
 .link {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--color-accent);
+  color: $color-accent;
   font: inherit;
   text-decoration: underline;
   cursor: pointer;

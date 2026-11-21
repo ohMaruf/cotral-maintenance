@@ -1,9 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import { LucideChevronRight } from '@lucide/angular';
 import { RouterLink } from '@angular/router';
 import { ExplorationSummary } from '../../core/api/api.types';
 import {
   budgetLabel,
   formatMeters,
+  outcomeIcon,
   outcomeInfo,
   versionLabel,
 } from '../../shared/lib/explore-format';
@@ -13,6 +15,7 @@ import { groupRuns } from './explore-view';
 interface Item {
   run: ExplorationSummary;
   outcome: { label: string; tone: 'ok' | 'warn' | 'bad' | 'neutral' };
+  icon: ReturnType<typeof outcomeIcon>;
   budget: string;
   errors: string;
   model: string | null;
@@ -21,7 +24,7 @@ interface Item {
 @Component({
   selector: 'app-run-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, Badge],
+  imports: [RouterLink, Badge, LucideChevronRight],
   templateUrl: './run-list.html',
   styleUrl: './run-list.scss',
 })
@@ -45,6 +48,7 @@ export class RunList {
         items: g.runs.map((run): Item => ({
           run,
           outcome: outcomeInfo(run.outcome),
+          icon: outcomeIcon(run.outcome),
           budget: budgetLabel(run.budget_used, run.budget_max, run.budget_unit),
           errors:
             run.err_gtfs_m === null && run.err_found_m === null

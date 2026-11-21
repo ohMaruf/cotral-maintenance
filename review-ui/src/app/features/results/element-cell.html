@@ -1,0 +1,18 @@
+@if (absent()) {
+  <span class="missing" [attr.title]="title()">
+    missing
+    @if (presenceText()) {
+      <span class="p">{{ presenceText() }}</span>
+    }
+  </span>
+} @else if (presenceOnly()) {
+  <span class="present" [attr.title]="title()">
+    @if (presenceText()) {
+      present <span class="p">{{ presenceText() }}</span>
+    } @else {
+      –
+    }
+  </span>
+} @else {
+  <app-score-bar [value]="value()" [kind]="kind()" [label]="label()" [evidence]="barEvidence()" />
+}

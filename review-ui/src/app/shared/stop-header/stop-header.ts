@@ -1,3 +1,4 @@
+import { LucideExternalLink } from '@lucide/angular';
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { StopSummary } from '../../core/api/api.types';
 import { formatCoordinates, formatImageryDate, mapsUrl } from '../lib/format';
@@ -5,6 +6,7 @@ import { formatCoordinates, formatImageryDate, mapsUrl } from '../lib/format';
 @Component({
   selector: 'app-stop-header',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [LucideExternalLink],
   templateUrl: './stop-header.html',
   styleUrl: './stop-header.scss',
 })

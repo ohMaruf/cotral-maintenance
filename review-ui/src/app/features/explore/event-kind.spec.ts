@@ -20,7 +20,7 @@ describe('eventKindInfo', () => {
     expect(eventKindInfo('look', 'no panorama').danger).toBe(true);
     expect(eventKindInfo('some_new_tool')).toEqual({
       label: 'some new tool',
-      glyph: '?',
+      icon: 'unknown',
       thought: false,
       danger: false,
     });

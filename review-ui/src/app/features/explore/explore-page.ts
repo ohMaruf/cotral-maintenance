@@ -10,6 +10,7 @@ import {
   signal,
   viewChildren,
 } from '@angular/core';
+import { LucideChevronRight } from '@lucide/angular';
 import { Router } from '@angular/router';
 import { ApiError, toApiError } from '../../core/api/api-error';
 import { ApiService } from '../../core/api/api.service';
@@ -40,6 +41,7 @@ import {
   stepPhotoSeq,
   stepSeq,
 } from './explore-view';
+import { KindIconView } from './kind-icon';
 import { RunHeader } from './run-header';
 import { RunList } from './run-list';
 
@@ -64,7 +66,7 @@ const FEATURES_KEY = 'explore.osmFeatures';
 @Component({
   selector: 'app-explore-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [EventDetail, GeoMap, RunHeader, RunList, StateMessage],
+  imports: [EventDetail, GeoMap, KindIconView, LucideChevronRight, RunHeader, RunList, StateMessage],
   templateUrl: './explore-page.html',
   styleUrl: './explore-page.scss',
 })

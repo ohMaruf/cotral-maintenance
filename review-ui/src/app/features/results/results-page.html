@@ -81,8 +81,9 @@
         <table>
           <caption class="visually-hidden">
             The run's stops, worst condition first, with their photos and scores. Scores run from 0
-            (bad) to 1 (good); the present columns and Visible are probabilities; Shelter and
-            Seating are rated only where the stop has one, and say none where it does not.
+            (bad) to 1 (good). Shelter, Seating and Lamp say missing where the stop has none;
+            otherwise Shelter and Seating show their condition and Lamp says present. Visible is a
+            probability.
           </caption>
           <thead>
             <tr>
@@ -121,7 +122,6 @@
                   </button>
                 </th>
               }
-              <th scope="col">Missing</th>
               <th scope="col" class="num" [attr.aria-sort]="sortState('distance')">
                 <button
                   type="button"
@@ -194,18 +194,24 @@
                 </td>
                 @for (col of columns; track col.key; let i = $index) {
                   <td class="score num">
-                    @if (item.gone[i]) {
-                      <span class="gone" [attr.aria-label]="col.label + ': none'">none</span>
+                    @if (col.element) {
+                      <app-element-cell
+                        [label]="col.title"
+                        [absent]="item.cells[i].absent"
+                        [presence]="item.cells[i].presence"
+                        [value]="item.cells[i].value"
+                        [kind]="col.kind"
+                        [presenceOnly]="!!col.presenceOnly"
+                      />
                     } @else {
                       <app-score-bar
-                        [value]="item.scores[i]"
+                        [value]="item.cells[i].value"
                         [kind]="col.kind"
                         [label]="col.title"
                       />
                     }
                   </td>
                 }
-                <td class="missing">{{ item.missing }}</td>
                 <td class="num mono">{{ item.moved }}</td>
               </tr>
             }

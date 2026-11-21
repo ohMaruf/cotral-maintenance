@@ -9,6 +9,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { LucideChevronLeft, LucideChevronRight, LucideX, LucideZoomIn, LucideZoomOut } from '@lucide/angular';
 import { Photo } from '../../core/api/api.types';
 import { formatDistance, formatHeading } from '../../shared/lib/format';
 import { IDENTITY, Size, ViewState, panBy, zoomAt } from './zoom';
@@ -25,6 +26,7 @@ const DOUBLE_CLICK_SCALE = 3;
 @Component({
   selector: 'app-photo-viewer',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [LucideChevronLeft, LucideChevronRight, LucideX, LucideZoomIn, LucideZoomOut],
   templateUrl: './photo-viewer.html',
   styleUrl: './photo-viewer.scss',
 })

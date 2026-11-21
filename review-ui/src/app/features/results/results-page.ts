@@ -10,9 +10,11 @@ import { formatMeters, outcomeInfo } from '../../shared/lib/explore-format';
 import { formatImageryDate } from '../../shared/lib/format';
 import { ScoreBar } from '../../shared/score-bar/score-bar';
 import { StateMessage } from '../../shared/state-message/state-message';
+import { ElementCell } from './element-cell';
 import { ListToolbar } from './list-toolbar';
 import { PhotoViewerService } from '../photo-viewer/photo-viewer.service';
 import {
+  ReadCell,
   SCORE_COLUMNS,
   Show,
   SortDirection,
@@ -22,7 +24,7 @@ import {
   exploredSummary,
   filterRows,
   parseShow,
-  missingText,
+  readCell,
   parseSort,
   sortRows,
 } from './results-view';
@@ -34,9 +36,7 @@ interface Item {
   moved: string;
   date: string;
   photos: Photo[];
-  scores: (number | undefined)[];
-  gone: boolean[];
-  missing: string;
+  cells: ReadCell[];
 }
 
 const SHOWS: { value: Show; label: string }[] = [
@@ -60,7 +60,7 @@ function viewerPhotos(row: ResultRow): Photo[] {
 @Component({
   selector: 'app-results-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Badge, ListToolbar, RouterLink, ScoreBar, StateMessage],
+  imports: [Badge, ElementCell, ListToolbar, RouterLink, ScoreBar, StateMessage],
   templateUrl: './results-page.html',
   styleUrl: './results-page.scss',
 })
@@ -124,9 +124,7 @@ export class ResultsPage {
       moved: formatMeters(row.found_from_gtfs_m),
       date: row.scan_date ? formatImageryDate(row.scan_date) : '',
       photos: viewerPhotos(row),
-      scores: SCORE_COLUMNS.map((c) => row[c.key] ?? undefined),
-      gone: SCORE_COLUMNS.map((c) => !!c.element && !!row.missing?.includes(c.element)),
-      missing: missingText(row.missing),
+      cells: SCORE_COLUMNS.map((c) => readCell(row, c)),
     }));
   });
 

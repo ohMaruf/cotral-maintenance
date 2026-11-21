@@ -1,5 +1,10 @@
 <div [class]="'state ' + kind()" [attr.role]="kind() === 'error' ? 'alert' : 'status'">
   <p class="line">
+    @if (kind() === 'error') {
+      <svg class="icon" lucideTriangleAlert aria-hidden="true"></svg>
+    } @else if (kind() === 'loading') {
+      <svg class="icon spin" lucideLoaderCircle aria-hidden="true"></svg>
+    }
     <span class="title">{{ title() }}</span>
     @if (message()) {
       <span class="message">{{ message() }}</span>

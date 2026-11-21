@@ -1,6 +1,7 @@
 <article class="detail" [attr.aria-label]="'Event ' + event().seq">
   <header class="head">
     <h2 [class.danger]="kind().danger">
+      <app-kind-icon class="kind-icon" [name]="kind().icon" [size]="16" />
       #{{ event().seq }} · {{ kind().label }}
       @if (!kind().thought) {
         <code class="muted tool">{{ event().kind }}</code>
@@ -122,13 +123,13 @@
 
   <section aria-label="Raw exchange">
     <details class="raw" (toggle)="toggle('request', $any($event.target).open)">
-      <summary>Raw request</summary>
+      <summary class="disclosure"><svg lucideChevronRight size="14" aria-hidden="true"></svg>Raw request</summary>
       @if (requestOpen()) {
         <pre class="json mono" tabindex="0">{{ requestJson() }}</pre>
       }
     </details>
     <details class="raw" (toggle)="toggle('response', $any($event.target).open)">
-      <summary>Raw response</summary>
+      <summary class="disclosure"><svg lucideChevronRight size="14" aria-hidden="true"></svg>Raw response</summary>
       @if (responseOpen()) {
         <pre class="json mono" tabindex="0">{{ responseJson() }}</pre>
       }

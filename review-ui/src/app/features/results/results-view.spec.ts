@@ -7,6 +7,8 @@ import {
   filterRows,
   parseShow,
   parseSort,
+  readCell,
+  SCORE_COLUMNS,
   sortRows,
 } from './results-view';
 
@@ -29,6 +31,9 @@ describe('results-view', () => {
   it('parses the URL params, ignoring unknown values', () => {
     expect(parseSort('shelter')).toBe('shelter');
     expect(parseSort('condition')).toBe('condition');
+    expect(parseSort('has_shelter')).toBe('shelter');
+    expect(parseSort('has_seating')).toBe('seating');
+    expect(parseSort('has_lamp')).toBe('has_lamp');
     expect(parseSort('nope')).toBeNull();
     expect(parseSort(undefined)).toBeNull();
     expect(parseShow('review')).toBe('review');
@@ -57,6 +62,33 @@ describe('results-view', () => {
     expect(ids(sortRows(rows, 'condition', 'asc'))).toEqual(['a', 'b', 'd', 'c']);
     expect(ids(sortRows(rows, 'condition', 'desc'))).toEqual(['d', 'b', 'a', 'c']);
     expect(ids(sortRows(rows, 'distance', 'asc'))).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('decides absence from the missing list, else from the presence probability', () => {
+    const shelter = SCORE_COLUMNS.find((c) => c.key === 'shelter')!;
+    const lamp = SCORE_COLUMNS.find((c) => c.key === 'has_lamp')!;
+    const listed = resultRow('l', { missing: ['shelter'], has_shelter: 0.9, shelter: null });
+    expect(readCell(listed, shelter).absent).toBe(true);
+    expect(readCell(listed, lamp).absent).toBe(false);
+    const unlisted = resultRow('u', { missing: null, has_shelter: 0.2, has_lamp: 0.8 });
+    expect(readCell(unlisted, shelter)).toEqual({ absent: true, presence: 0.2, value: 0.75 });
+    expect(readCell(unlisted, lamp)).toEqual({ absent: false, presence: 0.8, value: 0.8 });
+  });
+
+  it('sorts a merged element with missing as worst, then by condition', () => {
+    const merged = [
+      resultRow('p', { shelter: 0.9 }),
+      resultRow('q', { missing: ['shelter'], shelter: null }),
+      resultRow('r', { shelter: 0.3 }),
+      resultRow('s', { shelter: null }),
+    ];
+    expect(ids(sortRows(merged, 'shelter', 'asc'))).toEqual(['q', 'r', 'p', 's']);
+    expect(ids(sortRows(merged, 'shelter', 'desc'))).toEqual(['p', 'r', 'q', 's']);
+  });
+
+  it('sorts the lamp by presence probability', () => {
+    const lamps = [resultRow('x', { has_lamp: 0.8 }), resultRow('y', { has_lamp: 0.1 })];
+    expect(ids(sortRows(lamps, 'has_lamp', 'asc'))).toEqual(['y', 'x']);
   });
 
   it('sorts by rank and by name, case-insensitively', () => {

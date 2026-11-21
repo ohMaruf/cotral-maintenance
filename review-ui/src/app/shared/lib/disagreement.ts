@@ -7,3 +7,13 @@ export function modelsDisagree(values: readonly (number | undefined)[]): boolean
 
   return spread >= SCORE_DISAGREEMENT - 1e-9;
 }
+
+export interface ElementReading {
+  absent: boolean;
+  value: number | undefined;
+}
+
+export function elementsDisagree(readings: readonly ElementReading[]): boolean {
+  if (new Set(readings.map((r) => r.absent)).size > 1) return true;
+  return modelsDisagree(readings.filter((r) => !r.absent).map((r) => r.value));
+}

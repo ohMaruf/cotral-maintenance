@@ -1,5 +1,5 @@
 import { CATALOG, stop } from '../../testing';
-import { filterStops, meanScore, parseSort, serializeSort, sortStops } from './scores';
+import { filterStops, isAbsent, meanScore, parseSort, serializeSort, sortStops } from './scores';
 
 const models = CATALOG.models;
 const a = stop('a', { name: 'Alpha', scores: { clef: { shelter: 1 }, gemma: { shelter: 3 } } });
@@ -53,5 +53,23 @@ describe('scores helpers', () => {
     expect(parseSort('shelter:nobody', CATALOG.categories, models)).toBeNull();
     expect(parseSort('shelter', CATALOG.categories, models)).toBeNull();
     expect(parseSort(undefined, CATALOG.categories, models)).toBeNull();
+  });
+
+  it('treats a presence probability below the threshold as missing', () => {
+    expect(isAbsent(0.49)).toBe(true);
+    expect(isAbsent(0.5)).toBe(false);
+    expect(isAbsent(null)).toBe(false);
+  });
+
+  it('sorts a merged element with missing worst, and reads the old has_ sort keys', () => {
+    const x = stop('x', { scores: { clef: { has_shelter: 0.1, shelter: 0.9 } } });
+    const y = stop('y', { scores: { clef: { has_shelter: 0.9, shelter: 0.4 } } });
+    const key = { category: 'shelter', model: 'clef' };
+    expect(ids(sortStops([y, x], key, 'asc', models))).toBe('xy');
+    expect(ids(sortStops([x, y], key, 'desc', models))).toBe('yx');
+    const categories = [
+      { key: 'shelter', label: 'Shelter', kind: 'condition' as const, description: '' },
+    ];
+    expect(parseSort('has_shelter:clef', categories, models)).toEqual(key);
   });
 });

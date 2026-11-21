@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import { LucideChevronRight } from '@lucide/angular';
 import {
   Exploration,
   ExplorationCandidate,
@@ -13,6 +14,7 @@ import {
 } from '../../shared/lib/explore-format';
 import { formatHeading, formatImageryDate } from '../../shared/lib/format';
 import { argRows, checklistRows, eventKindInfo, resultText } from './event-kind';
+import { KindIconView } from './kind-icon';
 import { photoByIndex } from './explore-view';
 
 interface Fact {
@@ -44,6 +46,7 @@ function photoFacts(p: ExplorationPhoto, all: ExplorationPhoto[]): Fact[] {
 @Component({
   selector: 'app-event-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [KindIconView, LucideChevronRight],
   templateUrl: './event-detail.html',
   styleUrl: './event-detail.scss',
 })

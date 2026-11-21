@@ -82,7 +82,7 @@
               </label>
             </div>
             <details class="legend">
-              <summary>Legend</summary>
+              <summary class="disclosure"><svg lucideChevronRight size="14" aria-hidden="true"></svg>Legend</summary>
               <ul aria-label="Map legend">
                 @for (l of legend; track l.kind) {
                   <li>
@@ -189,6 +189,7 @@
                 >
                   <span class="seq">{{ row.event.seq }}</span>
                   <span class="kind mono" [title]="row.kind.label">
+                    <app-kind-icon [name]="row.kind.icon" />
                     @if (row.kind.thought) {
                       thought
                     } @else if (row.event.kind === 'tool_error') {
@@ -212,7 +213,7 @@
             }
           </ol>
           <details class="keys">
-            <summary>Keys</summary>
+            <summary class="disclosure"><svg lucideChevronRight size="14" aria-hidden="true"></svg>Keys</summary>
             <p class="hint">
               <kbd>←</kbd> <kbd>→</kbd> previous / next event, <kbd>Home</kbd> <kbd>End</kbd> first
               / last, <kbd>,</kbd> <kbd>.</kbd> previous / next photo, <kbd>[</kbd> <kbd>]</kbd>

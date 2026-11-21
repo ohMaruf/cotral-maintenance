@@ -50,8 +50,10 @@ nav {
 .theme {
   @include button(quiet);
   align-self: center;
-  min-height: 24px;
-  padding: 0 $space-2;
-  font-size: $text-sm;
-  font-weight: $weight-regular;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: $control-height;
+  min-height: $control-height;
+  padding: 0;
 }

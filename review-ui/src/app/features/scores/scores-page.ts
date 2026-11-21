@@ -5,11 +5,14 @@ import { forkJoin } from 'rxjs';
 import { ApiError, toApiError } from '../../core/api/api-error';
 import { ApiService } from '../../core/api/api.service';
 import { Category, Model, StopDetail } from '../../core/api/api.types';
-import { modelsDisagree } from '../../shared/lib/disagreement';
+import { elementsDisagree } from '../../shared/lib/disagreement';
 import {
+  PRESENCE_ONLY,
+  PRESENCE_OF,
   SortDirection,
   SortKey,
   filterStops,
+  isAbsent,
   parseSort,
   scoreOf,
   serializeSort,
@@ -19,17 +22,27 @@ import { PhotoGrid } from '../../shared/photo-grid/photo-grid';
 import { ScoreBar } from '../../shared/score-bar/score-bar';
 import { StateMessage } from '../../shared/state-message/state-message';
 import { formatCoordinates, formatImageryDate, mapsUrl } from '../../shared/lib/format';
+import { ElementCell } from '../results/element-cell';
 import { ListToolbar } from '../results/list-toolbar';
 import { PhotoViewerService } from '../photo-viewer/photo-viewer.service';
+
+interface Column {
+  category: Category;
+  presenceKey: string | undefined;
+  presenceOnly: boolean;
+  label: string;
+}
 
 interface Cell {
   model: Model;
   value: number | undefined;
+  presence: number | undefined;
+  absent: boolean;
   evidence: string | undefined;
 }
 
 interface CategoryCells {
-  category: Category;
+  column: Column;
   disagree: boolean;
   cells: Cell[];
 }
@@ -45,7 +58,7 @@ interface Row {
 @Component({
   selector: 'app-scores-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ListToolbar, PhotoGrid, ScoreBar, StateMessage],
+  imports: [ElementCell, ListToolbar, PhotoGrid, ScoreBar, StateMessage],
   templateUrl: './scores-page.html',
   styleUrl: './scores-page.scss',
 })
@@ -66,6 +79,28 @@ export class ScoresPage {
     this.data.error() ? toApiError(this.data.error()) : null,
   );
   protected readonly categories = computed(() => this.data.value()?.catalog.categories ?? []);
+  protected readonly columns = computed<Column[]>(() => {
+    const all = this.categories();
+    const has = (key: string) => all.some((c) => c.key === key);
+    const folded = new Set(
+      Object.entries(PRESENCE_OF)
+        .filter(([rated, presence]) => has(rated) && has(presence))
+        .map(([, presence]) => presence),
+    );
+    return all
+      .filter((category) => !folded.has(category.key))
+      .map((category) => {
+        const presenceKey = PRESENCE_OF[category.key] ?? undefined;
+        const merged = !!presenceKey && has(presenceKey);
+        const presenceOnly = PRESENCE_ONLY.includes(category.key);
+        return {
+          category,
+          presenceKey: merged ? presenceKey : presenceOnly ? category.key : undefined,
+          presenceOnly,
+          label: presenceOnly ? 'Lamp' : category.label,
+        };
+      });
+  });
   protected readonly models = computed(() => this.data.value()?.catalog.models ?? []);
   protected readonly total = computed(() => this.data.value()?.stops.length ?? 0);
 
@@ -80,7 +115,8 @@ export class ScoresPage {
   protected readonly rows = computed<Row[]>(() => {
     const value = this.data.value();
     if (!value) return [];
-    const { categories, models } = value.catalog;
+    const { models } = value.catalog;
+    const columns = this.columns();
     let stops = filterStops(value.stops, this.query());
     const key = this.sortKey();
     if (key) stops = sortStops(stops, key, this.direction(), models);
@@ -89,16 +125,23 @@ export class ScoresPage {
       date: formatImageryDate(stop.imagery_date),
       coords: formatCoordinates(stop.lat, stop.lon),
       map: mapsUrl(stop.lat, stop.lon),
-      categories: categories.map((category) => {
-        const cells = models.map((model) => ({
-          model,
-          value: scoreOf(stop.scores, model.key, category.key),
-          evidence: stop.evidence[model.key]?.[category.key],
-        }));
+      categories: columns.map((column) => {
+        const cells = models.map((model) => {
+          const presence = column.presenceKey
+            ? scoreOf(stop.scores, model.key, column.presenceKey)
+            : undefined;
+          return {
+            model,
+            presence,
+            absent: isAbsent(presence),
+            value: scoreOf(stop.scores, model.key, column.category.key),
+            evidence: stop.evidence[model.key]?.[column.category.key],
+          };
+        });
         return {
-          category,
+          column,
           cells,
-          disagree: modelsDisagree(cells.map((c) => c.value)),
+          disagree: elementsDisagree(cells),
         };
       }),
     }));

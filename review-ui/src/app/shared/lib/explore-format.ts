@@ -15,6 +15,14 @@ const OUTCOMES: Record<string, { label: string; tone: OutcomeTone }> = {
   error: { label: 'Error', tone: 'bad' },
 };
 
+export function outcomeIcon(outcome: string): 'found' | 'missing' | 'none' | 'alert' | null {
+  if (outcome === 'found') return 'found';
+  if (outcome === 'not_found') return 'missing';
+  if (outcome === 'no_imagery') return 'none';
+  if (outcome === 'error') return 'alert';
+  return null;
+}
+
 export function outcomeInfo(outcome: string): { label: string; tone: OutcomeTone } {
   return OUTCOMES[outcome] ?? { label: outcome.replaceAll('_', ' '), tone: 'neutral' };
 }

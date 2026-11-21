@@ -1,35 +1,75 @@
 import { CategoryKind, ResultRow, RunInfo } from '../../core/api/api.types';
+import { ABSENT_RANK, LEGACY_SORT, isAbsent } from '../../shared/lib/scores';
 
 export type ScoreKey =
   | 'condition'
-  | 'has_shelter'
   | 'shelter'
-  | 'has_seating'
   | 'seating'
   | 'waiting_area'
   | 'accessibility'
   | 'has_lamp'
   | 'stop_visible';
 
+type PresenceField = 'has_shelter' | 'has_seating' | 'has_lamp';
+
 export interface ScoreColumn {
   key: ScoreKey;
   label: string;
   title: string;
   kind: CategoryKind;
-  element?: 'shelter' | 'seating';
+  presence?: PresenceField;
+  element?: 'shelter' | 'seating' | 'lamp';
+  presenceOnly?: boolean;
 }
 
 export const SCORE_COLUMNS: readonly ScoreColumn[] = [
   { key: 'condition', label: 'Condition', title: 'Condition', kind: 'condition' },
-  { key: 'has_shelter', label: 'Has shelter', title: 'Shelter present', kind: 'probability' },
-  { key: 'shelter', label: 'Shelter', title: 'Shelter', kind: 'condition', element: 'shelter' },
-  { key: 'has_seating', label: 'Has seat', title: 'Seating present', kind: 'probability' },
-  { key: 'seating', label: 'Seating', title: 'Seating', kind: 'condition', element: 'seating' },
+  {
+    key: 'shelter',
+    label: 'Shelter',
+    title: 'Shelter',
+    kind: 'condition',
+    presence: 'has_shelter',
+    element: 'shelter',
+  },
+  {
+    key: 'seating',
+    label: 'Seating',
+    title: 'Seating',
+    kind: 'condition',
+    presence: 'has_seating',
+    element: 'seating',
+  },
   { key: 'waiting_area', label: 'Waiting', title: 'Waiting area', kind: 'condition' },
   { key: 'accessibility', label: 'Access', title: 'Accessibility', kind: 'condition' },
-  { key: 'has_lamp', label: 'Has lamp', title: 'Street lamp', kind: 'probability' },
+  {
+    key: 'has_lamp',
+    label: 'Lamp',
+    title: 'Street lamp',
+    kind: 'probability',
+    presence: 'has_lamp',
+    element: 'lamp',
+    presenceOnly: true,
+  },
   { key: 'stop_visible', label: 'Visible', title: 'Stop visible', kind: 'probability' },
 ];
+
+export interface ReadCell {
+  absent: boolean;
+  presence: number | undefined;
+  value: number | undefined;
+}
+
+export function readCell(row: ResultRow, col: ScoreColumn): ReadCell {
+  const presence = col.presence ? row[col.presence] : null;
+  const absent = col.element
+    ? row.missing
+      ? row.missing.includes(col.element)
+      : isAbsent(presence)
+    : false;
+  const raw = col.presenceOnly ? presence : row[col.key];
+  return { absent, presence: presence ?? undefined, value: raw ?? undefined };
+}
 
 export type SortKey = 'rank' | 'name' | 'distance' | ScoreKey;
 export type SortDirection = 'asc' | 'desc';
@@ -43,7 +83,8 @@ const SORT_KEYS: readonly SortKey[] = [
 ];
 
 export function parseSort(raw: string | null | undefined): SortKey | null {
-  return SORT_KEYS.find((k) => k === raw) ?? null;
+  const key = (raw && LEGACY_SORT[raw]) || raw;
+  return SORT_KEYS.find((k) => k === key) ?? null;
 }
 
 export function parseShow(raw: string | null | undefined): Show {
@@ -52,11 +93,6 @@ export function parseShow(raw: string | null | undefined): Show {
 
 export function defaultDirection(key: SortKey): SortDirection {
   return key === 'distance' ? 'desc' : 'asc';
-}
-
-export function missingText(missing: readonly string[] | null): string {
-  if (missing === null) return '–';
-  return missing.length ? missing.join(', ') : 'none';
 }
 
 export function filterRows(rows: readonly ResultRow[], show: Show, query: string): ResultRow[] {
@@ -76,8 +112,14 @@ function valueOf(row: ResultRow, key: SortKey): number | string | null {
       return row.name.toLowerCase();
     case 'distance':
       return row.found_from_gtfs_m;
-    default:
+    default: {
+      const col = SCORE_COLUMNS.find((c) => c.key === key)!;
+      if (col.presence && !col.presenceOnly) {
+        const cell = readCell(row, col);
+        return cell.absent ? ABSENT_RANK : (cell.value ?? null);
+      }
       return row[key];
+    }
   }
 }
 

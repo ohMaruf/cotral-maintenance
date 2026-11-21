@@ -85,7 +85,6 @@
 
   summary {
     padding: $space-1 $space-2;
-    cursor: pointer;
   }
 
   &:not([open]) ul {
@@ -270,6 +269,9 @@
   }
 
   .kind {
+    display: flex;
+    align-items: center;
+    gap: $space-1;
     color: $color-accent;
     font-size: $text-xs;
     line-height: $leading-normal;
@@ -314,10 +316,6 @@
   border-top: $border-width solid $color-border;
   color: $color-text-muted;
   font-size: $text-sm;
-
-  summary {
-    cursor: pointer;
-  }
 
   .hint {
     margin-top: $space-2;

@@ -1,11 +1,37 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import {
+  LucideCircleCheck,
+  LucideCircleDashed,
+  LucideCircleX,
+  LucideTriangleAlert,
+} from '@lucide/angular';
 
 export type BadgeTone = 'ok' | 'warn' | 'bad' | 'neutral';
+export type BadgeIcon = 'found' | 'missing' | 'none' | 'alert';
 
 @Component({
   selector: 'app-badge',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: '<span [class]="\'badge \' + tone()"><ng-content /></span>',
+  imports: [LucideCircleCheck, LucideCircleDashed, LucideCircleX, LucideTriangleAlert],
+  template: `
+    <span [class]="'badge ' + tone() + (icon() ? ' iconic' : '')">
+      @switch (icon()) {
+        @case ('found') {
+          <svg lucideCircleCheck size="14" aria-hidden="true"></svg>
+        }
+        @case ('missing') {
+          <svg lucideCircleDashed size="14" aria-hidden="true"></svg>
+        }
+        @case ('none') {
+          <svg lucideCircleX size="14" aria-hidden="true"></svg>
+        }
+        @case ('alert') {
+          <svg lucideTriangleAlert size="14" aria-hidden="true"></svg>
+        }
+      }
+      <ng-content />
+    </span>
+  `,
   styles: `
     @use 'theme' as *;
 
@@ -17,7 +43,7 @@ export type BadgeTone = 'ok' | 'warn' | 'bad' | 'neutral';
       font-size: $text-sm;
       white-space: nowrap;
 
-      &::before {
+      &:not(.iconic)::before {
         content: '';
         flex: none;
         width: 6px;
@@ -26,23 +52,32 @@ export type BadgeTone = 'ok' | 'warn' | 'bad' | 'neutral';
       }
     }
 
-    .ok::before {
+    .ok:not(.iconic)::before {
       background: $color-ok;
     }
 
-    .warn::before {
+    .warn:not(.iconic)::before {
       background: $color-warn;
     }
 
     .bad {
       color: $color-danger;
 
-      &::before {
+      &:not(.iconic)::before {
         background: $color-danger;
       }
+    }
+
+    .iconic.ok svg {
+      color: $color-ok;
+    }
+
+    .iconic.warn svg {
+      color: $color-warn;
     }
   `,
 })
 export class Badge {
   readonly tone = input<BadgeTone>('neutral');
+  readonly icon = input<BadgeIcon | null>(null);
 }

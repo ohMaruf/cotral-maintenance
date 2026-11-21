@@ -1,0 +1,27 @@
+@use 'theme' as *;
+
+:host {
+  display: block;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.missing {
+  color: $sev-4;
+  font-size: $text-md;
+  font-weight: $weight-medium;
+}
+
+.present {
+  color: $color-text-muted;
+  font-size: $text-md;
+}
+
+.p {
+  margin-left: $space-1;
+  color: $color-text-faint;
+  font-family: $font-mono;
+  font-size: $text-xs;
+  font-weight: $weight-regular;
+  @include tabular;
+}

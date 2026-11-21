@@ -6,17 +6,17 @@
     </div>
     <div class="tools" role="group" aria-label="Zoom">
       <button type="button" class="tool" aria-label="Zoom out (minus key)" (click)="zoomOut()">
-        −
+        <svg lucideZoomOut aria-hidden="true"></svg>
       </button>
       <button type="button" class="tool level" aria-label="Reset zoom (0 key)" (click)="reset()">
         {{ zoomPercent() }}%
       </button>
       <button type="button" class="tool" aria-label="Zoom in (plus key)" (click)="zoomIn()">
-        +
+        <svg lucideZoomIn aria-hidden="true"></svg>
       </button>
     </div>
     <button type="button" class="tool close" aria-label="Close viewer (Escape)" (click)="close()">
-      Close
+      <svg lucideX aria-hidden="true"></svg>
     </button>
   </header>
 
@@ -28,7 +28,7 @@
       [disabled]="index() === 0"
       (click)="step(-1)"
     >
-      ‹
+      <svg lucideChevronLeft size="24" aria-hidden="true"></svg>
     </button>
     <div
       #stage
@@ -57,7 +57,7 @@
       [disabled]="index() === data.photos.length - 1"
       (click)="step(1)"
     >
-      ›
+      <svg lucideChevronRight size="24" aria-hidden="true"></svg>
     </button>
   </div>
 

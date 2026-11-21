@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { LucideChevronRight, LucideExternalLink } from '@lucide/angular';
 import { Exploration } from '../../core/api/api.types';
 import {
   billedLabel,
@@ -7,6 +8,7 @@ import {
   formatMeters,
   formatTimestamp,
   modelsLabel,
+  outcomeIcon,
   outcomeInfo,
   runDuration,
   shortCommit,
@@ -14,6 +16,7 @@ import {
   tilesLabel,
   versionLabel,
 } from '../../shared/lib/explore-format';
+import { stopSearchUrl } from '../../shared/lib/format';
 import { Badge } from '../../shared/badge/badge';
 
 export const LONG_REPORT_CHARS = 400;
@@ -21,7 +24,7 @@ export const LONG_REPORT_CHARS = 400;
 @Component({
   selector: 'app-run-header',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Badge],
+  imports: [Badge, LucideChevronRight, LucideExternalLink],
   templateUrl: './run-header.html',
   styleUrl: './run-header.scss',
 })
@@ -29,6 +32,8 @@ export class RunHeader {
   readonly run = input.required<Exploration>();
 
   protected readonly outcome = computed(() => outcomeInfo(this.run().outcome));
+  protected readonly icon = computed(() => outcomeIcon(this.run().outcome));
+  protected readonly mapsLink = computed(() => stopSearchUrl(this.run().name));
   protected readonly budget = computed(() => budgetDetail(this.run()));
   protected readonly images = computed(() =>
     budgetLabel(this.run().budget_used, this.run().budget_max, this.run().budget_unit),

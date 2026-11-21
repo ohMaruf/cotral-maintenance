@@ -7,8 +7,43 @@ export interface SortKey {
 
 export type SortDirection = 'asc' | 'desc';
 
+export const PRESENCE_THRESHOLD = 0.5;
+
+export const PRESENCE_OF: Readonly<Record<string, string>> = {
+  shelter: 'has_shelter',
+  seating: 'has_seating',
+};
+
+export const PRESENCE_ONLY: readonly string[] = ['has_lamp'];
+
+export const LEGACY_SORT: Readonly<Record<string, string>> = {
+  has_shelter: 'shelter',
+  has_seating: 'seating',
+};
+
+export function isAbsent(presence: number | null | undefined): boolean {
+  return presence !== null && presence !== undefined && presence < PRESENCE_THRESHOLD;
+}
+
+export const ABSENT_RANK = -1;
+
+export function elementRank(
+  presence: number | null | undefined,
+  condition: number | null | undefined,
+): number | undefined {
+  if (isAbsent(presence)) return ABSENT_RANK;
+  return condition ?? undefined;
+}
+
 export function scoreOf(scores: ScoreMap, model: string, category: string): number | undefined {
   return scores[model]?.[category];
+}
+
+function modelValue(scores: ScoreMap, model: string, category: string): number | undefined {
+  const presence = PRESENCE_OF[category];
+  return presence
+    ? elementRank(scoreOf(scores, model, presence), scoreOf(scores, model, category))
+    : scoreOf(scores, model, category);
 }
 
 export function meanScore(
@@ -17,7 +52,7 @@ export function meanScore(
   category: string,
 ): number | undefined {
   const values = models
-    .map((m) => scoreOf(scores, m.key, category))
+    .map((m) => modelValue(scores, m.key, category))
     .filter((v): v is number => v !== undefined);
   return values.length ? values.reduce((a, b) => a + b, 0) / values.length : undefined;
 }
@@ -29,7 +64,7 @@ export function sortValue(
 ): number | undefined {
   return key.model === 'mean'
     ? meanScore(stop.scores, models, key.category)
-    : scoreOf(stop.scores, key.model, key.category);
+    : modelValue(stop.scores, key.model, key.category);
 }
 
 export function sortStops(
@@ -68,7 +103,8 @@ export function parseSort(
   models: readonly Model[],
 ): SortKey | null {
   if (!raw) return null;
-  const [category, model] = raw.split(':');
+  const [rawCategory, model] = raw.split(':');
+  const category = LEGACY_SORT[rawCategory] ?? rawCategory;
   if (!category || !model) return null;
   if (!categories.some((c) => c.key === category)) return null;
   if (model !== 'mean' && !models.some((m) => m.key === model)) return null;

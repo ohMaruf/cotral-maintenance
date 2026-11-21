@@ -7,6 +7,7 @@ import {
   formatScore,
   mapsUrl,
   photoDetails,
+  stopSearchUrl,
 } from './format';
 
 describe('format', () => {
@@ -37,6 +38,13 @@ describe('format', () => {
   it('builds map links and coordinates', () => {
     expect(mapsUrl(41.9, 12.5)).toBe('https://www.google.com/maps?q=41.9,12.5');
     expect(formatCoordinates(41.9, 12.5)).toBe('41.90000, 12.50000');
+  });
+
+  it('searches Google Maps for a stop by name', () => {
+    expect(stopSearchUrl('ARCE | Via Casilina Via Fraioli')).toBe(
+      'https://www.google.com/maps/search/?api=1&query=ARCE%2C%20Via%20Casilina%20Via%20Fraioli',
+    );
+    expect(stopSearchUrl('A&B')).toBe('https://www.google.com/maps/search/?api=1&query=A%26B');
   });
 
   it('lists the available photo details', () => {

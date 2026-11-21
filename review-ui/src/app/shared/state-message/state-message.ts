@@ -1,3 +1,4 @@
+import { LucideLoaderCircle, LucideTriangleAlert } from '@lucide/angular';
 import { ChangeDetectionStrategy, Component, booleanAttribute, input, output } from '@angular/core';
 
 export type StateKind = 'loading' | 'error' | 'empty' | 'done';
@@ -5,6 +6,7 @@ export type StateKind = 'loading' | 'error' | 'empty' | 'done';
 @Component({
   selector: 'app-state-message',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [LucideLoaderCircle, LucideTriangleAlert],
   host: { '[class.page]': 'page()' },
   templateUrl: './state-message.html',
   styleUrl: './state-message.scss',

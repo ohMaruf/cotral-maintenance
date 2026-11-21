@@ -78,20 +78,22 @@ describe('ResultsPage', () => {
     expect(names()).toEqual(['Alpha', 'Beta', 'Gamma']);
     const first = el.querySelector('tbody tr')!;
     expect(first.querySelector('.rank')!.textContent).toBe('1');
-    expect(first.querySelectorAll('td.score')).toHaveLength(9);
+    expect(first.querySelectorAll('td.score')).toHaveLength(7);
     expect(first.querySelector('a.name')!.getAttribute('href')).toBe('/explore/a');
     expect(first.querySelector('td.mono')!.textContent).toContain('42.4 m');
     expect(el.querySelectorAll('tbody tr')[2].querySelector('.rank')!.textContent).toBe('–');
   });
 
-  it('says none for a shelter the stop lacks, and lists what is missing', () => {
+  it('says missing in the one column of an element the stop lacks, and rates the others', () => {
     const [alpha, beta, gamma] = [...el.querySelectorAll('tbody tr')];
-    expect(alpha.querySelector('td.missing')!.textContent).toContain('none');
-    expect(alpha.querySelectorAll('td.score .gone')).toHaveLength(0);
-    expect(beta.querySelector('td.missing')!.textContent).toContain('shelter');
-    expect(beta.querySelectorAll('td.score .gone')).toHaveLength(1);
-    expect(beta.querySelector('td.score .gone')!.textContent).toContain('none');
-    expect(gamma.querySelector('td.missing')!.textContent).toContain('–');
+    expect(el.querySelector('thead')!.textContent).not.toContain('Missing');
+    expect(alpha.querySelectorAll('td.score .missing')).toHaveLength(0);
+    expect(alpha.querySelectorAll('td.score app-score-bar').length).toBeGreaterThan(0);
+    expect(beta.querySelectorAll('td.score .missing')).toHaveLength(1);
+    expect(beta.querySelector('td.score .missing')!.textContent).toContain('missing');
+    expect(beta.querySelector('td.score .missing')!.textContent).toContain('0.10');
+    expect(beta.querySelector('td.score .present')!.textContent).toContain('present');
+    expect(gamma.querySelectorAll('td.score .missing')).toHaveLength(0);
   });
 
   it('shows the stop photos as thumbnails and opens them in the viewer', () => {
@@ -137,6 +139,16 @@ describe('ResultsPage', () => {
     await fixture.whenStable();
     expect(names()).toEqual(['Beta', 'Alpha', 'Gamma']);
     expect(el.querySelector('th[aria-sort="descending"]')).not.toBeNull();
+  });
+
+  it('sorts a missing element before any rated one, and still reads the old has_ keys', async () => {
+    fixture.componentRef.setInput('sort', 'shelter');
+    await fixture.whenStable();
+    expect(names()).toEqual(['Beta', 'Alpha', 'Gamma']);
+    fixture.componentRef.setInput('sort', 'has_shelter');
+    await fixture.whenStable();
+    expect(names()).toEqual(['Beta', 'Alpha', 'Gamma']);
+    expect(el.querySelector('th[aria-sort="ascending"]')!.textContent).toContain('Shelter');
   });
 
   it('says so when nothing matches', async () => {

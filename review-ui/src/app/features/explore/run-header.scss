@@ -16,10 +16,30 @@
   h1 {
     min-width: 0;
     font-size: $text-lg;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
+}
+
+.maps {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  color: $color-text;
+  text-decoration: none;
+
+  &:hover .label {
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .reason {
@@ -57,7 +77,6 @@
     top: $space-2;
     right: $space-4;
     color: $color-text-muted;
-    cursor: pointer;
 
     &:hover {
       color: $color-text;
@@ -83,10 +102,6 @@
 
 .report {
   margin-top: $space-2;
-
-  summary {
-    cursor: pointer;
-  }
 
   p {
     margin: $space-1 0 0;

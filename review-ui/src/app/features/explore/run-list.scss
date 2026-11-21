@@ -31,6 +31,15 @@
   }
 }
 
+[aria-expanded='true'] .chev {
+  transform: rotate(90deg);
+}
+
+.chev {
+  align-self: center;
+  transition: transform $duration-fast $easing-standard;
+}
+
 .head-text {
   display: flex;
   flex-direction: column;

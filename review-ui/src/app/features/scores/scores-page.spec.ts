@@ -11,6 +11,16 @@ const stops = [
   stop('c', { name: 'Gamma' }),
 ];
 
+const merged = {
+  ...CATALOG,
+  categories: [
+    { key: 'has_shelter', label: 'Shelter present', kind: 'probability' as const, description: '' },
+    { key: 'shelter', label: 'Shelter', kind: 'condition' as const, description: '' },
+    { key: 'has_lamp', label: 'Street lamp', kind: 'probability' as const, description: '' },
+  ],
+  models: [CATALOG.models[0]],
+};
+
 describe('ScoresPage', () => {
   let fixture: ComponentFixture<ScoresPage>;
   let el: HTMLElement;
@@ -57,5 +67,47 @@ describe('ScoresPage', () => {
     fixture.componentRef.setInput('q', 'gam');
     await fixture.whenStable();
     expect(names()).toEqual(['Gamma']);
+  });
+});
+
+describe('ScoresPage merged elements', () => {
+  it('folds presence into one column per element and says missing', async () => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+    });
+    const fixture = TestBed.createComponent(ScoresPage);
+    const el: HTMLElement = fixture.nativeElement;
+    const http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    TestBed.tick();
+    await new Promise((r) => setTimeout(r));
+    http.expectOne('/api/catalog').flush(merged);
+    http.expectOne('/api/stops').flush([
+      stop('a', {
+        name: 'Alpha',
+        scores: { clef: { has_shelter: 0.1, shelter: 0.9, has_lamp: 0.8 } },
+      }),
+      stop('b', {
+        name: 'Beta',
+        scores: { clef: { has_shelter: 0.9, shelter: 0.4, has_lamp: 0.2 } },
+      }),
+    ]);
+    await fixture.whenStable();
+
+    const heads = [...el.querySelectorAll('thead th')].map((t) => t.textContent?.trim());
+    expect(heads).toEqual(['Stop', 'Photos', 'Shelter', 'Lamp']);
+    const [alpha, beta] = [...el.querySelectorAll('tbody tr')];
+    expect(alpha.querySelectorAll('td.score')).toHaveLength(2);
+    expect(alpha.querySelector('td.score .missing')!.textContent).toContain('0.10');
+    expect(alpha.querySelector('td.score .present')!.textContent).toContain('present');
+    expect(beta.querySelector('td.score app-score-bar')).not.toBeNull();
+    expect(beta.querySelector('td.score:nth-child(4) .missing')).not.toBeNull();
+
+    fixture.componentRef.setInput('sort', 'has_shelter:clef');
+    await fixture.whenStable();
+    expect([...el.querySelectorAll('tbody th .name')].map((n) => n.textContent?.trim())).toEqual([
+      'Alpha',
+      'Beta',
+    ]);
   });
 });

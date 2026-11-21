@@ -81,9 +81,11 @@
         }
       </ul>
       <div class="io">
-        <a class="btn quiet" href="/api/shape-check/verdicts.csv" download>Export CSV</a>
+        <a class="btn quiet" href="/api/shape-check/verdicts.csv" download
+          ><svg lucideDownload aria-hidden="true"></svg>Export CSV</a
+        >
         <button type="button" class="btn quiet" [disabled]="importing()" (click)="csvInput.click()">
-          Import CSV
+          <svg lucideUpload aria-hidden="true"></svg>Import CSV
         </button>
         <input
           #csvInput
@@ -115,7 +117,7 @@
         }
       </div>
       <details class="legend">
-        <summary>Legend</summary>
+        <summary class="disclosure"><svg lucideChevronRight size="14" aria-hidden="true"></svg>Legend</summary>
         <ul aria-label="Map legend">
           <li><span class="geo-marker pin-gtfs" aria-hidden="true">G</span> GTFS</li>
           <li><span class="geo-marker pin-places" aria-hidden="true">P</span> Places</li>
@@ -216,9 +218,15 @@
           }
 
           <p class="links">
-            <a [href]="d.streetViewV" target="_blank" rel="noopener">Street View at V</a>
-            <a [href]="d.streetViewG" target="_blank" rel="noopener">Street View at G</a>
-            <a [href]="d.mapsV" target="_blank" rel="noopener">Maps at V</a>
+            <a [href]="d.streetViewV" target="_blank" rel="noopener noreferrer" class="ext"
+              >Street View at V<svg lucideExternalLink size="14" aria-hidden="true"></svg
+            ></a>
+            <a [href]="d.streetViewG" target="_blank" rel="noopener noreferrer" class="ext"
+              >Street View at G<svg lucideExternalLink size="14" aria-hidden="true"></svg
+            ></a>
+            <a [href]="d.mapsV" target="_blank" rel="noopener noreferrer" class="ext"
+              >Maps at V<svg lucideExternalLink size="14" aria-hidden="true"></svg
+            ></a>
           </p>
         </div>
 

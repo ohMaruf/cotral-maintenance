@@ -1,7 +1,7 @@
 @use 'theme' as *;
 
 :host {
-  display: inline-block;
+  display: block;
   min-width: 3.25rem;
 }
 
@@ -26,8 +26,8 @@
 
 .strip {
   display: block;
-  height: 2px;
-  margin-top: 1px;
+  height: 3px;
+  margin-top: 2px;
   background: $color-border;
 }
 

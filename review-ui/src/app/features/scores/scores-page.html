@@ -26,8 +26,8 @@
           >
         }
         <span class="legend">
-          <span class="swatch" aria-hidden="true"></span>Models disagree by 2 levels or more (0.5
-          for probabilities)
+          <span class="swatch" aria-hidden="true"></span>Models disagree by 0.5 or more, or one says
+          missing and another present
         </span>
       </span>
     </app-list-toolbar>
@@ -42,8 +42,9 @@
       <div class="scroller" tabindex="0" role="region" aria-label="Scores table, scrolls both ways">
         <table>
           <caption class="visually-hidden">
-            Stops with photos and per-category scores from each model. Level 0 is good, 4 is missing
-            or severe.
+            Stops with photos and per-category scores from each model. Scores run from 0 (bad) to 1
+            (good). Shelter, Seating and Lamp say missing where the model finds none; otherwise
+            Shelter and Seating show their condition and Lamp says present.
           </caption>
           <thead>
             <tr class="top">
@@ -51,21 +52,23 @@
                 Stop
               </th>
               <th scope="col" [attr.rowspan]="models().length > 1 ? 2 : 1">Photos</th>
-              @for (cat of categories(); track cat.key) {
+              @for (col of columns(); track col.category.key) {
                 @if (models().length > 1) {
                   <th
                     scope="colgroup"
                     class="group"
                     [attr.colspan]="models().length"
-                    [attr.aria-sort]="sortState(cat.key, 'mean')"
+                    [attr.aria-sort]="sortState(col.category.key, 'mean')"
                   >
-                    <span class="cat-label" [attr.title]="cat.description">{{ cat.label }}</span>
+                    <span class="cat-label" [attr.title]="col.category.description">{{
+                      col.label
+                    }}</span>
                     <button
                       type="button"
                       class="sort mean"
-                      [attr.aria-label]="'Sort by mean of models for ' + cat.label"
-                      [attr.data-state]="sortState(cat.key, 'mean')"
-                      (click)="setSort(cat.key, 'mean')"
+                      [attr.aria-label]="'Sort by mean of models for ' + col.label"
+                      [attr.data-state]="sortState(col.category.key, 'mean')"
+                      (click)="setSort(col.category.key, 'mean')"
                     >
                       mean<span aria-hidden="true" class="arrow"></span>
                     </button>
@@ -74,17 +77,17 @@
                   <th
                     scope="col"
                     class="num"
-                    [attr.aria-sort]="sortState(cat.key, models()[0].key)"
+                    [attr.aria-sort]="sortState(col.category.key, models()[0].key)"
                   >
                     <button
                       type="button"
                       class="sort"
-                      [attr.title]="cat.description"
-                      [attr.aria-label]="'Sort by ' + cat.label + ', ' + models()[0].label"
-                      [attr.data-state]="sortState(cat.key, models()[0].key)"
-                      (click)="setSort(cat.key, models()[0].key)"
+                      [attr.title]="col.category.description"
+                      [attr.aria-label]="'Sort by ' + col.label + ', ' + models()[0].label"
+                      [attr.data-state]="sortState(col.category.key, models()[0].key)"
+                      (click)="setSort(col.category.key, models()[0].key)"
                     >
-                      {{ cat.label }}<span aria-hidden="true" class="arrow"></span>
+                      {{ col.label }}<span aria-hidden="true" class="arrow"></span>
                     </button>
                   </th>
                 }
@@ -92,21 +95,21 @@
             </tr>
             @if (models().length > 1) {
               <tr class="sub">
-                @for (cat of categories(); track cat.key) {
+                @for (col of columns(); track col.category.key) {
                   @for (model of models(); track model.key; let first = $first) {
                     <th
                       scope="col"
                       class="num"
                       [class.first]="first"
-                      [attr.aria-sort]="sortState(cat.key, model.key)"
+                      [attr.aria-sort]="sortState(col.category.key, model.key)"
                     >
                       <button
                         type="button"
                         class="sort model"
                         [attr.title]="model.description"
-                        [attr.aria-label]="'Sort by ' + cat.label + ', ' + model.label"
-                        [attr.data-state]="sortState(cat.key, model.key)"
-                        (click)="setSort(cat.key, model.key)"
+                        [attr.aria-label]="'Sort by ' + col.label + ', ' + model.label"
+                        [attr.data-state]="sortState(col.category.key, model.key)"
+                        (click)="setSort(col.category.key, model.key)"
                       >
                         {{ model.label }}<span aria-hidden="true" class="arrow"></span>
                       </button>
@@ -141,19 +144,31 @@
                     (photoSelected)="openPhoto(row.stop, $event)"
                   />
                 </td>
-                @for (group of row.categories; track group.category.key) {
+                @for (group of row.categories; track group.column.category.key) {
                   @for (cell of group.cells; track cell.model.key; let first = $first) {
                     <td
                       class="score num"
                       [class.disagree]="group.disagree"
                       [class.first]="first && models().length > 1"
                     >
-                      <app-score-bar
-                        [value]="cell.value"
-                        [kind]="group.category.kind"
-                        [label]="cell.model.label"
-                        [evidence]="cell.evidence"
-                      />
+                      @if (group.column.presenceKey) {
+                        <app-element-cell
+                          [label]="cell.model.label"
+                          [absent]="cell.absent"
+                          [presence]="cell.presence"
+                          [value]="cell.value"
+                          [kind]="group.column.category.kind"
+                          [presenceOnly]="group.column.presenceOnly"
+                          [evidence]="cell.evidence"
+                        />
+                      } @else {
+                        <app-score-bar
+                          [value]="cell.value"
+                          [kind]="group.column.category.kind"
+                          [label]="cell.model.label"
+                          [evidence]="cell.evidence"
+                        />
+                      }
                       @if (group.disagree && first) {
                         <span class="visually-hidden">Models disagree.</span>
                       }

@@ -10,10 +10,21 @@
   <button
     type="button"
     class="theme"
-    [attr.aria-label]="'Theme: ' + themeLabel() + '. Activate to change.'"
+    [attr.aria-label]="themeHint()"
+    [title]="themeHint()"
     (click)="theme.cycle()"
   >
-    {{ themeLabel() }}
+    @switch (theme.choice()) {
+      @case ('light') {
+        <svg lucideSun aria-hidden="true"></svg>
+      }
+      @case ('dark') {
+        <svg lucideMoon aria-hidden="true"></svg>
+      }
+      @default {
+        <svg lucideMonitor aria-hidden="true"></svg>
+      }
+    }
   </button>
 </header>
 <main>

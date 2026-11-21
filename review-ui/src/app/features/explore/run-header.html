@@ -1,8 +1,18 @@
 <header class="head">
   <div class="line1">
     <span class="stop-plate">{{ run().stop_id }}</span>
-    <h1>{{ run().name }}</h1>
-    <app-badge [tone]="outcome().tone">{{ outcome().label }}</app-badge>
+    <h1>
+      <a
+        class="maps ext"
+        [href]="mapsLink()"
+        target="_blank"
+        rel="noopener noreferrer"
+        ><span class="label">{{ run().name }}</span
+        ><span class="visually-hidden"> (opens Google Maps)</span
+        ><svg lucideExternalLink size="14" aria-hidden="true"></svg
+      ></a>
+    </h1>
+    <app-badge [tone]="outcome().tone" [icon]="icon()">{{ outcome().label }}</app-badge>
     @if (run().outcome_reason; as reason) {
       <span class="reason">{{ reason }}</span>
     }
@@ -23,7 +33,7 @@
     <span>{{ images() }}</span>
   </p>
   <details class="more">
-    <summary>Run details</summary>
+    <summary class="disclosure"><svg lucideChevronRight size="14" aria-hidden="true"></svg>Run details</summary>
     <dl class="facts">
       <dt>Budget used</dt>
       <dd>
@@ -57,7 +67,7 @@
     </dl>
     @if (run().report; as report) {
       <details class="report" [open]="!longReport()">
-        <summary>The model's closing words</summary>
+        <summary class="disclosure"><svg lucideChevronRight size="14" aria-hidden="true"></svg>The model's closing words</summary>
         <p>{{ report }}</p>
       </details>
     }

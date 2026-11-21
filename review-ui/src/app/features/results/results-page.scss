@@ -280,19 +280,8 @@ thead .stop-col {
 }
 
 .score {
-  width: 4rem;
+  width: 5.5rem;
   white-space: nowrap;
-}
-
-.gone {
-  color: $color-text-faint;
-  font-size: $text-sm;
-}
-
-.missing {
-  max-width: 5rem;
-  color: $color-text-muted;
-  font-size: $text-sm;
 }
 
 tr.review > .rank-col {

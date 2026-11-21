@@ -9,8 +9,9 @@
   </div>
   <p class="meta">
     <span>Imagery {{ date() }}</span>
-    <a [href]="map()" target="_blank" rel="noopener noreferrer" class="mono"
-      >{{ coords() }}<span class="visually-hidden"> (opens Google Maps)</span></a
+    <a [href]="map()" target="_blank" rel="noopener noreferrer" class="mono ext"
+      >{{ coords() }}<span class="visually-hidden"> (opens Google Maps)</span
+      ><svg lucideExternalLink size="14" aria-hidden="true"></svg></a
     >
   </p>
 </div>

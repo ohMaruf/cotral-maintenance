@@ -1,37 +1,56 @@
 import { ExplorationEvent } from '../../core/api/api.types';
 
+export type KindIcon =
+  | 'message'
+  | 'play'
+  | 'eye'
+  | 'sweep'
+  | 'zoom'
+  | 'swap'
+  | 'confirm'
+  | 'pin'
+  | 'check'
+  | 'hidden'
+  | 'checklist'
+  | 'layers'
+  | 'map'
+  | 'note'
+  | 'send'
+  | 'alert'
+  | 'unknown';
+
 export interface EventKindInfo {
   label: string;
-  glyph: string;
+  icon: KindIcon;
   thought: boolean;
   danger: boolean;
 }
 
-const KINDS: Record<string, { label: string; glyph: string }> = {
-  thought: { label: 'Thought', glyph: '“' },
-  begin: { label: 'Begin', glyph: '▶' },
-  look: { label: 'Look', glyph: '◉' },
-  sweep: { label: 'Sweep', glyph: '◐' },
-  zoom: { label: 'Zoom', glyph: '⊕' },
-  look_from: { label: 'Look from another panorama', glyph: '⇄' },
-  confirm: { label: 'Confirm', glyph: '⌕' },
-  mark_candidate: { label: 'Mark candidate', glyph: '◆' },
-  mark_clear: { label: 'Mark clear', glyph: '✓' },
-  mark_hidden: { label: 'Mark hidden', glyph: '▨' },
-  answer_checklist: { label: 'Answer checklist', glyph: '☑' },
-  find_other_scans: { label: 'Find other scans', glyph: '⟲' },
-  show_map: { label: 'Show map', glyph: '▦' },
-  note: { label: 'Note', glyph: '✎' },
-  submit_found: { label: 'Submit found', glyph: '⚑' },
-  harness_submit: { label: 'Submitted by the harness', glyph: '⚑' },
-  tool_error: { label: 'Refused call', glyph: '⚠' },
+const KINDS: Record<string, { label: string; icon: KindIcon }> = {
+  thought: { label: 'Thought', icon: 'message' },
+  begin: { label: 'Begin', icon: 'play' },
+  look: { label: 'Look', icon: 'eye' },
+  sweep: { label: 'Sweep', icon: 'sweep' },
+  zoom: { label: 'Zoom', icon: 'zoom' },
+  look_from: { label: 'Look from another panorama', icon: 'swap' },
+  confirm: { label: 'Confirm', icon: 'confirm' },
+  mark_candidate: { label: 'Mark candidate', icon: 'pin' },
+  mark_clear: { label: 'Mark clear', icon: 'check' },
+  mark_hidden: { label: 'Mark hidden', icon: 'hidden' },
+  answer_checklist: { label: 'Answer checklist', icon: 'checklist' },
+  find_other_scans: { label: 'Find other scans', icon: 'layers' },
+  show_map: { label: 'Show map', icon: 'map' },
+  note: { label: 'Note', icon: 'note' },
+  submit_found: { label: 'Submit found', icon: 'send' },
+  harness_submit: { label: 'Submitted by the harness', icon: 'send' },
+  tool_error: { label: 'Refused call', icon: 'alert' },
 };
 
 export function eventKindInfo(kind: string, error: string | null = null): EventKindInfo {
   const known = KINDS[kind];
   return {
     label: known?.label ?? kind.replaceAll('_', ' '),
-    glyph: known?.glyph ?? '?',
+    icon: known?.icon ?? 'unknown',
     thought: kind === 'thought',
     danger: kind === 'tool_error' || error !== null,
   };

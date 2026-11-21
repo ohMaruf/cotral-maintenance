@@ -39,3 +39,8 @@ export function photoDetails(photo: Photo): string[] {
     (p): p is string => p !== null,
   );
 }
+
+export function stopSearchUrl(name: string): string {
+  const query = name.split(' | ').join(', ');
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}

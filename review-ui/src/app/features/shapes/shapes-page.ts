@@ -1,3 +1,4 @@
+import { LucideChevronRight, LucideDownload, LucideExternalLink, LucideUpload } from '@lucide/angular';
 import { RaterField } from '../../shared/rater-field/rater-field';
 import { rxResource } from '@angular/core/rxjs-interop';
 import {
@@ -42,7 +43,16 @@ import {
 @Component({
   selector: 'app-shapes-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RaterField, GeoMap, RouterLink, StateMessage],
+  imports: [
+    RaterField,
+    GeoMap,
+    RouterLink,
+    StateMessage,
+    LucideChevronRight,
+    LucideDownload,
+    LucideExternalLink,
+    LucideUpload,
+  ],
   providers: [ShapeVerdictStore],
   templateUrl: './shapes-page.html',
   styleUrl: './shapes-page.scss',

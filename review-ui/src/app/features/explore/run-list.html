@@ -8,7 +8,7 @@
           [attr.aria-expanded]="group.open"
           (click)="toggle(group.version)"
         >
-          <span class="chev" aria-hidden="true">{{ group.open ? '▾' : '▸' }}</span>
+          <svg class="chev" lucideChevronRight size="14" aria-hidden="true"></svg>
           <span class="head-text">
             <span class="head-line"
               ><span class="mono version">{{ group.label }}</span> · {{ group.count }}
@@ -32,7 +32,7 @@
               >
                 <span class="top">
                   <span class="stop-plate">{{ item.run.stop_id }}</span>
-                  <app-badge [tone]="item.outcome.tone">{{ item.outcome.label }}</app-badge>
+                  <app-badge [tone]="item.outcome.tone" [icon]="item.icon">{{ item.outcome.label }}</app-badge>
                 </span>
                 <span class="name">{{ item.run.name }}</span>
                 <span class="meta">

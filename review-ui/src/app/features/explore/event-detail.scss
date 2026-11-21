@@ -17,6 +17,10 @@
 }
 
 h2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $space-1 $space-2;
   font-size: $text-base;
 }
 

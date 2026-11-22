@@ -826,8 +826,10 @@ def test_balance_gives_way_when_the_other_side_has_nothing_left(tmp_path):
     s = scanning_session(tmp_path, FakeScanner())
     s.begin()
     s.aimed = 8
+    with pytest.raises(ToolError, match="outside the search ring. Sweep from"):
+        s.sweep(at_m=120)
     real = s._sweep_options
-    s._sweep_options = lambda a, f, scan: ([], None) if a < 0 or a <= s._reach(-1) + 50 else real(a, f, scan)
+    s._sweep_options = lambda a, f, scan: ([], None) if a < 0 else real(a, f, scan)
     s.sweep(at_m=120)
     assert s.photos[-1].along == pytest.approx(105, abs=6)
 
@@ -1248,10 +1250,13 @@ def test_old_photos_fade_from_the_context_but_candidate_photos_and_the_latest_ma
                                          *photo_message(1, 2)["content"]]}
     messages = [{"role": "system", "content": "prompt"}, first, photo_message(3), photo_message(4)]
     shown = {1: 1, 2: 1, 3: 2, 4: 3}
-    fade_photos(messages, shown, keep={2}, turn=3)
+    faded = {}
+    fade_photos(messages, shown, keep={2}, turn=3, faded=faded)
     assert images_of(messages) == ["ref", "map1", "p2", "p3", "p4"]
     messages.append({"role": "tool", "content": [{"type": "text", "text": "MAP:"},
                                                  {"type": "image_url", "image_url": {"url": "map2"}}]})
-    fade_photos(messages, shown, keep={2}, turn=4)
+    fade_photos(messages, shown, keep={2}, turn=4, faded=faded)
     assert images_of(messages) == ["ref", "p2", "p4", "map2"]
     assert any("PHOTO 1: no longer shown" in (p.get("text") or "") for p in messages[1]["content"])
+    fade_photos(messages, shown, keep={2, 1}, turn=5, faded=faded)
+    assert images_of(messages) == ["ref", "p1", "p2", "map2"]

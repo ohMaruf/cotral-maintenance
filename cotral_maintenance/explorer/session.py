@@ -553,21 +553,17 @@ class Session:
     def ring_side(self, side: int) -> float:
         return max(min(self.ring_m, self._reach(-side) + self.ring_balance_m), self.ring_floor_m[side])
 
-    def _ring_span(self, balanced: bool = True) -> tuple[float, float]:
+    def _ring_span(self) -> tuple[float, float]:
         start = self.world.starts[0].along
         lo, hi = self.world.limits
-        if not balanced:
-            return max(lo, start - max(self.ring_m, self.ring_floor_m[-1])), \
-                min(hi, start + max(self.ring_m, self.ring_floor_m[1]))
         return max(lo, start - self.ring_side(-1)), min(hi, start + self.ring_side(1))
 
     def _ring_text(self) -> str:
         left = RING_EVERY - self.aimed % RING_EVERY
-        lo, hi = self._ring_span()
-        return (f"sweeps aim from {_m(lo)} to {_m(hi)} for now. The ring is {self.ring_m:.0f} m around the start and "
-                f"widens every {RING_EVERY} sweeps by {RING_GROWTH:.0%} (at least {RING_STEP_M:.0f} m): next to "
-                f"{_widen(self.ring_m):.0f} m after {left} more. One side reaches at most {self.ring_balance_m:.0f} m "
-                f"beyond what the other side has been looked at, while that side has something left to sweep")
+        return (f"the ring is {self.ring_m:.0f} m around the start and widens every {RING_EVERY} sweeps by "
+                f"{RING_GROWTH:.0%} (at least {RING_STEP_M:.0f} m): next to {_widen(self.ring_m):.0f} m after {left} "
+                f"more. One side reaches at most {self.ring_balance_m:.0f} m beyond what the other side has been "
+                f"swept, until the other side has nothing left to sweep")
 
     def _left_to_sweep(self, lo: float, hi: float) -> bool:
         a = lo
@@ -583,14 +579,19 @@ class Session:
         side = 1 if at_m >= start else -1
         if abs(at_m - start) <= self.ring_side(side):
             return
-        for balanced in (True, False):
-            lo, hi = self._ring_span(balanced)
-            if self._left_to_sweep(lo, hi):
-                raise ToolError(f"{_m(at_m)} is outside the search ring: {self._ring_text()}. Sweep inside it, "
-                                f"from {_m(lo)} to {_m(hi)}.")
-            full_lo, full_hi = self._ring_span(False)
-            if full_lo <= at_m <= full_hi:
-                return
+        limit_lo, limit_hi = self.world.limits
+        other = sorted((start, start - side * self.ring_side(-side)))
+        if self._left_to_sweep(max(limit_lo, other[0]), min(limit_hi, other[1])):
+            lo, hi = self._ring_span()
+            raise ToolError(f"{_m(at_m)} is outside the search ring. Sweep from {_m(lo)} to {_m(hi)}: "
+                            f"{self._ring_text()}.")
+        reach = {s: max(self.ring_m, self.ring_floor_m[s]) for s in (1, -1)}
+        if abs(at_m - start) <= reach[side]:
+            return
+        lo, hi = max(limit_lo, start - reach[-1]), min(limit_hi, start + reach[1])
+        if self._left_to_sweep(lo, hi):
+            raise ToolError(f"{_m(at_m)} is outside the search ring. Sweep from {_m(lo)} to {_m(hi)}: "
+                            f"{self._ring_text()}.")
 
     def _refuse_nothing_new(self, camera: Camera, at_m: float) -> None:
         shown = [i for i, p in enumerate(self._sidewalk) if camera.column_of(p) is not None
@@ -1332,7 +1333,8 @@ class Session:
         total = sum(lik)
         lines = [f"STATE: {EXPLORE_IMAGES - self.explore_used}/{EXPLORE_IMAGES} images, "
                  f"{MAX_TILES - len(self.tiles_paid)}/{MAX_TILES} tiles, {MAX_CONFIRMS - self.confirms}/{MAX_CONFIRMS} "
-                 f"confirmations left.", f"- SEARCH RING: {self._ring_text()}."]
+                 f"confirmations left.", f"- SEARCH RING: sweeps aim from {_m(self._ring_span()[0])} to "
+                 f"{_m(self._ring_span()[1])} for now; {self._ring_text()}."]
         for state, label in (("seen_close", "seen close"),
                              ("blocked", "BLOCKED from one side (something in front could hide a sign: sweep there, "
                                          "the harness looks from the other side)"),

@@ -176,15 +176,17 @@ def _photo_parts(images: list[Path], session: Session) -> list[dict]:
     parts = []
     for path in images:
         index = next((p.index for p in session.photos if session._file(p) == path), None)
-        if path == session.aerial:
-            parts += [{"type": "text", "text": "MAP:"}, image_part(path)]
+        if path == session.aerial or path.parent == session.run_dir / "maps":
+            parts += [{"type": "text", "text": "MAP:"}, image_part(path, None if path == session.aerial
+                                                                    else REFERENCE_PX)]
             continue
         parts += [{"type": "text", "text": f"PHOTO {index}:" if index else f"{path.stem}:"},
                   image_part(path, None if index else REFERENCE_PX)]
     return parts
 
 
-def fade_photos(messages: list[dict], shown: dict[int, int], keep: set[int], turn: int) -> None:
+def fade_photos(messages: list[dict], shown: dict[int, int], keep: set[int], turn: int,
+                faded: dict[int, dict]) -> None:
     maps = [(m, j) for m in messages if isinstance(m["content"], list)
             for j, part in enumerate(m["content"]) if part.get("text") == "MAP:"]
     for m, j in maps[:-1]:
@@ -195,14 +197,20 @@ def fade_photos(messages: list[dict], shown: dict[int, int], keep: set[int], tur
             continue
         parts = m["content"]
         j = 0
-        while j < len(parts) - 1:
-            match = re.fullmatch(r"PHOTO (\d+):", parts[j].get("text") or "")
-            if match and parts[j + 1].get("type") == "image_url":
+        while j < len(parts):
+            text = parts[j].get("text") or ""
+            match = re.fullmatch(r"PHOTO (\d+):", text)
+            if match and j + 1 < len(parts) and parts[j + 1].get("type") == "image_url":
                 index = int(match.group(1))
                 if index not in keep and turn - shown.get(index, turn) >= RECENT_PHOTO_TURNS:
+                    faded[index] = parts[j + 1]
                     parts[j:j + 2] = [{"type": "text", "text": f"PHOTO {index}: no longer shown, to keep the "
                                                                "context short; its caption and scan above still "
                                                                "hold."}]
+            match = re.match(r"PHOTO (\d+): no longer shown", text)
+            if match and int(match.group(1)) in keep and int(match.group(1)) in faded:
+                index = int(match.group(1))
+                parts[j:j + 1] = [{"type": "text", "text": f"PHOTO {index}:"}, faded.pop(index)]
             j += 1
 
 
@@ -228,6 +236,7 @@ class Explorer:
         invalid = repeats = stalled = 0
         last_failure = None
         shown: dict[int, int] = {}
+        faded: dict[int, dict] = {}
         turn = 0
         for turn in range(1, self.max_turns + 1):
             if session.outcome is not None:
@@ -314,7 +323,7 @@ class Explorer:
                 shown.setdefault(p.index, turn)
             keep = {i for c in session.candidates for i, _, _ in c.views}
             keep |= {c.confirm_photo for c in session.candidates if c.confirm_photo is not None}
-            fade_photos(messages, shown, keep, turn)
+            fade_photos(messages, shown, keep, turn, faded)
             spent = session.exhausted()
             if spent:
                 return spent, turn

@@ -4,6 +4,7 @@ import re
 import pytest
 
 from cotral_maintenance.explorer.confirmer import FEATURES, Checklist, ConfirmerError, parse, verdict
+from cotral_maintenance.explorer.llm import fade_photos
 from cotral_maintenance.explorer.geometry import Camera, PathFrame, angle_diff, compass, triangulate
 from cotral_maintenance.explorer.session import (GRID, plate_matches, names_a_stop_like_thing, EXPLORE_IMAGES, IMAGE_SIZE, MAX_CALLS, MAX_CONFIRMS, MAX_IMAGES,
                                                  MAX_TILES, STOP_PHOTOS, SWEEP_FOV, ZOOM_SIZE, ScanReply, Session,
@@ -769,7 +770,7 @@ def test_sweeps_aim_inside_a_ring_that_widens_every_two_sweeps(tmp_path):
     s = scanning_session(tmp_path, FakeScanner())
     s.begin()
     assert "SEARCH RING: sweeps aim within 50 m of the start" in s._state()
-    with pytest.raises(ToolError, match="outside the search ring.*within 50 m.*next after 2 more"):
+    with pytest.raises(ToolError, match="outside the search ring.*within 50 m.*next to 75 m after 2 more"):
         s.sweep(at_m=80)
     assert len(s.photos) == 2
     s.sweep(at_m=40)
@@ -777,6 +778,15 @@ def test_sweeps_aim_inside_a_ring_that_widens_every_two_sweeps(tmp_path):
     assert s.ring_m == 75
     s.sweep(at_m=70)
     assert s.photos[-1].along == pytest.approx(55, abs=6)
+
+
+def test_the_ring_widens_faster_the_wider_it_is(tmp_path):
+    s = make_session(tmp_path)
+    rings = []
+    for aimed in range(0, 18, 2):
+        s.aimed = aimed
+        rings.append(round(s.ring_m))
+    assert rings == [50, 75, 100, 130, 169, 220, 286, 371, 483]
 
 
 def test_an_osm_start_has_a_tighter_ring(tmp_path):
@@ -1161,3 +1171,32 @@ def test_found_scans_open_an_unscanned_stretch(tmp_path, monkeypatch):
     monkeypatch.setattr("cotral_maintenance.explorer.session.find_panoramas", lambda *a, **k: full)
     s.find_other_scans(at_m=120)
     assert state_at(s, 120) == "not_looked"
+
+
+def photo_message(*indices):
+    parts = [{"type": "text", "text": "result"}]
+    for i in indices:
+        parts += [{"type": "text", "text": f"PHOTO {i}:"}, {"type": "image_url", "image_url": {"url": f"p{i}"}}]
+    return {"role": "tool", "content": parts}
+
+
+def images_of(messages):
+    return [p["image_url"]["url"] for m in messages if isinstance(m["content"], list)
+            for p in m["content"] if p.get("type") == "image_url"]
+
+
+def test_old_photos_fade_from_the_context_but_candidate_photos_and_the_latest_map_stay():
+    reference = {"type": "text", "text": "fermata:"}
+    first = {"role": "tool", "content": [reference, {"type": "image_url", "image_url": {"url": "ref"}},
+                                         {"type": "text", "text": "MAP:"}, {"type": "image_url",
+                                                                             "image_url": {"url": "map1"}},
+                                         *photo_message(1, 2)["content"]]}
+    messages = [{"role": "system", "content": "prompt"}, first, photo_message(3), photo_message(4)]
+    shown = {1: 1, 2: 1, 3: 2, 4: 3}
+    fade_photos(messages, shown, keep={2}, turn=3)
+    assert images_of(messages) == ["ref", "map1", "p2", "p3", "p4"]
+    messages.append({"role": "tool", "content": [{"type": "text", "text": "MAP:"},
+                                                 {"type": "image_url", "image_url": {"url": "map2"}}]})
+    fade_photos(messages, shown, keep={2}, turn=4)
+    assert images_of(messages) == ["ref", "p2", "p4", "map2"]
+    assert any("PHOTO 1: no longer shown" in (p.get("text") or "") for p in messages[1]["content"])

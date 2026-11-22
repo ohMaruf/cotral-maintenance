@@ -30,6 +30,7 @@ SECOND_VIEW_RANGE = (0.6, 1.6)
 SECOND_VIEW_FOV = 30.0
 RING_START_M = {"osm": 25.0, "places": 50.0, "gtfs": 50.0}
 RING_STEP_M = 25.0
+RING_GROWTH = 0.3
 MAX_OPENINGS = 5
 RING_EVERY = 2
 RING_PROBE_M = 10.0
@@ -152,6 +153,10 @@ class Candidate:
     basis: str = "single_ray_sidewalk"
     confirmer_note: str = ""
     confirm_photo: int | None = None
+
+
+def _widen(ring: float) -> float:
+    return ring + max(RING_STEP_M, RING_GROWTH * ring)
 
 
 class Session:
@@ -519,12 +524,16 @@ class Session:
 
     @property
     def ring_m(self) -> float:
-        return self.ring_start_m + RING_STEP_M * (self.aimed // RING_EVERY)
+        ring = self.ring_start_m
+        for _ in range(self.aimed // RING_EVERY):
+            ring = _widen(ring)
+        return ring
 
     def _ring_text(self) -> str:
         left = RING_EVERY - self.aimed % RING_EVERY
-        return (f"sweeps aim within {self.ring_m:.0f} m of the start for now; the ring widens by {RING_STEP_M:.0f} m "
-                f"every {RING_EVERY} sweeps (next after {left} more)")
+        return (f"sweeps aim within {self.ring_m:.0f} m of the start for now; every {RING_EVERY} sweeps the ring "
+                f"widens by {RING_GROWTH:.0%} (at least {RING_STEP_M:.0f} m): next to {_widen(self.ring_m):.0f} m "
+                f"after {left} more")
 
     def _refuse_outside_ring(self, at_m: float) -> None:
         start = self.world.starts[0].along

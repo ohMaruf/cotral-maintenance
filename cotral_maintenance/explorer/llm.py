@@ -17,6 +17,7 @@ from .session import GRID, ScanReply, Session, ToolError
 MAX_TURNS = 10
 MAX_INVALID = 3
 MAX_REPEATS = 4
+RECENT_PHOTO_TURNS = 2
 STALL_NUDGE, STALL_END = 4, 8
 REFERENCE_PX = 640
 REQUEST_TIMEOUT_S = 1800.0
@@ -183,6 +184,28 @@ def _photo_parts(images: list[Path], session: Session) -> list[dict]:
     return parts
 
 
+def fade_photos(messages: list[dict], shown: dict[int, int], keep: set[int], turn: int) -> None:
+    maps = [(m, j) for m in messages if isinstance(m["content"], list)
+            for j, part in enumerate(m["content"]) if part.get("text") == "MAP:"]
+    for m, j in maps[:-1]:
+        if m["content"][j + 1].get("type") == "image_url":
+            m["content"][j:j + 2] = [{"type": "text", "text": "MAP: no longer shown (a newer map is below)."}]
+    for m in messages:
+        if not isinstance(m["content"], list):
+            continue
+        parts = m["content"]
+        j = 0
+        while j < len(parts) - 1:
+            match = re.fullmatch(r"PHOTO (\d+):", parts[j].get("text") or "")
+            if match and parts[j + 1].get("type") == "image_url":
+                index = int(match.group(1))
+                if index not in keep and turn - shown.get(index, turn) >= RECENT_PHOTO_TURNS:
+                    parts[j:j + 2] = [{"type": "text", "text": f"PHOTO {index}: no longer shown, to keep the "
+                                                               "context short; its caption and scan above still "
+                                                               "hold."}]
+            j += 1
+
+
 def progress(session: Session) -> tuple:
     return (len(session.photos), tuple((c.status, len(c.views)) for c in session.candidates),
             tuple(session.state), session.outcome is not None)
@@ -204,6 +227,7 @@ class Explorer:
                                                             "Start with begin()."}]
         invalid = repeats = stalled = 0
         last_failure = None
+        shown: dict[int, int] = {}
         turn = 0
         for turn in range(1, self.max_turns + 1):
             if session.outcome is not None:
@@ -286,6 +310,11 @@ class Explorer:
             last_failure = failed
             if repeats >= MAX_REPEATS:
                 return "stuck repeating a failing call", turn
+            for p in session.photos:
+                shown.setdefault(p.index, turn)
+            keep = {i for c in session.candidates for i, _, _ in c.views}
+            keep |= {c.confirm_photo for c in session.candidates if c.confirm_photo is not None}
+            fade_photos(messages, shown, keep, turn)
             spent = session.exhausted()
             if spent:
                 return spent, turn

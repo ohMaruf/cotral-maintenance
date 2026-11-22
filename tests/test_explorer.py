@@ -6,7 +6,7 @@ import pytest
 from cotral_maintenance.explorer.confirmer import FEATURES, Checklist, ConfirmerError, parse, verdict
 from cotral_maintenance.explorer.llm import fade_photos
 from cotral_maintenance.explorer.geometry import Camera, PathFrame, angle_diff, compass, triangulate
-from cotral_maintenance.explorer.session import (GRID, plate_matches, names_a_stop_like_thing, EXPLORE_IMAGES, IMAGE_SIZE, MAX_CALLS, MAX_CONFIRMS, MAX_IMAGES,
+from cotral_maintenance.explorer.session import (GRID, Candidate, plate_matches, names_a_stop_like_thing, EXPLORE_IMAGES, IMAGE_SIZE, MAX_CALLS, MAX_CONFIRMS, MAX_IMAGES,
                                                  MAX_TILES, STOP_PHOTOS, SWEEP_FOV, ZOOM_SIZE, ScanReply, Session,
                                                  ToolError)
 from cotral_maintenance.explorer.world import Panorama, Placed, World, _visible_start_shift, shared_stretches
@@ -237,7 +237,7 @@ def test_the_budget_leaves_room_for_the_stop_photos():
 
 def test_a_sweep_can_face_behind(session):
     session.begin()
-    session.ring_start_m = math.inf
+    no_ring(session)
     session.sweep(at_m=-100, facing="behind")
     photo = session.photos[-1]
     assert photo.toward == "sweep_behind" and photo.heading == pytest.approx(90 + 130)
@@ -247,7 +247,7 @@ def test_a_sweep_can_face_behind(session):
 
 def test_a_sweep_counts_as_seen_close_only_where_a_sign_is_readable(session):
     session.begin()
-    session.ring_start_m = math.inf
+    no_ring(session)
     session.sweep(at_m=-100, facing="ahead")
     c = session.photos[-1].along
     assert c == pytest.approx(-115, abs=6)
@@ -333,7 +333,7 @@ def spot_and_confirm(session, **answers):
     """A sweep, then a zoom on something: every zoom is judged by the confirmer at once."""
     session.confirmer = FakeConfirmer(**answers)
     session.begin()
-    session.ring_start_m = math.inf
+    no_ring(session)
     session.sweep(at_m=55)
     return session.zoom(session.photos[-1].index, *at(session, session.photos[-1].index, 520, 330))
 
@@ -523,7 +523,7 @@ def test_invalid_arguments_are_explained(session):
 
 def test_a_sweep_from_the_return_pass_looks_at_its_own_right_hand_side(tmp_path):
     s = make_session(tmp_path, out_and_back_world())
-    s.ring_start_m = math.inf
+    no_ring(s)
     s.sweep(at_m=315.0)
     photo = s.photos[-1]
     assert photo.along == pytest.approx(300.0, abs=2) and photo.heading == pytest.approx(270 + 50)
@@ -577,7 +577,7 @@ def test_look_from_a_position_already_used_is_refused(session):
 
 def test_a_sweep_glimpses_the_sidewalk_where_a_sign_would_be_a_few_pixels(session):
     session.begin()
-    session.ring_start_m = math.inf
+    no_ring(session)
     session.sweep(at_m=-100, facing="ahead")
     c = session.photos[-1].along
     assert state_at(session, c + 6) == "seen_close" and state_at(session, c + 22) == "glimpsed"
@@ -644,7 +644,7 @@ def test_the_corners_of_the_path_are_found(tmp_path):
 def test_nothing_round_a_corner_is_seen(tmp_path):
     s = make_session(tmp_path, corner_world())
     s.begin()
-    s.ring_start_m = math.inf
+    no_ring(s)
     s.sweep(at_m=70)
     states = {round(a): st for a, st in zip(s.cells, s.state, strict=True)}
     assert states[60] == "seen_close" and states[120] == "not_looked"  # round the corner: not even glimpsed
@@ -655,6 +655,7 @@ def test_a_sweep_facing_a_corner_makes_the_harness_look_round_it(tmp_path):
     s.begin()
     assert "CORNERS NOT YET EXAMINED" not in s._state()
     s.ring_start_m = 100.0
+    s.ring_balance_m = math.inf
     assert "CORNERS NOT YET EXAMINED" in s._state() and "+100 m (right turn 90°" in s._state()
     result = s.sweep(at_m=95)
     after, before = s.photos[-2:]
@@ -769,8 +770,8 @@ def test_a_sweep_looks_at_its_spot_from_before_it_away_from_the_start(session):
 def test_sweeps_aim_inside_a_ring_that_widens_every_two_sweeps(tmp_path):
     s = scanning_session(tmp_path, FakeScanner())
     s.begin()
-    assert "SEARCH RING: sweeps aim within 50 m of the start" in s._state()
-    with pytest.raises(ToolError, match="outside the search ring.*within 50 m.*next to 75 m after 2 more"):
+    assert "SEARCH RING: sweeps aim from -50 m to +50 m" in s._state()
+    with pytest.raises(ToolError, match="outside the search ring.*from -50 m to \\+50 m.*next to 75 m after 2 more"):
         s.sweep(at_m=80)
     assert len(s.photos) == 2
     s.sweep(at_m=40)
@@ -789,11 +790,49 @@ def test_the_ring_widens_faster_the_wider_it_is(tmp_path):
     assert rings == [50, 75, 100, 130, 169, 220, 286, 371, 483]
 
 
+def test_an_opening_widens_its_own_side_without_compounding_the_ring(tmp_path):
+    s = make_session(tmp_path)
+    s.ring_floor_m[1] = 293.0
+    s.ring_balance_m = math.inf
+    s.aimed = 4
+    assert s.ring_m == 100 and s.ring_side(1) == 293 and s.ring_side(-1) == 100
+
+
+def test_one_side_reaches_no_further_than_50_m_beyond_the_other(tmp_path):
+    s = scanning_session(tmp_path, FakeScanner())
+    s.begin()
+    s.aimed = 8
+    assert s.ring_m == 169
+    reach_behind = s._reach(-1)
+    with pytest.raises(ToolError, match="outside the search ring.*One side reaches at most 50 m"):
+        s.sweep(at_m=reach_behind + 80)
+    s.sweep(at_m=-(reach_behind + 30))
+    assert s._reach(-1) > reach_behind
+    s.sweep(at_m=reach_behind + 60)
+
+
+def test_balance_gives_way_when_the_other_side_has_nothing_left(tmp_path):
+    s = scanning_session(tmp_path, FakeScanner())
+    s.begin()
+    s.aimed = 8
+    real = s._sweep_options
+    s._sweep_options = lambda a, f, scan: ([], None) if a < 0 or a <= s._reach(-1) + 50 else real(a, f, scan)
+    s.sweep(at_m=120)
+    assert s.photos[-1].along == pytest.approx(105, abs=6)
+
+
+def test_a_confirmed_candidate_left_of_the_path_is_not_submitted(session):
+    session.candidates.append(Candidate(1, "sign", [], 0.0, 0.0, 10.0, -15.0, status="confirmed"))
+    with pytest.raises(ToolError, match="15 m left of the path"):
+        session.submit_found(1)
+    assert session.outcome is None
+
+
 def test_an_osm_start_has_a_tighter_ring(tmp_path):
     s = make_session(tmp_path, osm_start_world())
     s.begin()
     assert s.ring_m == 25
-    with pytest.raises(ToolError, match="within 25 m"):
+    with pytest.raises(ToolError, match="from -25 m to \\+25 m"):
         s.sweep(at_m=60)
     assert make_session(tmp_path / "g").ring_m == 50
 
@@ -1058,7 +1097,7 @@ def test_openings_also_sweep_the_other_likely_positions(tmp_path):
     assert alongs[:2] == [0, 0] and 80 <= alongs[2] <= 90 and 105 <= alongs[3] <= 115
     assert "aimed at +100 m: GTFS" in result.text and "across the road from f2 Test stop" in result.text
     assert state_at(s, 100) == "seen_close" and state_at(s, 119) == "seen_close"
-    assert s.ring_m >= 141
+    assert s.ring_side(1) >= 141 and s.ring_m == 25
     s.sweep(at_m=135)
 
 
@@ -1171,6 +1210,11 @@ def test_found_scans_open_an_unscanned_stretch(tmp_path, monkeypatch):
     monkeypatch.setattr("cotral_maintenance.explorer.session.find_panoramas", lambda *a, **k: full)
     s.find_other_scans(at_m=120)
     assert state_at(s, 120) == "not_looked"
+
+
+def no_ring(s):
+    s.ring_start_m = math.inf
+    s.ring_balance_m = math.inf
 
 
 def photo_message(*indices):

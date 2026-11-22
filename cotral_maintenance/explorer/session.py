@@ -31,6 +31,9 @@ SECOND_VIEW_FOV = 30.0
 RING_START_M = {"osm": 25.0, "places": 50.0, "gtfs": 50.0}
 RING_STEP_M = 25.0
 RING_GROWTH = 0.3
+RING_BALANCE_M = 50.0
+LEFT_SIDE_M = 2.0
+LOOKED = ("seen_close", "blocked", "hidden")
 MAX_OPENINGS = 5
 RING_EVERY = 2
 RING_PROBE_M = 10.0
@@ -47,7 +50,7 @@ SCAN_PIECE_PX = 1000
 SCAN_OVERLAP_PX = 120
 SCAN_HITS = 2
 SCAN_SAME_DEG = 2.0
-MAX_SCAN_TILES = 200
+MAX_SCAN_TILES = 350
 IMAGE_SIZE = (640, 640)
 SWEEP_FOV = 110.0
 SWEEP_TURNS = {"ahead": 50.0, "behind": 130.0}
@@ -186,6 +189,8 @@ class Session:
         start = world.starts[0]
         self.ring_start_m = RING_START_M["osm" if start.kind.startswith("osm") else start.kind
                                          if start.kind in RING_START_M else "gtfs"]
+        self.ring_floor_m = {1: 0.0, -1: 0.0}
+        self.ring_balance_m = RING_BALANCE_M
         self.aimed = 0
         self.outcome: dict | None = None
         self.events: list[dict] = []
@@ -404,6 +409,10 @@ class Session:
         candidate = c.index
         if c.status != "confirmed":
             raise ToolError(f"candidate {candidate} is {c.status}, not confirmed; confirm it first")
+        if c.offset < -LEFT_SIDE_M:
+            raise ToolError(f"candidate {candidate} is {-c.offset:.0f} m left of the path centre line: the stop is on "
+                            f"the right-hand sidewalk, so it is something else (another stop or a sign for the other "
+                            f"direction)")
         target = self.world.frame.to_xy(c.lat, c.lon)
         for o in self.world.found:
             if math.dist(target, self.world.frame.to_xy(o.lat, o.lon)) <= FOUND_OTHER_M:
@@ -443,7 +452,7 @@ class Session:
                 return
             reason = "call cap"
             self.outcome = None
-        confirmed = [c for c in self.candidates if c.status == "confirmed" and c.offset >= -2]
+        confirmed = [c for c in self.candidates if c.status == "confirmed" and c.offset >= -LEFT_SIDE_M]
         own = self.world.stop.stop_id
         for c in sorted(confirmed, key=lambda c: (plate_matches(c.plate_text, own), c.evidence == "cotral_sign",
                                                    c.index), reverse=True):
@@ -529,25 +538,52 @@ class Session:
             ring = _widen(ring)
         return ring
 
+    def _reach(self, side: int) -> float:
+        start = self.world.starts[0].along
+        return max((side * (a - start) for a, st in zip(self.cells, self.state, strict=True)
+                    if st in LOOKED and side * (a - start) > 0), default=0.0)
+
+    def ring_side(self, side: int) -> float:
+        return max(min(self.ring_m, self._reach(-side) + self.ring_balance_m), self.ring_floor_m[side])
+
+    def _ring_span(self, balanced: bool = True) -> tuple[float, float]:
+        start = self.world.starts[0].along
+        lo, hi = self.world.limits
+        if not balanced:
+            return max(lo, start - max(self.ring_m, self.ring_floor_m[-1])), \
+                min(hi, start + max(self.ring_m, self.ring_floor_m[1]))
+        return max(lo, start - self.ring_side(-1)), min(hi, start + self.ring_side(1))
+
     def _ring_text(self) -> str:
         left = RING_EVERY - self.aimed % RING_EVERY
-        return (f"sweeps aim within {self.ring_m:.0f} m of the start for now; every {RING_EVERY} sweeps the ring "
-                f"widens by {RING_GROWTH:.0%} (at least {RING_STEP_M:.0f} m): next to {_widen(self.ring_m):.0f} m "
-                f"after {left} more")
+        lo, hi = self._ring_span()
+        return (f"sweeps aim from {_m(lo)} to {_m(hi)} for now. The ring is {self.ring_m:.0f} m around the start and "
+                f"widens every {RING_EVERY} sweeps by {RING_GROWTH:.0%} (at least {RING_STEP_M:.0f} m): next to "
+                f"{_widen(self.ring_m):.0f} m after {left} more. One side reaches at most {self.ring_balance_m:.0f} m "
+                f"beyond what the other side has been looked at, while that side has something left to sweep")
 
-    def _refuse_outside_ring(self, at_m: float) -> None:
-        start = self.world.starts[0].along
-        if abs(at_m - start) <= self.ring_m:
-            return
-        lo, hi = self.world.limits
-        lo, hi = max(lo, start - self.ring_m), min(hi, start + self.ring_m)
+    def _left_to_sweep(self, lo: float, hi: float) -> bool:
         a = lo
         while a <= hi:
             options, _ = self._sweep_options(a, None, None)
             if any(lo <= self.cells[i] <= hi for o in options for i in o[-1]):
+                return True
+            a += RING_PROBE_M
+        return False
+
+    def _refuse_outside_ring(self, at_m: float) -> None:
+        start = self.world.starts[0].along
+        side = 1 if at_m >= start else -1
+        if abs(at_m - start) <= self.ring_side(side):
+            return
+        for balanced in (True, False):
+            lo, hi = self._ring_span(balanced)
+            if self._left_to_sweep(lo, hi):
                 raise ToolError(f"{_m(at_m)} is outside the search ring: {self._ring_text()}. Sweep inside it, "
                                 f"from {_m(lo)} to {_m(hi)}.")
-            a += RING_PROBE_M
+            full_lo, full_hi = self._ring_span(False)
+            if full_lo <= at_m <= full_hi:
+                return
 
     def _refuse_nothing_new(self, camera: Camera, at_m: float) -> None:
         shown = [i for i, p in enumerate(self._sidewalk) if camera.column_of(p) is not None
@@ -900,7 +936,8 @@ class Session:
             photo = self._shoot(pano, heading, SWEEP_FOV, 0.0, f"opening_{f}", along=along)
             shots.append((photo, f"aimed at {_m(at)}: {label}"))
             if widens:
-                self.ring_start_m = max(self.ring_start_m, abs(at - start) + SWEEP_TARGET_M)
+                side = 1 if at >= start else -1
+                self.ring_floor_m[side] = max(self.ring_floor_m[side], abs(at - start) + SWEEP_TARGET_M)
             lines, more = self._scan_all([photo])
             scanned += lines
             found += more
@@ -1378,7 +1415,8 @@ class Session:
             "others": [asdict(o) for o in w.others], "found_others": [asdict(o) for o in w.found],
             "aerial": (str(self.aerial.relative_to(self.run_dir)) if self.aerial is not None
                        and self.aerial.is_relative_to(self.run_dir) else self.aerial is not None),
-            "ring": {"start_m": self.ring_start_m, "aimed": self.aimed, "ring_m": self.ring_m},
+            "ring": {"start_m": self.ring_start_m, "floor_m": self.ring_floor_m, "aimed": self.aimed,
+                     "ring_m": self.ring_m},
             "previous": asdict(w.previous) if w.previous else None, "next": asdict(w.next) if w.next else None,
             "shared": [asdict(s) for s in self.shared],
             "panoramas": [asdict(p) for p in w.panoramas],

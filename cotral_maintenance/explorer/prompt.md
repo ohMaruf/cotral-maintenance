@@ -50,8 +50,10 @@ and 60 tiles for close views (a zoom or look_from costs about 2-4). Marking, the
   says where; that stretch is BLOCKED from one side, and a sweep aimed at it looks from the other side.
 - The SEARCH RING: sweeps aim within a distance of the start that starts at 25 m (OpenStreetMap start) or 50 m
   (others) and widens every 2 sweeps, ahead and behind alike, faster the wider it is (by 30%, at least 25 m).
-  Most stops are close to the start, so look at the stretch near it closely; far out the ring outgrows what sweeps
-  can cover, so leave gaps there and aim where the clues point. Inside it, look wherever you judge best: both sides
+  One side reaches at most 50 m beyond what the other side has been looked at, so the search grows on both sides
+  together (unless one side has nothing left to sweep). Most stops are close to the start, so look at the stretch
+  near it closely; far out the ring outgrows what sweeps can cover, so leave gaps there and aim where the clues
+  point. Inside it, look wherever you judge best: both sides
   of the start, what is not seen close yet, blocked stretches from their other side. Each sweep shows about 30 m
   closely. The state shows the ring.
 - Every wide photo says which stretch of the right-hand sidewalk is in view and how big a stop sign would look

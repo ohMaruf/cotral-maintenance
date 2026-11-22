@@ -191,6 +191,7 @@ class Session:
                                          if start.kind in RING_START_M else "gtfs"]
         self.ring_floor_m = {1: 0.0, -1: 0.0}
         self.ring_balance_m = RING_BALANCE_M
+        self.searched: set[int] = set()
         self.aimed = 0
         self.outcome: dict | None = None
         self.events: list[dict] = []
@@ -245,6 +246,7 @@ class Session:
         scanned, found = self._scan_all([photo, *extra])
         for p in (photo, *extra):
             self._mark_seen_close(p)
+        self._note_searched([photo, *extra])
         text = "\n".join([*lines, *scanned]) + "\n\n" + self._state()
         return self._log("sweep", args, ToolResult(text, [self._file(q) for q in [photo, *extra, *found]]))
 
@@ -540,8 +542,13 @@ class Session:
 
     def _reach(self, side: int) -> float:
         start = self.world.starts[0].along
-        return max((side * (a - start) for a, st in zip(self.cells, self.state, strict=True)
-                    if st in LOOKED and side * (a - start) > 0), default=0.0)
+        return max((side * (self.cells[i] - start) for i in self.searched
+                    if self.state[i] in LOOKED and side * (self.cells[i] - start) > 0), default=0.0)
+
+    def _note_searched(self, photos: list[Photo]) -> None:
+        for p in photos:
+            self.searched |= {i for i, a in enumerate(self.cells)
+                              if self.state[i] in LOOKED and abs(a - p.along) <= CLOSE_M}
 
     def ring_side(self, side: int) -> float:
         return max(min(self.ring_m, self._reach(-side) + self.ring_balance_m), self.ring_floor_m[side])
@@ -921,6 +928,7 @@ class Session:
         scanned, found = self._scan_all([p for p, _ in shots])
         for p, _ in shots:
             self._mark_seen_close(p)
+        self._note_searched([p for p, _ in shots])
         for at, label, widens in self._anchors():
             if len(shots) >= MAX_OPENINGS or abs(at - start) < SWEEP_TARGET_M:
                 continue

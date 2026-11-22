@@ -811,6 +811,17 @@ def test_one_side_reaches_no_further_than_50_m_beyond_the_other(tmp_path):
     s.sweep(at_m=reach_behind + 60)
 
 
+def test_an_opening_at_a_far_estimate_does_not_count_toward_the_balance(tmp_path):
+    s = scanning_session(tmp_path, FakeScanner())
+    s.__init__(misplaced_osm_world(), s.run_dir, s.image_cache, s.metadata, s.fetch_image, s.confirmer,
+               s.tile_source, scanner=s.scanner)
+    s.begin()
+    assert state_at(s, 100) == "seen_close"
+    assert s._reach(1) < 40
+    s.aimed = 8
+    assert s.ring_side(-1) < 90
+
+
 def test_balance_gives_way_when_the_other_side_has_nothing_left(tmp_path):
     s = scanning_session(tmp_path, FakeScanner())
     s.begin()

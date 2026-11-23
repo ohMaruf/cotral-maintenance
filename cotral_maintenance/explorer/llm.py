@@ -401,16 +401,17 @@ class LlmConfirmer:
         raise ConfirmerError("; ".join(problems))
 
 
-SCAN_PROMPT = ("PHOTO: a street-level photo of a roadside. 1) Is a Cotral bus stop sign like the REFERENCE anywhere "
-               "in it? It can be small, far away, blurry, partly hidden or seen at an angle; the panel is the same on "
-               "both sides. 2) Where does something stand in front of the roadside, between the camera and where a "
+SCAN_PROMPT = ("PHOTO: a street-level photo of a roadside. 1) Where is a Cotral bus stop sign like the REFERENCE in "
+               "it? It can be small, far away, blurry, partly hidden or seen at an angle; the panel is the same on "
+               "both sides. There may be more than one, for example one on each side of the road: give every one. "
+               "2) Where does something stand in front of the roadside, between the camera and where a "
                "sign pole would stand, big enough to hide a sign: a tree or its foliage, a hedge or bush, a parked "
                "van, truck or bus, a kiosk, another sign or its pole? Only what stands between the camera and the kerb: a "
                "wall, fence, hedge or building BEHIND the sidewalk hides nothing. Reply with JSON only: "
-               '{"sign": true, "x": X, "y": Y, "cover": [[X_FROM, X_TO], ...]} with X, Y the centre of the sign and '
-               "X_FROM, X_TO the left and right edges of each thing in front, on a 0-1000 grid of the photo (0,0 top "
-               'left, 1000,1000 bottom right); "sign": false and no x, y when there is no sign; "cover": [] when '
-               "nothing could hide one.")
+               '{"signs": [{"x": X, "y": Y}, ...], "cover": [[X_FROM, X_TO], ...]} with X, Y the centre of each sign '
+               "and X_FROM, X_TO the left and right edges of each thing in front, on a 0-1000 grid of the photo (0,0 "
+               'top left, 1000,1000 bottom right); "signs": [] when there is no sign; "cover": [] when nothing could '
+               "hide one.")
 
 
 class LlmScanner:
@@ -447,17 +448,22 @@ def parse_scan(text: str) -> ScanReply | None:
             j, _ = decoder.raw_decode(text, start)
         except json.JSONDecodeError:
             continue
-        if isinstance(j, dict) and isinstance(j.get("sign"), bool):
+        if isinstance(j, dict) and (isinstance(j.get("signs"), list) or isinstance(j.get("sign"), bool)):
             break
     else:
         return None
     cover = _cover(j.get("cover"))
-    if j["sign"] is False:
-        return ScanReply(None, cover)
-    x, y = _number(j.get("x")), _number(j.get("y"))
-    if x is None or y is None:
-        return None
-    return ScanReply((_on_grid(x), _on_grid(y)), cover)
+    if "signs" not in j:
+        j["signs"] = [j] if j["sign"] else []
+    signs = []
+    for s in j["signs"]:
+        if not isinstance(s, dict):
+            return None
+        x, y = _number(s.get("x")), _number(s.get("y"))
+        if x is None or y is None:
+            return None
+        signs.append((_on_grid(x), _on_grid(y)))
+    return ScanReply(signs, cover)
 
 
 def _cover(value) -> list[tuple[float, float]]:

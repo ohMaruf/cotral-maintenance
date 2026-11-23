@@ -841,6 +841,23 @@ def test_a_confirmed_candidate_left_of_the_path_is_not_submitted(session):
     assert session.outcome is None
 
 
+def test_a_confirmed_candidate_of_unknown_side_is_not_submitted(session):
+    session.candidates.append(Candidate(1, "sign", [], 0.0, 0.0, 10.0, -0.01, status="confirmed", basis="ground_range"))
+    with pytest.raises(ToolError, match="which side of the road"):
+        session.submit_found(1)
+    session.finish("turn cap")
+    assert session.outcome == {"status": "not_found", "reason": "turn cap"}
+
+
+def test_a_plate_with_this_stops_id_settles_an_unknown_side(session):
+    session.begin()
+    session.candidates.append(Candidate(1, "sign", [(1, 0.0, 0.0)], *FRAME.to_latlon(320.0, -6.0), 20.0, -0.01,
+                                        status="confirmed", basis="ground_range",
+                                        plate_text=session.world.stop.stop_id))
+    session.submit_found(1)
+    assert session.outcome["status"] == "found"
+
+
 def test_an_osm_start_has_a_tighter_ring(tmp_path):
     s = make_session(tmp_path, osm_start_world())
     s.begin()
@@ -932,7 +949,8 @@ class FakeScanner:
         from PIL import Image
         self.seen.append((piece.name, Image.open(piece).size))
         covered = int(piece.name.split("_")[0]) in self.cover_photos
-        return ScanReply(self.hits.get(len(self.seen)), [(0.0, 1000.0)] if covered else [])
+        hit = self.hits.get(len(self.seen), [])
+        return ScanReply(hit if isinstance(hit, list) else [hit], [(0.0, 1000.0)] if covered else [])
 
 
 def scanning_session(tmp_path, scanner, confirmer=None) -> Session:
@@ -957,11 +975,19 @@ def test_a_scan_hit_becomes_a_zoom_judged_by_the_confirmer(tmp_path):
     s = scanning_session(tmp_path, scanner, FakeConfirmer(fermata_or_bus_text="yes", cotral_logo="yes"))
     result = s.begin()
     zoom = s.photos[2]
-    hit_bearing = s.scans[0]["pieces"][0]["hit"][0]
+    hit_bearing = s.scans[0]["pieces"][0]["hits"][0][0]
     assert zoom.toward == "zoom" and zoom.parent == 1 and s.scans[0]["zooms"] == [3]
     assert abs(angle_diff(zoom.heading, hit_bearing)) <= 1.5
     assert "possible stop sign" in result.text and s.candidates[0].status == "confirmed"
     assert s._file(zoom) in result.images
+
+
+def test_every_sign_in_a_scan_piece_gets_a_zoom_ours_first(tmp_path):
+    s = scanning_session(tmp_path, FakeScanner({1: [(100.0, 500.0), (900.0, 500.0)]}))
+    s.begin()
+    across, ours = s.scans[0]["pieces"][0]["hits"]
+    first, second = (s._photo(i) for i in s.scans[0]["zooms"])
+    assert abs(angle_diff(first.heading, ours[0])) <= 1.5 and abs(angle_diff(second.heading, across[0])) <= 1.5
 
 
 def test_scan_tiles_are_capped(tmp_path, monkeypatch):
@@ -1016,16 +1042,20 @@ def test_a_plate_with_this_stops_id_or_a_neighbours_is_named(tmp_path):
 
 def test_a_scan_reply_carries_the_sign_and_what_stands_in_front():
     from cotral_maintenance.explorer.llm import parse_scan
-    assert parse_scan('{"sign": false, "cover": [[100, 300], [700, 650]]}') == ScanReply(None, [(100.0, 300.0), (650.0, 700.0)])
+    assert parse_scan('{"sign": false, "cover": [[100, 300], [700, 650]]}') == ScanReply([], [(100.0, 300.0), (650.0, 700.0)])
     assert parse_scan('{"sign": false, "cover": 1}') == parse_scan('{"sign": false, "cover": true}') == ScanReply()
     assert parse_scan('{"sign": false, "cover": [100, 300]}').cover == [(100.0, 300.0)]
     assert parse_scan('{"sign": false, "cover": [{"x_from": 10, "x_to": 20}]}').cover == [(10.0, 20.0)]
     assert parse_scan('{"sign": false, "cover": [[100, 300, "tree"], ["5", "9"]]}').cover == [(100.0, 300.0), (5.0, 9.0)]
     assert parse_scan('```json\n{"sign": false}\n```\nNote: {"maybe": 1}') == ScanReply()
-    assert parse_scan('```json\n{"sign": true, "x": 400, "y": 1200, "cover": []}\n```') == ScanReply((400.0, 1000.0), [])
-    assert parse_scan('{"sign": false}') == ScanReply(None, [])
-    assert parse_scan('{"sign": false, "cover": [[1, "a"], 5]}') == ScanReply(None, [])
+    assert parse_scan('```json\n{"sign": true, "x": 400, "y": 1200, "cover": []}\n```') == ScanReply([(400.0, 1000.0)], [])
+    assert parse_scan('{"sign": false}') == ScanReply([], [])
+    assert parse_scan('{"sign": false, "cover": [[1, "a"], 5]}') == ScanReply([], [])
     assert parse_scan('{"sign": true}') is None and parse_scan("no") is None
+    assert parse_scan('{"signs": [{"x": 57, "y": 339}, {"x": 345, "y": 330}], "cover": [[68, 355]]}') == \
+        ScanReply([(57.0, 339.0), (345.0, 330.0)], [(68.0, 355.0)])
+    assert parse_scan('{"signs": [], "cover": []}') == ScanReply()
+    assert parse_scan('{"signs": [{"x": 5}]}') is None and parse_scan('{"signs": [3]}') is None
 
 
 def osm_start_world():

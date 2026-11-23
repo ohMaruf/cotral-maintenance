@@ -88,7 +88,7 @@ FetchImage = Callable[[str, float, float, float, int, int], bytes]
 
 @dataclass
 class ScanReply:
-    sign: tuple[float, float] | None = None
+    signs: list[tuple[float, float]] = field(default_factory=list)
     cover: list[tuple[float, float]] = field(default_factory=list)
 
 
@@ -326,6 +326,9 @@ class Session:
             if offset < -2:
                 text += (" WARNING: this is LEFT of the path; the stop is always on the right-hand sidewalk"
                          " of travel. Check you clicked the right object.")
+            elif basis == "ground_range":
+                text += (" Its sight line never reaches the right-hand sidewalk: which side of the road it is on is "
+                         "unknown until another panorama sees it.")
             text += (f" Next: confirm({c.index})." if p.toward in CLOSE_VIEWS else
                      f" To confirm it, zoom on it first and mark it on the zoom (same panorama: a new candidate).")
         return self._log("mark_candidate", args, ToolResult(text + "\n\n" + self._state()))
@@ -415,6 +418,10 @@ class Session:
             raise ToolError(f"candidate {candidate} is {-c.offset:.0f} m left of the path centre line: the stop is on "
                             f"the right-hand sidewalk, so it is something else (another stop or a sign for the other "
                             f"direction)")
+        if c.basis == "ground_range" and not plate_matches(c.plate_text, self.world.stop.stop_id):
+            raise ToolError(f"candidate {candidate}'s sight line never reaches the right-hand sidewalk, so the harness "
+                            f"cannot tell which side of the road it is on: it may be the sign for the other direction. "
+                            f"look_from({candidate}) places it from another panorama")
         target = self.world.frame.to_xy(c.lat, c.lon)
         for o in self.world.found:
             if math.dist(target, self.world.frame.to_xy(o.lat, o.lon)) <= FOUND_OTHER_M:
@@ -689,16 +696,16 @@ class Session:
             file = folder / f"{photo.index:02d}_{len(pieces) + 1}.jpg"
             image.crop((left, 0, right, strip.height)).save(file, quality=92)
             answer = self.scanner(file)
-            piece = {"file": str(file.relative_to(self.run_dir)), "left": left, "width": right - left, "hit": None,
+            piece = {"file": str(file.relative_to(self.run_dir)), "left": left, "width": right - left, "hits": [],
                      "cover": [], "failed": answer is None}
             if answer is None:
                 failed += 1
                 answer = ScanReply()
-            if answer.sign is not None:
-                px = left + answer.sign[0] / GRID * (right - left)
-                py = answer.sign[1] / GRID * strip.height
-                piece["hit"] = [strip.bearing_of(px), strip.elevation_of(py)]
-                hits.append(piece["hit"])
+            for sx, sy in answer.signs:
+                px = left + sx / GRID * (right - left)
+                py = sy / GRID * strip.height
+                piece["hits"].append([strip.bearing_of(px), strip.elevation_of(py)])
+            hits += piece["hits"]
             for x0, x1 in answer.cover:
                 b0 = strip.bearing_of(left + min(x0, x1) / GRID * (right - left))
                 b1 = strip.bearing_of(left + max(x0, x1) / GRID * (right - left))
@@ -721,6 +728,7 @@ class Session:
             blocked += (f" The scan got no answer on {failed} of {len(pieces)} pieces: this photo counts as seen close "
                         f"only where a sign would look clear in the photo itself.")
         kept: list[list[float]] = []
+        hits.sort(key=lambda h: ray_to_sidewalk(self.world.path, camera.position, h[0]) is None)
         for h in hits:
             if len(kept) < SCAN_HITS and all(abs(angle_diff(h[0], k[0])) > SCAN_SAME_DEG for k in kept):
                 kept.append(h)
@@ -788,6 +796,10 @@ class Session:
         self._record_judgement(c, view, checklist, result)
         if result.confirmed:
             self.candidates.append(c)
+            if c.basis == "ground_range":
+                return (f"JUDGED by the confirmer: {self._heard(checklist)}. Candidate {c.index} CONFIRMED "
+                        f"({c.evidence}), {self._describe(c)} Its sight line never reaches the right-hand sidewalk, so "
+                        f"its side of the road is unknown: look_from({c.index}) before submit_found({c.index}).")
             return (f"JUDGED by the confirmer: {self._heard(checklist)}. Candidate {c.index} CONFIRMED ({c.evidence}), "
                     f"{self._describe(c)} submit_found({c.index}); look_from({c.index}) first triangulates its position.")
         a = checklist.answers
